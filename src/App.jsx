@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -387,15 +387,36 @@ const getWeekStartFromDate = (date) => {
 // Components
 const NAV_ITEMS = [
   { id: 'dashboard', icon: Home, label: 'Home' },
-  { id: 'tracker', icon: Calendar, label: 'Tracker' },
-  { id: 'scorecard', icon: BarChart3, label: 'Score' },
-  { id: 'add', icon: Plus, label: 'Add' },
-  { id: 'quotes', icon: Quote, label: 'Quotes' },
-  { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' }
+  { id: 'feed', icon: Users, label: 'Feed' },
+  { id: 'compete', icon: Trophy, label: 'Compete' },
+  { id: 'tracker', icon: Calendar, label: 'Track' },
+  { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
 ];
 
+// Emoji reactions
+const REACTIONS = ['👍', '🔥', '💪', '🎉', '❤️', '👏'];
+
 const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
-  const desktopLabels = { 'dashboard': 'Dashboard', 'tracker': 'Tracker', 'scorecard': 'Scorecard', 'add': 'Add Habit', 'quotes': 'Quotes', 'ai-coach': 'AI Coach' };
+  const desktopLabels = { 
+    'dashboard': 'Dashboard', 
+    'feed': 'Community Feed',
+    'compete': 'Compete',
+    'tracker': 'Habit Tracker', 
+    'scorecard': 'Scorecard', 
+    'add': 'Add Habit', 
+    'quotes': 'Quotes', 
+    'ai-coach': 'AI Coach' 
+  };
+  const allNavItems = [
+    { id: 'dashboard', icon: Home, label: 'Home' },
+    { id: 'feed', icon: Users, label: 'Feed' },
+    { id: 'compete', icon: Trophy, label: 'Compete' },
+    { id: 'tracker', icon: Calendar, label: 'Track' },
+    { id: 'scorecard', icon: BarChart3, label: 'Score' },
+    { id: 'add', icon: Plus, label: 'Add' },
+    { id: 'quotes', icon: Quote, label: 'Quotes' },
+    { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
+  ];
   return (
   <div className="hidden md:flex w-56 bg-white border-r border-gray-100 min-h-screen p-4 flex-col">
     <div className="flex items-center gap-2 mb-6">
@@ -403,7 +424,7 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
       <span className="text-lg font-bold text-[#1E3A5F]">Accountability</span>
     </div>
     <nav className="flex-1 space-y-1">
-      {NAV_ITEMS.map(item => (
+      {allNavItems.map(item => (
         <button key={item.id} onClick={() => setActiveView(item.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${activeView === item.id ? 'bg-[#F5F3E8] text-[#0F2940] font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
           <item.icon className="w-4 h-4" />{desktopLabels[item.id] || item.label}
         </button>
@@ -589,13 +610,27 @@ export default function AccountabilityTracker() {
   const [quotes, setQuotes] = useState([]);
   const [quoteLoading, setQuoteLoading] = useState(false);
   
-  // Weekly Check-ins state
+  // Feed/Posts state
+  const [posts, setPosts] = useState([]);
+  const [newPostText, setNewPostText] = useState('');
+  const [newPostImage, setNewPostImage] = useState(null);
+  const [postImagePreview, setPostImagePreview] = useState(null);
+  const [showComments, setShowComments] = useState({});
+  const [commentTexts, setCommentTexts] = useState({});
+  
+  // Bets/Challenges state
+  const [bets, setBets] = useState([]);
+  const [newBet, setNewBet] = useState({ challenger: '', challenged: '', goal: '', amount: '', deadline: '' });
+  const [showNewBet, setShowNewBet] = useState(false);
+  
+  // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
   const [checkInText, setCheckInText] = useState('');
   const [checkInWins, setCheckInWins] = useState('');
   const [checkInChallenges, setCheckInChallenges] = useState('');
   
   const calendarRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Set favicon on mount
   useEffect(() => {
@@ -688,6 +723,48 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
+  // Posts Firestore listener
+  useEffect(() => {
+    if (!user) {
+      setPosts([]);
+      return;
+    }
+
+    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const postsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setPosts(postsData);
+    }, (error) => {
+      console.error('Posts error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Bets Firestore listener
+  useEffect(() => {
+    if (!user) {
+      setBets([]);
+      return;
+    }
+
+    const q = query(collection(db, 'bets'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const betsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setBets(betsData);
+    }, (error) => {
+      console.error('Bets error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
   // Calculate streaks for each participant
   const calculateStreaks = useMemo(() => {
     const streaks = {};
@@ -770,6 +847,163 @@ export default function AccountabilityTracker() {
   const deleteCheckIn = async (checkInId) => {
     if (window.confirm('Delete this check-in?')) {
       await deleteDoc(doc(db, 'checkIns', checkInId));
+    }
+  };
+
+  // Handle image selection for post
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image must be less than 5MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewPostImage(reader.result);
+        setPostImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Create new post
+  const createPost = async () => {
+    if (!newPostText.trim() && !newPostImage) return;
+    
+    const post = {
+      id: `post_${Date.now()}`,
+      author: user.displayName || 'Anonymous',
+      authorPhoto: user.photoURL || null,
+      authorId: user.uid,
+      content: newPostText,
+      image: newPostImage,
+      reactions: {},
+      comments: [],
+      createdAt: new Date().toISOString()
+    };
+    
+    await setDoc(doc(db, 'posts', post.id), post);
+    setNewPostText('');
+    setNewPostImage(null);
+    setPostImagePreview(null);
+  };
+
+  // Add reaction to post
+  const addReaction = async (postId, emoji) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+    
+    const reactions = { ...post.reactions };
+    const userKey = user.uid;
+    
+    if (reactions[emoji]?.includes(userKey)) {
+      // Remove reaction
+      reactions[emoji] = reactions[emoji].filter(id => id !== userKey);
+      if (reactions[emoji].length === 0) delete reactions[emoji];
+    } else {
+      // Add reaction
+      if (!reactions[emoji]) reactions[emoji] = [];
+      reactions[emoji].push(userKey);
+    }
+    
+    await setDoc(doc(db, 'posts', postId), { ...post, reactions }, { merge: true });
+  };
+
+  // Add comment to post
+  const addComment = async (postId) => {
+    const commentText = commentTexts[postId];
+    if (!commentText?.trim()) return;
+    
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+    
+    const newComment = {
+      id: `comment_${Date.now()}`,
+      author: user.displayName || 'Anonymous',
+      authorPhoto: user.photoURL || null,
+      authorId: user.uid,
+      text: commentText,
+      createdAt: new Date().toISOString()
+    };
+    
+    const comments = [...(post.comments || []), newComment];
+    await setDoc(doc(db, 'posts', postId), { ...post, comments }, { merge: true });
+    setCommentTexts({ ...commentTexts, [postId]: '' });
+  };
+
+  // Delete post
+  const deletePost = async (postId) => {
+    if (window.confirm('Delete this post?')) {
+      await deleteDoc(doc(db, 'posts', postId));
+    }
+  };
+
+  // Create new bet/challenge
+  const createBet = async () => {
+    if (!newBet.challenged || !newBet.goal || !newBet.amount) return;
+    
+    const bet = {
+      id: `bet_${Date.now()}`,
+      challenger: user.displayName || 'Anonymous',
+      challengerId: user.uid,
+      challengerPhoto: user.photoURL,
+      challenged: newBet.challenged,
+      goal: newBet.goal,
+      amount: newBet.amount,
+      deadline: newBet.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      status: 'pending', // pending, accepted, declined, completed, won, lost
+      acceptedAt: null,
+      completedAt: null,
+      winner: null,
+      createdAt: new Date().toISOString()
+    };
+    
+    await setDoc(doc(db, 'bets', bet.id), bet);
+    setNewBet({ challenger: '', challenged: '', goal: '', amount: '', deadline: '' });
+    setShowNewBet(false);
+  };
+
+  // Accept bet
+  const acceptBet = async (betId) => {
+    const bet = bets.find(b => b.id === betId);
+    if (!bet) return;
+    
+    await setDoc(doc(db, 'bets', betId), { 
+      ...bet, 
+      status: 'accepted',
+      acceptedAt: new Date().toISOString()
+    }, { merge: true });
+  };
+
+  // Decline bet
+  const declineBet = async (betId) => {
+    const bet = bets.find(b => b.id === betId);
+    if (!bet) return;
+    
+    await setDoc(doc(db, 'bets', betId), { 
+      ...bet, 
+      status: 'declined'
+    }, { merge: true });
+  };
+
+  // Complete bet (mark winner)
+  const completeBet = async (betId, winnerId) => {
+    const bet = bets.find(b => b.id === betId);
+    if (!bet) return;
+    
+    await setDoc(doc(db, 'bets', betId), { 
+      ...bet, 
+      status: 'completed',
+      winner: winnerId,
+      completedAt: new Date().toISOString()
+    }, { merge: true });
+  };
+
+  // Delete bet
+  const deleteBet = async (betId) => {
+    if (window.confirm('Delete this bet?')) {
+      await deleteDoc(doc(db, 'bets', betId));
     }
   };
 
@@ -1280,208 +1514,591 @@ export default function AccountabilityTracker() {
         </div>
 
         {activeView === 'dashboard' && (
-          <div className="space-y-4">
-            {/* Quote of the Week */}
-            {currentQuote && (
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 md:p-6 border border-amber-200">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Quote className="w-5 h-5 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-700">Quote of the Week</span>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {/* Main content - left 3 columns */}
+            <div className="lg:col-span-3 space-y-4">
+              {/* Quote of the Week - compact */}
+              {currentQuote && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Quote className="w-4 h-4 text-amber-600" />
+                    <span className="text-xs font-medium text-amber-700">Quote of the Week</span>
                   </div>
-                  <button 
-                    onClick={() => downloadQuotePPTX(currentQuote)}
-                    className="flex items-center gap-1 px-2 py-1 bg-amber-100 hover:bg-amber-200 rounded-lg text-xs text-amber-700 transition-colors"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span className="hidden md:inline">Download</span>
-                  </button>
+                  <blockquote className="text-sm md:text-base font-medium text-gray-800 italic">"{currentQuote.quote}"</blockquote>
+                  <p className="text-xs text-gray-600 mt-1">— {currentQuote.author}</p>
                 </div>
-                <blockquote className="text-lg md:text-xl font-medium text-gray-800 mb-2 italic">
-                  "{currentQuote.quote}"
-                </blockquote>
-                <p className="text-sm text-gray-600">— {currentQuote.author}, <span className="text-amber-600">{currentQuote.authorTitle}</span></p>
-                <p className="text-xs text-gray-500 mt-2">{currentQuote.whyItMatters}</p>
+              )}
+              
+              {/* Stats row */}
+              <div className="grid grid-cols-4 gap-2">
+                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <Target className="w-4 h-4 text-purple-500" />
+                    <span className="text-xs text-green-600">+{overallStats.trend}%</span>
+                  </div>
+                  <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.rate}%</p>
+                  <p className="text-xs text-gray-500">Completion</p>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                  <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                  <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.total}</p>
+                  <p className="text-xs text-gray-500">Total</p>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                  <Award className="w-4 h-4 text-green-500" />
+                  <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.exceeded}</p>
+                  <p className="text-xs text-gray-500">Exceeded</p>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                  <XCircle className="w-4 h-4 text-red-500" />
+                  <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.missed}</p>
+                  <p className="text-xs text-gray-500">Missed</p>
+                </div>
               </div>
-            )}
-            
-            <div className="flex gap-2 flex-wrap">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}>{v}</button>)}</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard title="Completion Rate" value={`${overallStats.rate}%`} icon={Target} trend={`+${overallStats.trend}%`} trendUp={true} color="purple" />
-              <StatCard title="Total Habits" value={overallStats.total} icon={CheckCircle2} color="blue" />
-              <StatCard title="Exceeded" value={overallStats.exceeded} icon={Award} color="green" />
-              <StatCard title="Missed" value={overallStats.missed} icon={XCircle} color="orange" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2 bg-white rounded-2xl p-4 border border-gray-100">
+              
+              {/* Chart and breakdown side by side */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 bg-white rounded-xl p-4 border border-gray-100">
+                  <h3 className="font-semibold text-gray-800 text-sm mb-2">Completion Trend</h3>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <AreaChart data={weeklyTrendData.slice(-8)}>
+                      <defs>{PARTICIPANTS.map(p => <linearGradient key={p} id={`g-${p}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PARTICIPANT_COLORS[p]} stopOpacity={0.15} /><stop offset="95%" stopColor={PARTICIPANT_COLORS[p]} stopOpacity={0} /></linearGradient>)}</defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="week" tick={{ fill: '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontSize: 10 }} />
+                      {PARTICIPANTS.map(p => <Area key={p} type="monotone" dataKey={p} stroke={PARTICIPANT_COLORS[p]} strokeWidth={2} fill={`url(#g-${p})`} />)}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <h3 className="font-semibold text-gray-800 text-sm mb-2">Status</h3>
+                  <ResponsiveContainer width="100%" height={100}>
+                    <RechartsPie><Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={25} outerRadius={40} paddingAngle={3} dataKey="value">{statusDistribution.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie></RechartsPie>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap justify-center gap-1 mt-1">{statusDistribution.slice(0,3).map(s => <span key={s.name} className="text-[10px] text-gray-500">{s.name}:{s.value}</span>)}</div>
+                </div>
+              </div>
+              
+              {/* Participant Performance - compact */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <h3 className="font-semibold text-gray-800 text-sm mb-3">Performance</h3>
+                <div className="space-y-2">{participantData.map(p => <div key={p.name} className="flex items-center gap-2"><div className="w-14 text-xs font-medium text-gray-700">{p.name}</div><div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.rate}%`, backgroundColor: p.color }} /></div><div className="w-8 text-right text-xs font-semibold" style={{ color: p.color }}>{p.rate}%</div></div>)}</div>
+              </div>
+              
+              {/* Recent Activity */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-800 text-sm">Completion Trend</h3>
-                  <div className="flex gap-3">{PARTICIPANTS.map(p => <div key={p} className="flex items-center gap-1 text-xs"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: PARTICIPANT_COLORS[p] }} /><span className="text-gray-500">{p}</span></div>)}</div>
+                  <h3 className="font-semibold text-gray-800 text-sm">Recent Activity</h3>
+                  <button onClick={() => setActiveView('feed')} className="text-xs text-[#1E3A5F] hover:underline">View all →</button>
                 </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={weeklyTrendData.slice(-8)}>
-                    <defs>{PARTICIPANTS.map(p => <linearGradient key={p} id={`g-${p}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PARTICIPANT_COLORS[p]} stopOpacity={0.15} /><stop offset="95%" stopColor={PARTICIPANT_COLORS[p]} stopOpacity={0} /></linearGradient>)}</defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="week" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontSize: 11 }} />
-                    {PARTICIPANTS.map(p => <Area key={p} type="monotone" dataKey={p} stroke={PARTICIPANT_COLORS[p]} strokeWidth={2} fill={`url(#g-${p})`} />)}
-                  </AreaChart>
-                </ResponsiveContainer>
+                {posts.slice(0, 2).map(post => (
+                  <div key={post.id} className="flex gap-2 p-2 bg-gray-50 rounded-lg mb-2">
+                    {post.authorPhoto ? <img src={post.authorPhoto} className="w-6 h-6 rounded-full" alt="" /> : <div className="w-6 h-6 rounded-full bg-[#1E3A5F] text-white text-xs flex items-center justify-center">{post.author?.[0]}</div>}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-800">{post.author}</p>
+                      <p className="text-xs text-gray-600 truncate">{post.content}</p>
+                    </div>
+                  </div>
+                ))}
+                {posts.length === 0 && <p className="text-xs text-gray-400 text-center py-2">No posts yet</p>}
               </div>
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <h3 className="font-semibold text-gray-800 text-sm mb-3">Status Breakdown</h3>
-                <ResponsiveContainer width="100%" height={140}>
-                  <RechartsPie><Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={3} dataKey="value">{statusDistribution.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie><Tooltip /></RechartsPie>
-                </ResponsiveContainer>
-                <div className="flex flex-wrap justify-center gap-2 mt-2">{statusDistribution.map(s => <div key={s.name} className="flex items-center gap-1 text-xs"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} /><span className="text-gray-500">{s.name} ({s.value})</span></div>)}</div>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-100">
-              <h3 className="font-semibold text-gray-800 text-sm mb-3">Participant Performance</h3>
-              <div className="space-y-2">{participantData.map(p => <div key={p.name} className="flex items-center gap-2"><div className="w-16 text-sm font-medium text-gray-700">{p.name}</div><div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${p.rate}%`, backgroundColor: p.color }} /></div><div className="w-10 text-right text-sm font-semibold" style={{ color: p.color }}>{p.rate}%</div><div className="w-16 text-right text-xs text-gray-400">{p.completed}/{p.total}</div></div>)}</div>
             </div>
             
-            {/* NEW: Leaderboard & Streaks */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Right sidebar - Leaderboard & Streaks */}
+            <div className="space-y-4">
               {/* Leaderboard */}
-              <div className="bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] rounded-2xl p-4 text-white">
-                <div className="flex items-center gap-2 mb-4">
-                  <Trophy className="w-5 h-5 text-[#F5B800]" />
-                  <h3 className="font-semibold">Leaderboard</h3>
+              <div className="bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] rounded-xl p-4 text-white">
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy className="w-4 h-4 text-[#F5B800]" />
+                  <h3 className="font-semibold text-sm">Leaderboard</h3>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {leaderboard.map((p, i) => (
-                    <div key={p.name} className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${i === 0 ? 'bg-[#F5B800] text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
-                        {i === 0 ? <Crown className="w-4 h-4" /> : i === 1 ? <Medal className="w-4 h-4" /> : i === 2 ? <Award className="w-4 h-4" /> : <span className="text-sm font-bold">{i + 1}</span>}
+                    <div key={p.name} className="flex items-center gap-2">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${i === 0 ? 'bg-[#F5B800] text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
+                        {i === 0 ? '👑' : i + 1}
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium">{p.name}</p>
-                        <p className="text-xs text-white/60">{p.rate}% completion</p>
+                        <p className="text-sm font-medium">{p.name}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-[#F5B800]">{p.score}</p>
-                        <p className="text-xs text-white/60">points</p>
-                      </div>
+                      <p className="text-sm font-bold text-[#F5B800]">{p.score}</p>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setActiveView('compete')} className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors">
+                  View Challenges →
+                </button>
+              </div>
+              
+              {/* Streaks - compact */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  <h3 className="font-semibold text-gray-800 text-sm">Streaks</h3>
+                </div>
+                <div className="space-y-2">
+                  {PARTICIPANTS.map(p => (
+                    <div key={p} className="flex items-center gap-2">
+                      <span className="text-sm">🔥</span>
+                      <span className="flex-1 text-xs text-gray-700">{p}</span>
+                      <span className="text-sm font-bold text-orange-500">{calculateStreaks[p] || 0}</span>
                     </div>
                   ))}
                 </div>
               </div>
               
-              {/* Streaks */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <div className="flex items-center gap-2 mb-4">
-                  <Flame className="w-5 h-5 text-orange-500" />
-                  <h3 className="font-semibold text-gray-800">Weekly Streaks</h3>
+              {/* Active Bets Preview */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <Swords className="w-4 h-4 text-purple-500" />
+                  <h3 className="font-semibold text-gray-800 text-sm">Active Bets</h3>
                 </div>
-                <p className="text-xs text-gray-500 mb-4">Consecutive weeks with 70%+ completion</p>
-                <div className="space-y-3">
-                  {PARTICIPANTS.map(p => {
-                    const streak = calculateStreaks[p] || 0;
-                    return (
-                      <div key={p} className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: PARTICIPANT_COLORS[p] + '20' }}>
-                          <span className="text-lg">🔥</span>
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-800">{p}</p>
-                          <div className="flex gap-1 mt-1">
-                            {[...Array(Math.min(streak, 10))].map((_, i) => (
-                              <div key={i} className="w-3 h-3 rounded-full bg-orange-400" />
-                            ))}
-                            {streak > 10 && <span className="text-xs text-gray-400">+{streak - 10}</span>}
-                            {streak === 0 && <span className="text-xs text-gray-400">No streak yet</span>}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-orange-500">{streak}</p>
-                          <p className="text-xs text-gray-400">weeks</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                {bets.filter(b => b.status === 'accepted').slice(0, 2).map(bet => (
+                  <div key={bet.id} className="p-2 bg-purple-50 rounded-lg mb-2">
+                    <p className="text-xs font-medium text-purple-800">{bet.challenger} vs {bet.challenged}</p>
+                    <p className="text-[10px] text-purple-600">${bet.amount} - {bet.goal}</p>
+                  </div>
+                ))}
+                {bets.filter(b => b.status === 'accepted').length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-2">No active bets</p>
+                )}
+                <button onClick={() => setActiveView('compete')} className="w-full mt-2 py-1.5 bg-purple-100 hover:bg-purple-200 rounded-lg text-xs font-medium text-purple-700 transition-colors">
+                  Create Challenge
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FEED VIEW */}
+        {activeView === 'feed' && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            {/* Create Post */}
+            <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className="flex gap-3">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} className="w-10 h-10 rounded-full" alt="" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center font-medium">
+                    {user?.displayName?.[0] || '?'}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <textarea
+                    value={newPostText}
+                    onChange={(e) => setNewPostText(e.target.value)}
+                    placeholder="Share an update, win, or challenge..."
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800] resize-none"
+                    rows={3}
+                  />
+                  {postImagePreview && (
+                    <div className="relative mt-2">
+                      <img src={postImagePreview} alt="Preview" className="max-h-48 rounded-lg" />
+                      <button 
+                        onClick={() => { setNewPostImage(null); setPostImagePreview(null); }}
+                        className="absolute top-2 right-2 w-6 h-6 bg-black/50 rounded-full text-white flex items-center justify-center"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageSelect}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-600 transition-colors"
+                      >
+                        <Image className="w-4 h-4" />
+                        Photo
+                      </button>
+                    </div>
+                    <button 
+                      onClick={createPost}
+                      disabled={!newPostText.trim() && !newPostImage}
+                      className="px-4 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors disabled:opacity-50"
+                    >
+                      Post
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
             
-            {/* NEW: Weekly Check-in */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-100">
-              <div className="flex items-center gap-2 mb-4">
-                <MessageSquare className="w-5 h-5 text-[#1E3A5F]" />
-                <h3 className="font-semibold text-gray-800">Weekly Check-in</h3>
+            {/* Posts Feed */}
+            {posts.map(post => (
+              <div key={post.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                {/* Post Header */}
+                <div className="p-4 pb-0">
+                  <div className="flex items-start gap-3">
+                    {post.authorPhoto ? (
+                      <img src={post.authorPhoto} className="w-10 h-10 rounded-full" alt="" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center font-medium">
+                        {post.author?.[0] || '?'}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-800">{post.author}</p>
+                        <span className="text-xs text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-gray-700 mt-1 whitespace-pre-wrap">{post.content}</p>
+                    </div>
+                    {post.authorId === user?.uid && (
+                      <button onClick={() => deletePost(post.id)} className="text-gray-300 hover:text-red-400">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Post Image */}
+                {post.image && (
+                  <div className="mt-3">
+                    <img src={post.image} alt="" className="w-full max-h-96 object-cover" />
+                  </div>
+                )}
+                
+                {/* Reactions */}
+                <div className="px-4 py-3 border-t border-gray-100 mt-3">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {REACTIONS.map(emoji => {
+                      const count = post.reactions?.[emoji]?.length || 0;
+                      const hasReacted = post.reactions?.[emoji]?.includes(user?.uid);
+                      return (
+                        <button
+                          key={emoji}
+                          onClick={() => addReaction(post.id, emoji)}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm transition-colors ${hasReacted ? 'bg-[#F5B800]/20 border border-[#F5B800]' : 'bg-gray-100 hover:bg-gray-200'}`}
+                        >
+                          <span>{emoji}</span>
+                          {count > 0 && <span className="text-xs text-gray-600">{count}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Comments Section */}
+                <div className="px-4 pb-4">
+                  <button 
+                    onClick={() => setShowComments({ ...showComments, [post.id]: !showComments[post.id] })}
+                    className="text-xs text-gray-500 hover:text-gray-700 mb-2"
+                  >
+                    {post.comments?.length || 0} comments
+                  </button>
+                  
+                  {showComments[post.id] && (
+                    <div className="space-y-2">
+                      {post.comments?.map(comment => (
+                        <div key={comment.id} className="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                          {comment.authorPhoto ? (
+                            <img src={comment.authorPhoto} className="w-6 h-6 rounded-full" alt="" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center">
+                              {comment.author?.[0]}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-xs font-medium text-gray-800">{comment.author}</p>
+                            <p className="text-xs text-gray-600">{comment.text}</p>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Add Comment */}
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={commentTexts[post.id] || ''}
+                          onChange={(e) => setCommentTexts({ ...commentTexts, [post.id]: e.target.value })}
+                          placeholder="Write a comment..."
+                          className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#F5B800]"
+                          onKeyPress={(e) => e.key === 'Enter' && addComment(post.id)}
+                        />
+                        <button 
+                          onClick={() => addComment(post.id)}
+                          className="px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-xs hover:bg-[#162D4D]"
+                        >
+                          <Send className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">🎉 Wins this week</label>
-                  <input 
-                    type="text" 
-                    value={checkInWins} 
-                    onChange={(e) => setCheckInWins(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]" 
-                    placeholder="What went well?" 
-                  />
+            ))}
+            
+            {posts.length === 0 && (
+              <div className="bg-white rounded-xl p-8 border border-gray-100 text-center">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No posts yet. Be the first to share!</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* COMPETE VIEW */}
+        {activeView === 'compete' && (
+          <div className="space-y-4">
+            {/* Header with Create Challenge */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Compete & Challenge</h2>
+                <p className="text-sm text-gray-500">Put your money where your habits are!</p>
+              </div>
+              <button 
+                onClick={() => setShowNewBet(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
+              >
+                <Swords className="w-4 h-4" />
+                New Challenge
+              </button>
+            </div>
+            
+            {/* Leaderboard - Full */}
+            <div className="bg-gradient-to-br from-[#1E3A5F] via-[#1E3A5F] to-purple-900 rounded-2xl p-6 text-white">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-[#F5B800] rounded-xl flex items-center justify-center">
+                  <Trophy className="w-6 h-6 text-[#1E3A5F]" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">💪 Challenges</label>
-                  <input 
-                    type="text" 
-                    value={checkInChallenges} 
-                    onChange={(e) => setCheckInChallenges(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]" 
-                    placeholder="What was hard?" 
-                  />
+                  <h3 className="text-xl font-bold">Season Leaderboard</h3>
+                  <p className="text-white/60 text-sm">Compete for the top spot!</p>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={checkInText} 
-                  onChange={(e) => setCheckInText(e.target.value)}
-                  className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]" 
-                  placeholder="Any other reflections..." 
-                />
-                <button 
-                  onClick={submitCheckIn}
-                  disabled={!checkInWins.trim() && !checkInChallenges.trim() && !checkInText.trim()}
-                  className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors disabled:opacity-50"
-                >
-                  Share
-                </button>
               </div>
               
-              {/* Recent Check-ins */}
-              {checkIns.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-xs text-gray-500 mb-3">Recent check-ins</p>
-                  <div className="space-y-3 max-h-48 overflow-y-auto">
-                    {checkIns.slice(0, 5).map(ci => (
-                      <div key={ci.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
-                        {ci.participantPhoto ? (
-                          <img src={ci.participantPhoto} alt="" className="w-8 h-8 rounded-full" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-[#1E3A5F] flex items-center justify-center text-white text-sm font-medium">
-                            {ci.participant?.[0] || '?'}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {leaderboard.map((p, i) => (
+                  <div key={p.name} className={`relative rounded-xl p-4 ${i === 0 ? 'bg-gradient-to-br from-[#F5B800] to-amber-600 text-[#1E3A5F]' : 'bg-white/10'}`}>
+                    {i === 0 && (
+                      <div className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg">
+                        <Crown className="w-5 h-5 text-[#F5B800]" />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${i === 0 ? 'bg-white text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
+                        {i === 0 ? '🏆' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-lg">{p.name}</p>
+                        <p className={`text-sm ${i === 0 ? 'text-[#1E3A5F]/70' : 'text-white/60'}`}>{p.rate}% completion</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-3xl font-bold">{p.score}</p>
+                        <p className={`text-xs ${i === 0 ? 'text-[#1E3A5F]/70' : 'text-white/60'}`}>points</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <Flame className={`w-4 h-4 ${i === 0 ? 'text-[#1E3A5F]' : 'text-orange-400'}`} />
+                      <span className={`text-sm ${i === 0 ? 'text-[#1E3A5F]/70' : 'text-white/60'}`}>{p.streak} week streak</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Active Challenges */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Pending Challenges */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-purple-500" />
+                  Pending Challenges
+                </h3>
+                {bets.filter(b => b.status === 'pending').length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-4">No pending challenges</p>
+                ) : (
+                  <div className="space-y-3">
+                    {bets.filter(b => b.status === 'pending').map(bet => (
+                      <div key={bet.id} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Swords className="w-4 h-4 text-purple-600" />
+                            <span className="font-medium text-purple-800">{bet.challenger}</span>
+                            <span className="text-purple-400">vs</span>
+                            <span className="font-medium text-purple-800">{bet.challenged}</span>
+                          </div>
+                          <span className="text-lg font-bold text-green-600">${bet.amount}</span>
+                        </div>
+                        <p className="text-sm text-purple-700 mb-2">{bet.goal}</p>
+                        <p className="text-xs text-purple-500 mb-3">Deadline: {new Date(bet.deadline).toLocaleDateString()}</p>
+                        {bet.challenged === user?.displayName && (
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => acceptBet(bet.id)}
+                              className="flex-1 py-1.5 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600"
+                            >
+                              Accept
+                            </button>
+                            <button 
+                              onClick={() => declineBet(bet.id)}
+                              className="flex-1 py-1.5 bg-red-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-200"
+                            >
+                              Decline
+                            </button>
                           </div>
                         )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="text-sm font-medium text-gray-800">{ci.participant}</p>
-                            <span className="text-xs text-gray-400">{new Date(ci.createdAt).toLocaleDateString()}</span>
-                          </div>
-                          {ci.wins && <p className="text-xs text-gray-600"><span className="text-green-600">🎉</span> {ci.wins}</p>}
-                          {ci.challenges && <p className="text-xs text-gray-600"><span className="text-orange-600">💪</span> {ci.challenges}</p>}
-                          {ci.reflection && <p className="text-xs text-gray-500 mt-1">{ci.reflection}</p>}
-                        </div>
-                        <button onClick={() => deleteCheckIn(ci.id)} className="text-gray-300 hover:text-red-400">
-                          <Trash2 className="w-3 h-3" />
-                        </button>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              
+              {/* Active Challenges */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-yellow-500" />
+                  Active Challenges
+                </h3>
+                {bets.filter(b => b.status === 'accepted').length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-4">No active challenges</p>
+                ) : (
+                  <div className="space-y-3">
+                    {bets.filter(b => b.status === 'accepted').map(bet => (
+                      <div key={bet.id} className="p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">⚔️</span>
+                            <span className="font-medium text-gray-800">{bet.challenger}</span>
+                            <span className="text-gray-400">vs</span>
+                            <span className="font-medium text-gray-800">{bet.challenged}</span>
+                          </div>
+                          <span className="text-lg font-bold text-green-600">${bet.amount}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-2">{bet.goal}</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-500">Ends: {new Date(bet.deadline).toLocaleDateString()}</p>
+                          {(bet.challengerId === user?.uid || bet.challenged === user?.displayName) && (
+                            <div className="flex gap-1">
+                              <button 
+                                onClick={() => completeBet(bet.id, bet.challengerId)}
+                                className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
+                              >
+                                {bet.challenger} won
+                              </button>
+                              <button 
+                                onClick={() => completeBet(bet.id, bet.challenged)}
+                                className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
+                              >
+                                {bet.challenged} won
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+            
+            {/* Completed Challenges */}
+            {bets.filter(b => b.status === 'completed').length > 0 && (
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <PartyPopper className="w-5 h-5 text-pink-500" />
+                  Completed Challenges
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {bets.filter(b => b.status === 'completed').map(bet => (
+                    <div key={bet.id} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">{bet.challenger} vs {bet.challenged}</span>
+                        <span className="text-sm font-bold text-green-600">${bet.amount}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">{bet.goal}</p>
+                      <p className="text-sm font-medium text-purple-600 mt-1">🏆 Winner: {bet.winner === bet.challengerId ? bet.challenger : bet.challenged}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* New Bet Modal */}
+            {showNewBet && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <Swords className="w-5 h-5 text-purple-600" />
+                    Create New Challenge
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm text-gray-600 block mb-1">Challenge Who?</label>
+                      <select 
+                        value={newBet.challenged}
+                        onChange={(e) => setNewBet({ ...newBet, challenged: e.target.value })}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      >
+                        <option value="">Select opponent...</option>
+                        {PARTICIPANTS.filter(p => p !== user?.displayName).map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm text-gray-600 block mb-1">The Challenge</label>
+                      <input
+                        type="text"
+                        value={newBet.goal}
+                        onChange={(e) => setNewBet({ ...newBet, goal: e.target.value })}
+                        placeholder="e.g., Complete all habits for 2 weeks"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm text-gray-600 block mb-1">Stakes ($)</label>
+                        <input
+                          type="number"
+                          value={newBet.amount}
+                          onChange={(e) => setNewBet({ ...newBet, amount: e.target.value })}
+                          placeholder="50"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm text-gray-600 block mb-1">Deadline</label>
+                        <input
+                          type="date"
+                          value={newBet.deadline}
+                          onChange={(e) => setNewBet({ ...newBet, deadline: e.target.value })}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3 mt-6">
+                    <button 
+                      onClick={() => setShowNewBet(false)}
+                      className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={createBet}
+                      disabled={!newBet.challenged || !newBet.goal || !newBet.amount}
+                      className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+                    >
+                      Send Challenge
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
