@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -631,9 +631,18 @@ export default function AccountabilityTracker() {
   // Profile state
   const [profiles, setProfiles] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
-  const [profileForm, setProfileForm] = useState({ displayName: '', bio: '', linkedParticipant: '' });
+  const [profileForm, setProfileForm] = useState({ 
+    displayName: '', 
+    bio: '', 
+    linkedParticipant: '',
+    location: '',
+    goals: '',
+    photoURL: ''
+  });
   const [showAddParticipant, setShowAddParticipant] = useState(false);
   const [newParticipantName, setNewParticipantName] = useState('');
+  const [viewingProfile, setViewingProfile] = useState(null); // For viewing other profiles
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
   
   // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
@@ -644,6 +653,7 @@ export default function AccountabilityTracker() {
   const calendarRef = useRef(null);
   const fileInputRef = useRef(null);
   const postTextRef = useRef(null);
+  const profilePhotoRef = useRef(null);
 
   // Set favicon on mount
   useEffect(() => {
@@ -801,8 +811,12 @@ export default function AccountabilityTracker() {
         setProfileForm({
           displayName: myProfile.displayName || '',
           bio: myProfile.bio || '',
-          linkedParticipant: myProfile.linkedParticipant || ''
+          linkedParticipant: myProfile.linkedParticipant || '',
+          location: myProfile.location || '',
+          goals: myProfile.goals || '',
+          photoURL: myProfile.photoURL || ''
         });
+        setProfilePhotoPreview(myProfile.photoURL || null);
       }
     }, (error) => {
       console.error('Profiles error:', error);
@@ -810,6 +824,17 @@ export default function AccountabilityTracker() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Get profile by participant name
+  const getProfileByParticipant = (participantName) => {
+    return profiles.find(p => p.linkedParticipant === participantName);
+  };
+
+  // Get profile photo for a participant
+  const getParticipantPhoto = (participantName) => {
+    const profile = getProfileByParticipant(participantName);
+    return profile?.photoURL || null;
+  };
 
   // Get all participants (base + any added via profiles)
   const allParticipants = useMemo(() => {
@@ -1180,23 +1205,67 @@ export default function AccountabilityTracker() {
     }
   };
 
+  // Handle profile photo upload
+  const handleProfilePhotoSelect = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image must be less than 10MB');
+        return;
+      }
+      
+      try {
+        const compressedImage = await compressImage(file, 300, 0.7);
+        setProfilePhotoPreview(compressedImage);
+        setProfileForm({ ...profileForm, photoURL: compressedImage });
+      } catch (error) {
+        console.error('Error compressing image:', error);
+        alert('Failed to process image. Please try again.');
+      }
+    }
+  };
+
   // Save profile
   const saveProfile = async () => {
     if (!user) return;
     
-    const profile = {
-      odingUserId: user.uid,
-      odingEmail: user.email,
-      odingDisplayName: user.displayName,
-      odingPhoto: user.photoURL,
-      displayName: profileForm.displayName || user.displayName,
-      bio: profileForm.bio || '',
-      linkedParticipant: profileForm.linkedParticipant || '',
-      updatedAt: new Date().toISOString()
-    };
-    
-    const profileId = userProfile?.id || `profile_${user.uid}`;
-    await setDoc(doc(db, 'profiles', profileId), profile, { merge: true });
+    try {
+      const profile = {
+        odingUserId: user.uid,
+        odingEmail: user.email,
+        odingDisplayName: user.displayName,
+        odingPhoto: user.photoURL,
+        displayName: profileForm.displayName || user.displayName,
+        bio: profileForm.bio || '',
+        linkedParticipant: profileForm.linkedParticipant || '',
+        location: profileForm.location || '',
+        goals: profileForm.goals || '',
+        photoURL: profileForm.photoURL || user.photoURL || '',
+        updatedAt: new Date().toISOString()
+      };
+      
+      const profileId = userProfile?.id || `profile_${user.uid}`;
+      await setDoc(doc(db, 'profiles', profileId), profile, { merge: true });
+      alert('Profile saved!');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Failed to save profile. Please try again.');
+    }
+  };
+
+  // Open profile view for a participant
+  const openProfileView = (participantName) => {
+    const profile = getProfileByParticipant(participantName);
+    if (profile) {
+      setViewingProfile({ ...profile, participantName });
+    } else {
+      // Create a minimal profile view for unlinked participants
+      setViewingProfile({ 
+        participantName,
+        displayName: participantName,
+        linkedParticipant: participantName
+      });
+    }
   };
 
   // Add new participant
@@ -1293,11 +1362,11 @@ export default function AccountabilityTracker() {
     return { total, completed, exceeded, missed, rate, trend: 5 };
   }, [getRangeHabits]);
 
-  const participantData = useMemo(() => PARTICIPANTS.map(p => {
+  const participantData = useMemo(() => allParticipants.map(p => {
     const pH = getRangeHabits.filter(h => h.participant === p);
     const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-    return { name: p, rate: pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0, completed, total: pH.length, color: PARTICIPANT_COLORS[p] };
-  }), [getRangeHabits]);
+    return { name: p, rate: pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0, completed, total: pH.length, color: PARTICIPANT_COLORS[p] || '#6366f1' };
+  }), [getRangeHabits, allParticipants]);
 
   const currentWeekHabits = useMemo(() => habits.filter(h => h.weekStart === currentWeek), [habits, currentWeek]);
   const filteredHabits = selectedParticipant === 'All' ? currentWeekHabits : currentWeekHabits.filter(h => h.participant === selectedParticipant);
@@ -1764,12 +1833,12 @@ export default function AccountabilityTracker() {
                   <h3 className="font-semibold text-gray-800 text-sm mb-2">Completion Trend</h3>
                   <ResponsiveContainer width="100%" height={160}>
                     <AreaChart data={weeklyTrendData.slice(-8)}>
-                      <defs>{PARTICIPANTS.map(p => <linearGradient key={p} id={`g-${p}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PARTICIPANT_COLORS[p]} stopOpacity={0.15} /><stop offset="95%" stopColor={PARTICIPANT_COLORS[p]} stopOpacity={0} /></linearGradient>)}</defs>
+                      <defs>{allParticipants.map(p => <linearGradient key={p} id={`g-${p}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PARTICIPANT_COLORS[p] || '#6366f1'} stopOpacity={0.15} /><stop offset="95%" stopColor={PARTICIPANT_COLORS[p] || '#6366f1'} stopOpacity={0} /></linearGradient>)}</defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="week" tick={{ fill: '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} domain={[0, 100]} />
                       <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontSize: 10 }} />
-                      {PARTICIPANTS.map(p => <Area key={p} type="monotone" dataKey={p} stroke={PARTICIPANT_COLORS[p]} strokeWidth={2} fill={`url(#g-${p})`} />)}
+                      {allParticipants.map(p => <Area key={p} type="monotone" dataKey={p} stroke={PARTICIPANT_COLORS[p] || '#6366f1'} strokeWidth={2} fill={`url(#g-${p})`} />)}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -1782,10 +1851,25 @@ export default function AccountabilityTracker() {
                 </div>
               </div>
               
-              {/* Participant Performance - compact */}
+              {/* Participant Performance - compact with profile photos */}
               <div className="bg-white rounded-xl p-4 border border-gray-100">
                 <h3 className="font-semibold text-gray-800 text-sm mb-3">Performance</h3>
-                <div className="space-y-2">{participantData.map(p => <div key={p.name} className="flex items-center gap-2"><div className="w-14 text-xs font-medium text-gray-700">{p.name}</div><div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.rate}%`, backgroundColor: p.color }} /></div><div className="w-8 text-right text-xs font-semibold" style={{ color: p.color }}>{p.rate}%</div></div>)}</div>
+                <div className="space-y-2">{participantData.map(p => {
+                  const profile = getProfileByParticipant(p.name);
+                  return (
+                  <div key={p.name} className="flex items-center gap-2">
+                    <button onClick={() => openProfileView(p.name)} className="flex items-center gap-2 w-20 hover:opacity-80">
+                      {profile?.photoURL ? (
+                        <img src={profile.photoURL} alt="" className="w-5 h-5 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: p.color }}>{p.name[0]}</div>
+                      )}
+                      <span className="text-xs font-medium text-gray-700 truncate">{p.name}</span>
+                    </button>
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.rate}%`, backgroundColor: p.color }} /></div>
+                    <div className="w-8 text-right text-xs font-semibold" style={{ color: p.color }}>{p.rate}%</div>
+                  </div>
+                );})}</div>
               </div>
               
               {/* Recent Activity */}
@@ -1794,15 +1878,20 @@ export default function AccountabilityTracker() {
                   <h3 className="font-semibold text-gray-800 text-sm">Recent Activity</h3>
                   <button onClick={() => setActiveView('feed')} className="text-xs text-[#1E3A5F] hover:underline">View all →</button>
                 </div>
-                {posts.slice(0, 2).map(post => (
+                {posts.slice(0, 2).map(post => {
+                  const authorProfile = getProfileByParticipant(post.author);
+                  const displayPhoto = authorProfile?.photoURL || post.authorPhoto;
+                  return (
                   <div key={post.id} className="flex gap-2 p-2 bg-gray-50 rounded-lg mb-2">
-                    {post.authorPhoto ? <img src={post.authorPhoto} className="w-6 h-6 rounded-full" alt="" /> : <div className="w-6 h-6 rounded-full bg-[#1E3A5F] text-white text-xs flex items-center justify-center">{post.author?.[0]}</div>}
+                    <button onClick={() => openProfileView(post.author)}>
+                      {displayPhoto ? <img src={displayPhoto} className="w-6 h-6 rounded-full object-cover hover:ring-2 hover:ring-[#F5B800]" alt="" /> : <div className="w-6 h-6 rounded-full bg-[#1E3A5F] text-white text-xs flex items-center justify-center">{post.author?.[0]}</div>}
+                    </button>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-800">{post.author}</p>
+                      <button onClick={() => openProfileView(post.author)} className="text-xs font-medium text-gray-800 hover:text-[#1E3A5F] hover:underline">{post.author}</button>
                       <p className="text-xs text-gray-600 truncate">{post.content}</p>
                     </div>
                   </div>
-                ))}
+                );})}
                 {posts.length === 0 && <p className="text-xs text-gray-400 text-center py-2">No posts yet</p>}
               </div>
             </div>
@@ -1816,17 +1905,23 @@ export default function AccountabilityTracker() {
                   <h3 className="font-semibold text-sm">Leaderboard</h3>
                 </div>
                 <div className="space-y-2">
-                  {leaderboard.map((p, i) => (
-                    <div key={p.name} className="flex items-center gap-2">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${i === 0 ? 'bg-[#F5B800] text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
-                        {i === 0 ? '👑' : i + 1}
-                      </div>
-                      <div className="flex-1">
+                  {leaderboard.map((p, i) => {
+                    const profile = getProfileByParticipant(p.name);
+                    return (
+                    <button key={p.name} onClick={() => openProfileView(p.name)} className="w-full flex items-center gap-2 hover:bg-white/10 rounded-lg p-1 -m-1 transition-colors">
+                      {profile?.photoURL ? (
+                        <img src={profile.photoURL} alt="" className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${i === 0 ? 'bg-[#F5B800] text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
+                          {i === 0 ? '👑' : i + 1}
+                        </div>
+                      )}
+                      <div className="flex-1 text-left">
                         <p className="text-sm font-medium">{p.name}</p>
                       </div>
                       <p className="text-sm font-bold text-[#F5B800]">{p.score}</p>
-                    </div>
-                  ))}
+                    </button>
+                  );})}
                 </div>
                 <button onClick={() => setActiveView('compete')} className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors">
                   View Challenges →
@@ -1840,30 +1935,37 @@ export default function AccountabilityTracker() {
                   <h3 className="font-semibold text-gray-800 text-sm">Streaks</h3>
                 </div>
                 <div className="space-y-2">
-                  {PARTICIPANTS.map(p => (
-                    <div key={p} className="flex items-center gap-2">
-                      <span className="text-sm">🔥</span>
-                      <span className="flex-1 text-xs text-gray-700">{p}</span>
+                  {allParticipants.map(p => {
+                    const profile = getProfileByParticipant(p);
+                    return (
+                    <button key={p} onClick={() => openProfileView(p)} className="w-full flex items-center gap-2 hover:bg-gray-50 rounded-lg p-1 -m-1 transition-colors">
+                      {profile?.photoURL ? (
+                        <img src={profile.photoURL} alt="" className="w-5 h-5 rounded-full object-cover" />
+                      ) : (
+                        <span className="text-sm">🔥</span>
+                      )}
+                      <span className="flex-1 text-xs text-gray-700 text-left">{p}</span>
                       <span className="text-sm font-bold text-orange-500">{calculateStreaks[p] || 0}</span>
-                    </div>
-                  ))}
+                    </button>
+                  );})}
                 </div>
               </div>
               
-              {/* Active Bets Preview */}
+              {/* Active Challenges Preview */}
               <div className="bg-white rounded-xl p-4 border border-gray-100">
                 <div className="flex items-center gap-2 mb-3">
                   <Swords className="w-4 h-4 text-purple-500" />
-                  <h3 className="font-semibold text-gray-800 text-sm">Active Bets</h3>
+                  <h3 className="font-semibold text-gray-800 text-sm">Active Challenges</h3>
                 </div>
                 {bets.filter(b => b.status === 'accepted').slice(0, 2).map(bet => (
                   <div key={bet.id} className="p-2 bg-purple-50 rounded-lg mb-2">
                     <p className="text-xs font-medium text-purple-800">{bet.challenger} vs {bet.challenged}</p>
-                    <p className="text-[10px] text-purple-600">${bet.amount} - {bet.goal}</p>
+                    <p className="text-[10px] text-purple-600">{bet.goal}</p>
+                    {bet.reward && <p className="text-[10px] text-purple-500">🎁 {bet.reward}</p>}
                   </div>
                 ))}
                 {bets.filter(b => b.status === 'accepted').length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-2">No active bets</p>
+                  <p className="text-xs text-gray-400 text-center py-2">No active challenges</p>
                 )}
                 <button onClick={() => setActiveView('compete')} className="w-full mt-2 py-1.5 bg-purple-100 hover:bg-purple-200 rounded-lg text-xs font-medium text-purple-700 transition-colors">
                   Create Challenge
@@ -1879,8 +1981,8 @@ export default function AccountabilityTracker() {
             {/* Create Post */}
             <div className="bg-white rounded-xl p-4 border border-gray-100">
               <div className="flex gap-3">
-                {user?.photoURL ? (
-                  <img src={user.photoURL} className="w-10 h-10 rounded-full" alt="" />
+                {(userProfile?.photoURL || user?.photoURL) ? (
+                  <img src={userProfile?.photoURL || user?.photoURL} className="w-10 h-10 rounded-full object-cover" alt="" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center font-medium">
                     {user?.displayName?.[0] || '?'}
@@ -1961,21 +2063,26 @@ export default function AccountabilityTracker() {
             </div>
             
             {/* Posts Feed */}
-            {posts.map(post => (
+            {posts.map(post => {
+              const authorProfile = getProfileByParticipant(post.author);
+              const displayPhoto = authorProfile?.photoURL || post.authorPhoto;
+              return (
               <div key={post.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                 {/* Post Header */}
                 <div className="p-4 pb-0">
                   <div className="flex items-start gap-3">
-                    {post.authorPhoto ? (
-                      <img src={post.authorPhoto} className="w-10 h-10 rounded-full" alt="" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center font-medium">
-                        {post.author?.[0] || '?'}
-                      </div>
-                    )}
+                    <button onClick={() => openProfileView(post.author)} className="flex-shrink-0">
+                      {displayPhoto ? (
+                        <img src={displayPhoto} className="w-10 h-10 rounded-full object-cover hover:ring-2 hover:ring-[#F5B800] transition-all" alt="" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center font-medium hover:ring-2 hover:ring-[#F5B800] transition-all">
+                          {post.author?.[0] || '?'}
+                        </div>
+                      )}
+                    </button>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-800">{post.author}</p>
+                        <button onClick={() => openProfileView(post.author)} className="font-semibold text-gray-800 hover:text-[#1E3A5F] hover:underline">{post.author}</button>
                         <span className="text-xs text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</span>
                       </div>
                       <div className="text-gray-700 mt-1 whitespace-pre-wrap">{renderFormattedText(post.content)}</div>
@@ -2063,7 +2170,7 @@ export default function AccountabilityTracker() {
                   )}
                 </div>
               </div>
-            ))}
+            );})}
             
             {posts.length === 0 && (
               <div className="bg-white rounded-xl p-8 border border-gray-100 text-center">
@@ -2105,19 +2212,25 @@ export default function AccountabilityTracker() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {leaderboard.map((p, i) => (
-                  <div key={p.name} className={`relative rounded-xl p-4 ${i === 0 ? 'bg-gradient-to-br from-[#F5B800] to-amber-600 text-[#1E3A5F]' : 'bg-white/10'}`}>
+                {leaderboard.map((p, i) => {
+                  const profile = getProfileByParticipant(p.name);
+                  return (
+                  <div key={p.name} className={`relative rounded-xl p-4 cursor-pointer hover:scale-[1.02] transition-transform ${i === 0 ? 'bg-gradient-to-br from-[#F5B800] to-amber-600 text-[#1E3A5F]' : 'bg-white/10'}`} onClick={() => openProfileView(p.name)}>
                     {i === 0 && (
                       <div className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg">
                         <Crown className="w-5 h-5 text-[#F5B800]" />
                       </div>
                     )}
                     <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${i === 0 ? 'bg-white text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
-                        {i === 0 ? '🏆' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
-                      </div>
+                      {profile?.photoURL ? (
+                        <img src={profile.photoURL} alt="" className={`w-12 h-12 rounded-full object-cover border-2 ${i === 0 ? 'border-white' : 'border-white/30'}`} />
+                      ) : (
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${i === 0 ? 'bg-white text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
+                          {i === 0 ? '🏆' : i === 1 ? '🥈' : i === 2 ? '🥉' : p.name[0]}
+                        </div>
+                      )}
                       <div className="flex-1">
-                        <p className="font-bold text-lg">{p.name}</p>
+                        <p className="font-bold text-lg hover:underline">{p.name}</p>
                         <p className={`text-sm ${i === 0 ? 'text-[#1E3A5F]/70' : 'text-white/60'}`}>{p.rate}% completion</p>
                       </div>
                       <div className="text-right">
@@ -2130,7 +2243,7 @@ export default function AccountabilityTracker() {
                       <span className={`text-sm ${i === 0 ? 'text-[#1E3A5F]/70' : 'text-white/60'}`}>{p.streak} week streak</span>
                     </div>
                   </div>
-                ))}
+                );})}
               </div>
             </div>
             
@@ -2718,136 +2831,273 @@ export default function AccountabilityTracker() {
 
         {/* PROFILE VIEW */}
         {activeView === 'profile' && (
-          <div className="max-w-2xl mx-auto space-y-4">
-            {/* Profile Header */}
+          <div className="max-w-4xl mx-auto space-y-4">
+            {/* Profile Header with Photo Upload */}
             <div className="bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] rounded-2xl p-6 text-white">
-              <div className="flex items-center gap-4">
-                {user?.photoURL ? (
-                  <img src={user.photoURL} alt="" className="w-20 h-20 rounded-full border-4 border-white/20" />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
-                    <User className="w-10 h-10 text-white" />
-                  </div>
-                )}
-                <div>
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                {/* Profile Photo with Upload */}
+                <div className="relative group">
+                  {profilePhotoPreview || userProfile?.photoURL || user?.photoURL ? (
+                    <img 
+                      src={profilePhotoPreview || userProfile?.photoURL || user?.photoURL} 
+                      alt="" 
+                      className="w-28 h-28 rounded-full border-4 border-white/20 object-cover" 
+                    />
+                  ) : (
+                    <div className="w-28 h-28 rounded-full bg-white/20 flex items-center justify-center">
+                      <User className="w-14 h-14 text-white" />
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    ref={profilePhotoRef}
+                    onChange={handleProfilePhotoSelect}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => profilePhotoRef.current?.click()}
+                    className="absolute bottom-0 right-0 w-10 h-10 bg-[#F5B800] rounded-full flex items-center justify-center text-[#1E3A5F] hover:bg-[#E5AB00] transition-colors shadow-lg"
+                  >
+                    <Camera className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="text-center md:text-left flex-1">
                   <h2 className="text-2xl font-bold">{userProfile?.displayName || user?.displayName || 'Anonymous'}</h2>
                   <p className="text-white/60">{user?.email}</p>
+                  {userProfile?.location && (
+                    <div className="flex items-center justify-center md:justify-start gap-1 mt-1 text-white/70">
+                      <MapPin className="w-4 h-4" />
+                      <span className="text-sm">{userProfile.location}</span>
+                    </div>
+                  )}
                   {userProfile?.linkedParticipant && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="px-2 py-1 bg-[#F5B800] text-[#1E3A5F] rounded-lg text-xs font-medium">
-                        Linked to: {userProfile.linkedParticipant}
+                    <div className="flex items-center justify-center md:justify-start gap-2 mt-3">
+                      <span className="px-3 py-1 bg-[#F5B800] text-[#1E3A5F] rounded-lg text-sm font-medium">
+                        🎯 {userProfile.linkedParticipant}
                       </span>
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
-            
-            {/* Profile Settings */}
-            <div className="bg-white rounded-xl p-6 border border-gray-100">
-              <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-[#1E3A5F]" />
-                Profile Settings
-              </h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm text-gray-600 block mb-1">Display Name</label>
-                  <input
-                    type="text"
-                    value={profileForm.displayName}
-                    onChange={(e) => setProfileForm({ ...profileForm, displayName: e.target.value })}
-                    placeholder={user?.displayName || 'Your name'}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
-                  />
-                </div>
                 
-                <div>
-                  <label className="text-sm text-gray-600 block mb-1">Bio</label>
-                  <textarea
-                    value={profileForm.bio}
-                    onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-                    placeholder="Tell us about yourself..."
-                    rows={3}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800] resize-none"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm text-gray-600 block mb-1">Link to Habit Tracker Participant</label>
-                  <p className="text-xs text-gray-400 mb-2">Connect your profile to a participant to track your habits</p>
-                  <div className="flex gap-2">
-                    <select
-                      value={profileForm.linkedParticipant}
-                      onChange={(e) => setProfileForm({ ...profileForm, linkedParticipant: e.target.value })}
-                      className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
-                    >
-                      <option value="">Not linked</option>
-                      {allParticipants.map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => setShowAddParticipant(true)}
-                      className="px-3 py-2 bg-[#F5B800] text-[#1E3A5F] rounded-lg text-sm font-medium hover:bg-[#E5AB00] transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                
-                <button
-                  onClick={saveProfile}
-                  className="w-full py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] transition-colors"
-                >
-                  Save Profile
-                </button>
-              </div>
-            </div>
-            
-            {/* Stats Overview */}
-            {userProfile?.linkedParticipant && (
-              <div className="bg-white rounded-xl p-6 border border-gray-100">
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-[#1E3A5F]" />
-                  Your Stats
-                </h3>
-                
-                {(() => {
+                {/* Quick Stats */}
+                {userProfile?.linkedParticipant && (() => {
                   const myStats = leaderboard.find(l => l.name === userProfile.linkedParticipant);
                   const myStreak = calculateStreaks[userProfile.linkedParticipant] || 0;
                   return myStats ? (
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center p-4 bg-purple-50 rounded-xl">
-                        <p className="text-3xl font-bold text-purple-600">{myStats.rate}%</p>
-                        <p className="text-xs text-purple-500">Completion Rate</p>
+                    <div className="flex gap-4 md:gap-6">
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-[#F5B800]">{myStats.rate}%</p>
+                        <p className="text-xs text-white/60">Completion</p>
                       </div>
-                      <div className="text-center p-4 bg-amber-50 rounded-xl">
-                        <p className="text-3xl font-bold text-amber-600">{myStats.score}</p>
-                        <p className="text-xs text-amber-500">Total Points</p>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-[#F5B800]">{myStats.score}</p>
+                        <p className="text-xs text-white/60">Points</p>
                       </div>
-                      <div className="text-center p-4 bg-orange-50 rounded-xl">
-                        <p className="text-3xl font-bold text-orange-600">{myStreak}</p>
-                        <p className="text-xs text-orange-500">Week Streak</p>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-orange-400">{myStreak}🔥</p>
+                        <p className="text-xs text-white/60">Streak</p>
                       </div>
                     </div>
-                  ) : (
-                    <p className="text-gray-400 text-sm">No stats available yet</p>
-                  );
+                  ) : null;
                 })()}
               </div>
-            )}
+            </div>
             
-            {/* Account Actions */}
-            <div className="bg-white rounded-xl p-6 border border-gray-100">
-              <h3 className="font-semibold text-gray-800 mb-4">Account</h3>
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Profile Settings - Left Column */}
+              <div className="md:col-span-2 space-y-4">
+                <div className="bg-white rounded-xl p-6 border border-gray-100">
+                  <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <Edit3 className="w-5 h-5 text-[#1E3A5F]" />
+                    Edit Profile
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-gray-600 block mb-1">Display Name</label>
+                      <input
+                        type="text"
+                        value={profileForm.displayName}
+                        onChange={(e) => setProfileForm({ ...profileForm, displayName: e.target.value })}
+                        placeholder={user?.displayName || 'Your name'}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm text-gray-600 block mb-1">Location</label>
+                      <input
+                        type="text"
+                        value={profileForm.location}
+                        onChange={(e) => setProfileForm({ ...profileForm, location: e.target.value })}
+                        placeholder="City, Country"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                      />
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <label className="text-sm text-gray-600 block mb-1">Bio</label>
+                      <textarea
+                        value={profileForm.bio}
+                        onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
+                        placeholder="Tell us about yourself..."
+                        rows={2}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800] resize-none"
+                      />
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <label className="text-sm text-gray-600 block mb-1">Goals & Motivations</label>
+                      <textarea
+                        value={profileForm.goals}
+                        onChange={(e) => setProfileForm({ ...profileForm, goals: e.target.value })}
+                        placeholder="What are you working towards?"
+                        rows={2}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800] resize-none"
+                      />
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <label className="text-sm text-gray-600 block mb-1">Link to Habit Tracker</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={profileForm.linkedParticipant}
+                          onChange={(e) => setProfileForm({ ...profileForm, linkedParticipant: e.target.value })}
+                          className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                        >
+                          <option value="">Not linked</option>
+                          {allParticipants.map(p => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => setShowAddParticipant(true)}
+                          className="px-3 py-2 bg-[#F5B800] text-[#1E3A5F] rounded-lg text-sm font-medium hover:bg-[#E5AB00] transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={saveProfile}
+                    className="w-full mt-4 py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] transition-colors"
+                  >
+                    Save Profile
+                  </button>
+                </div>
+                
+                {/* Active Challenges */}
+                <div className="bg-white rounded-xl p-6 border border-gray-100">
+                  <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <Swords className="w-5 h-5 text-purple-500" />
+                    Active Challenges
+                  </h3>
+                  {(() => {
+                    const myChallenges = bets.filter(b => 
+                      (b.status === 'pending' || b.status === 'accepted') &&
+                      (b.challenger === userProfile?.linkedParticipant || 
+                       b.challenged === userProfile?.linkedParticipant ||
+                       b.challengerId === user?.uid)
+                    );
+                    return myChallenges.length > 0 ? (
+                      <div className="space-y-3">
+                        {myChallenges.map(bet => (
+                          <div key={bet.id} className={`p-3 rounded-lg ${bet.status === 'pending' ? 'bg-purple-50 border border-purple-100' : 'bg-yellow-50 border border-yellow-200'}`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs px-2 py-0.5 rounded ${bet.status === 'pending' ? 'bg-purple-200 text-purple-700' : 'bg-yellow-200 text-yellow-700'}`}>
+                                  {bet.status}
+                                </span>
+                                <span className="font-medium text-gray-800">{bet.challenger} vs {bet.challenged}</span>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1">{bet.goal}</p>
+                            {bet.reward && <p className="text-xs text-gray-500 mt-1">🎁 {bet.reward}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-sm text-center py-4">No active challenges</p>
+                    );
+                  })()}
+                </div>
+              </div>
+              
+              {/* Right Sidebar */}
+              <div className="space-y-4">
+                {/* Challenge Stats */}
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <h3 className="font-semibold text-gray-800 mb-3 text-sm">Challenge Record</h3>
+                  {(() => {
+                    const wonChallenges = bets.filter(b => 
+                      b.status === 'completed' && 
+                      (b.winner === userProfile?.linkedParticipant)
+                    ).length;
+                    const lostChallenges = bets.filter(b => 
+                      b.status === 'completed' && 
+                      (b.challenger === userProfile?.linkedParticipant || b.challenged === userProfile?.linkedParticipant) &&
+                      b.winner !== userProfile?.linkedParticipant
+                    ).length;
+                    return (
+                      <div className="flex items-center justify-around">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-green-600">{wonChallenges}</p>
+                          <p className="text-xs text-gray-500">Won</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-red-500">{lostChallenges}</p>
+                          <p className="text-xs text-gray-500">Lost</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                
+                {/* Team Members */}
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <h3 className="font-semibold text-gray-800 mb-3 text-sm">Team Members</h3>
+                  <div className="space-y-2">
+                    {allParticipants.map(p => {
+                      const profile = getProfileByParticipant(p);
+                      return (
+                        <button 
+                          key={p}
+                          onClick={() => openProfileView(p)}
+                          className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                        >
+                          {profile?.photoURL ? (
+                            <img src={profile.photoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center text-sm font-medium">
+                              {p[0]}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{p}</p>
+                            {profile?.bio && <p className="text-xs text-gray-400 truncate">{profile.bio}</p>}
+                          </div>
+                          <Eye className="w-4 h-4 text-gray-300" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Account Actions */}
+                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </button>
+                </div>
+              </div>
             </div>
             
             {/* Add New Participant Modal */}
@@ -2883,6 +3133,163 @@ export default function AccountabilityTracker() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+        
+        {/* Profile Viewing Modal - for viewing other participants */}
+        {viewingProfile && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl w-full max-w-2xl my-8">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] rounded-t-2xl p-6 text-white relative">
+                <button 
+                  onClick={() => setViewingProfile(null)}
+                  className="absolute top-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                
+                <div className="flex items-center gap-4">
+                  {viewingProfile.photoURL ? (
+                    <img src={viewingProfile.photoURL} alt="" className="w-20 h-20 rounded-full border-4 border-white/20 object-cover" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
+                      <span className="text-3xl font-bold">{viewingProfile.participantName?.[0] || '?'}</span>
+                    </div>
+                  )}
+                  <div>
+                    <h2 className="text-2xl font-bold">{viewingProfile.displayName || viewingProfile.participantName}</h2>
+                    {viewingProfile.location && (
+                      <div className="flex items-center gap-1 mt-1 text-white/70">
+                        <MapPin className="w-4 h-4" />
+                        <span className="text-sm">{viewingProfile.location}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="px-3 py-1 bg-[#F5B800] text-[#1E3A5F] rounded-lg text-sm font-medium">
+                        🎯 {viewingProfile.participantName}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Modal Content */}
+              <div className="p-6">
+                {/* Stats Row */}
+                {(() => {
+                  const stats = leaderboard.find(l => l.name === viewingProfile.participantName);
+                  const streak = calculateStreaks[viewingProfile.participantName] || 0;
+                  return stats ? (
+                    <div className="grid grid-cols-4 gap-4 mb-6">
+                      <div className="text-center p-3 bg-purple-50 rounded-xl">
+                        <p className="text-2xl font-bold text-purple-600">{stats.rate}%</p>
+                        <p className="text-xs text-purple-500">Completion</p>
+                      </div>
+                      <div className="text-center p-3 bg-amber-50 rounded-xl">
+                        <p className="text-2xl font-bold text-amber-600">{stats.score}</p>
+                        <p className="text-xs text-amber-500">Points</p>
+                      </div>
+                      <div className="text-center p-3 bg-orange-50 rounded-xl">
+                        <p className="text-2xl font-bold text-orange-600">{streak}🔥</p>
+                        <p className="text-xs text-orange-500">Streak</p>
+                      </div>
+                      <div className="text-center p-3 bg-blue-50 rounded-xl">
+                        <p className="text-2xl font-bold text-blue-600">#{leaderboard.findIndex(l => l.name === viewingProfile.participantName) + 1}</p>
+                        <p className="text-xs text-blue-500">Rank</p>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+                
+                {/* Bio */}
+                {viewingProfile.bio && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">About</h4>
+                    <p className="text-gray-600 text-sm bg-gray-50 rounded-lg p-3">{viewingProfile.bio}</p>
+                  </div>
+                )}
+                
+                {/* Goals */}
+                {viewingProfile.goals && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Goals & Motivations</h4>
+                    <p className="text-gray-600 text-sm bg-gray-50 rounded-lg p-3">{viewingProfile.goals}</p>
+                  </div>
+                )}
+                
+                {/* Active Challenges */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Active Challenges</h4>
+                  {(() => {
+                    const theirChallenges = bets.filter(b => 
+                      (b.status === 'pending' || b.status === 'accepted') &&
+                      (b.challenger === viewingProfile.participantName || b.challenged === viewingProfile.participantName)
+                    );
+                    return theirChallenges.length > 0 ? (
+                      <div className="space-y-2">
+                        {theirChallenges.map(bet => (
+                          <div key={bet.id} className="p-3 bg-purple-50 rounded-lg text-sm">
+                            <div className="flex items-center gap-2">
+                              <Swords className="w-4 h-4 text-purple-500" />
+                              <span className="font-medium">{bet.challenger}</span>
+                              <span className="text-gray-400">vs</span>
+                              <span className="font-medium">{bet.challenged}</span>
+                            </div>
+                            <p className="text-gray-600 mt-1">{bet.goal}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-sm">No active challenges</p>
+                    );
+                  })()}
+                </div>
+                
+                {/* Challenge Record */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Challenge Record</h4>
+                  {(() => {
+                    const won = bets.filter(b => b.status === 'completed' && b.winner === viewingProfile.participantName).length;
+                    const lost = bets.filter(b => 
+                      b.status === 'completed' && 
+                      (b.challenger === viewingProfile.participantName || b.challenged === viewingProfile.participantName) &&
+                      b.winner !== viewingProfile.participantName
+                    ).length;
+                    return (
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg">
+                          <Trophy className="w-4 h-4 text-green-600" />
+                          <span className="font-bold text-green-600">{won}</span>
+                          <span className="text-sm text-green-600">Won</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-red-50 rounded-lg">
+                          <XCircle className="w-4 h-4 text-red-500" />
+                          <span className="font-bold text-red-500">{lost}</span>
+                          <span className="text-sm text-red-500">Lost</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                
+                {/* Challenge Button */}
+                {viewingProfile.participantName !== userProfile?.linkedParticipant && (
+                  <button
+                    onClick={() => {
+                      setViewingProfile(null);
+                      setNewBet({ ...newBet, challenged: viewingProfile.participantName });
+                      setShowNewBet(true);
+                      setActiveView('compete');
+                    }}
+                    className="w-full mt-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                  >
+                    <Swords className="w-5 h-5" />
+                    Challenge {viewingProfile.participantName}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
