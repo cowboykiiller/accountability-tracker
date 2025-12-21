@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -391,10 +391,12 @@ const NAV_ITEMS = [
   { id: 'scorecard', icon: BarChart3, label: 'Score' },
   { id: 'add', icon: Plus, label: 'Add' },
   { id: 'quotes', icon: Quote, label: 'Quotes' },
-  { id: 'ai-coach', icon: Sparkles, label: 'AI' }
+  { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
 ];
 
-const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
+const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
+  const desktopLabels = { 'dashboard': 'Dashboard', 'tracker': 'Tracker', 'scorecard': 'Scorecard', 'add': 'Add Habit', 'quotes': 'Quotes', 'ai-coach': 'AI Coach' };
+  return (
   <div className="hidden md:flex w-56 bg-white border-r border-gray-100 min-h-screen p-4 flex-col">
     <div className="flex items-center gap-2 mb-6">
       <img src={LOGO_BASE64} alt="Logo" className="w-9 h-9" />
@@ -403,7 +405,7 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
     <nav className="flex-1 space-y-1">
       {NAV_ITEMS.map(item => (
         <button key={item.id} onClick={() => setActiveView(item.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${activeView === item.id ? 'bg-[#F5F3E8] text-[#0F2940] font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
-          <item.icon className="w-4 h-4" />{item.label}
+          <item.icon className="w-4 h-4" />{desktopLabels[item.id] || item.label}
         </button>
       ))}
     </nav>
@@ -428,7 +430,7 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
       </div>
     )}
   </div>
-);
+);};
 
 const MobileNav = ({ activeView, setActiveView }) => (
   <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-1 pt-2 pb-6 z-50 shadow-lg" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
@@ -587,7 +589,23 @@ export default function AccountabilityTracker() {
   const [quotes, setQuotes] = useState([]);
   const [quoteLoading, setQuoteLoading] = useState(false);
   
+  // Weekly Check-ins state
+  const [checkIns, setCheckIns] = useState([]);
+  const [checkInText, setCheckInText] = useState('');
+  const [checkInWins, setCheckInWins] = useState('');
+  const [checkInChallenges, setCheckInChallenges] = useState('');
+  
   const calendarRef = useRef(null);
+
+  // Set favicon on mount
+  useEffect(() => {
+    const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+    link.type = 'image/png';
+    link.rel = 'icon';
+    link.href = LOGO_BASE64;
+    document.getElementsByTagName('head')[0].appendChild(link);
+    document.title = 'The Accountability Group';
+  }, []);
 
   // Auth listener
   useEffect(() => {
@@ -648,6 +666,112 @@ export default function AccountabilityTracker() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Check-ins Firestore listener
+  useEffect(() => {
+    if (!user) {
+      setCheckIns([]);
+      return;
+    }
+
+    const q = query(collection(db, 'checkIns'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const checkInsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setCheckIns(checkInsData);
+    }, (error) => {
+      console.error('Check-ins error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Calculate streaks for each participant
+  const calculateStreaks = useMemo(() => {
+    const streaks = {};
+    PARTICIPANTS.forEach(p => {
+      // Group habits by week for this participant
+      const participantHabits = habits.filter(h => h.participant === p);
+      const weeklyData = {};
+      
+      participantHabits.forEach(h => {
+        if (!weeklyData[h.weekStart]) weeklyData[h.weekStart] = [];
+        weeklyData[h.weekStart].push(h);
+      });
+      
+      // Sort weeks and count consecutive weeks with >70% completion
+      const sortedWeeks = Object.keys(weeklyData).sort().reverse();
+      let currentStreak = 0;
+      
+      for (const week of sortedWeeks) {
+        const weekHabits = weeklyData[week];
+        const totalPossible = weekHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+        const totalCompleted = weekHabits.reduce((sum, h) => {
+          const completed = DAYS.filter(d => h.days?.[d]).length;
+          return sum + completed;
+        }, 0);
+        
+        if (totalPossible > 0 && (totalCompleted / totalPossible) >= 0.7) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+      
+      streaks[p] = currentStreak;
+    });
+    return streaks;
+  }, [habits]);
+
+  // Calculate leaderboard
+  const leaderboard = useMemo(() => {
+    return PARTICIPANTS.map(p => {
+      const participantHabits = habits.filter(h => h.participant === p);
+      const totalPossible = participantHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+      const totalCompleted = participantHabits.reduce((sum, h) => {
+        return sum + DAYS.filter(d => h.days?.[d]).length;
+      }, 0);
+      const rate = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
+      
+      return {
+        name: p,
+        rate,
+        streak: calculateStreaks[p] || 0,
+        totalCompleted,
+        score: rate + (calculateStreaks[p] || 0) * 10 // Rate + streak bonus
+      };
+    }).sort((a, b) => b.score - a.score);
+  }, [habits, calculateStreaks]);
+
+  // Submit weekly check-in
+  const submitCheckIn = async () => {
+    if (!checkInWins.trim() && !checkInChallenges.trim() && !checkInText.trim()) return;
+    
+    const checkIn = {
+      id: `checkin_${Date.now()}`,
+      participant: user.displayName || 'Anonymous',
+      participantPhoto: user.photoURL || null,
+      weekStart: currentWeek,
+      wins: checkInWins,
+      challenges: checkInChallenges,
+      reflection: checkInText,
+      createdAt: new Date().toISOString()
+    };
+    
+    await setDoc(doc(db, 'checkIns', checkIn.id), checkIn);
+    setCheckInWins('');
+    setCheckInChallenges('');
+    setCheckInText('');
+  };
+
+  // Delete check-in
+  const deleteCheckIn = async (checkInId) => {
+    if (window.confirm('Delete this check-in?')) {
+      await deleteDoc(doc(db, 'checkIns', checkInId));
+    }
+  };
 
   // Load initial data to Firestore
   const loadInitialData = async () => {
@@ -854,14 +978,34 @@ export default function AccountabilityTracker() {
   };
 
   // Generate PowerPoint for a quote
+  // Delete a quote
+  const deleteQuote = async (quoteId) => {
+    if (window.confirm('Are you sure you want to delete this quote?')) {
+      await deleteDoc(doc(db, 'quotes', quoteId));
+    }
+  };
+
   const downloadQuotePPTX = async (quote) => {
+    // Check if PptxGenJS is already loaded
+    if (typeof window.PptxGenJS !== 'undefined') {
+      generatePPTX(quote);
+      return;
+    }
+    
     // Dynamically load pptxgenjs from CDN
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
-    script.onload = () => {
-      const pptx = new PptxGenJS();
+    script.onload = () => generatePPTX(quote);
+    script.onerror = () => alert('Failed to load PowerPoint library. Please try again.');
+    document.head.appendChild(script);
+  };
+
+  const generatePPTX = (quote) => {
+    try {
+      const pptx = new window.PptxGenJS();
       pptx.layout = 'LAYOUT_16x9';
       pptx.title = `Weekly Quote - ${quote.author}`;
+      pptx.author = 'The Accountability Group';
       
       // Slide 1: Title
       let slide1 = pptx.addSlide();
@@ -904,12 +1048,12 @@ export default function AccountabilityTracker() {
         fontFace: 'Georgia'
       });
       slide3.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
-      slide3.addText(quote.authorTitle, { 
+      slide3.addText(quote.authorTitle || '', { 
         x: 0.5, y: 1.3, w: 9, h: 0.5, 
         fontSize: 18, bold: true, color: 'F5B800',
         fontFace: 'Arial'
       });
-      slide3.addText(quote.authorBio, { 
+      slide3.addText(quote.authorBio || '', { 
         x: 0.5, y: 1.9, w: 9, h: 1.5, 
         fontSize: 16, color: '333333',
         fontFace: 'Arial', valign: 'top'
@@ -919,7 +1063,7 @@ export default function AccountabilityTracker() {
         fontSize: 16, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      slide3.addText(quote.whyItMatters, { 
+      slide3.addText(quote.whyItMatters || '', { 
         x: 0.5, y: 3.7, w: 9, h: 1, 
         fontSize: 14, color: '666666',
         fontFace: 'Arial', valign: 'top'
@@ -939,7 +1083,7 @@ export default function AccountabilityTracker() {
         fontSize: 16, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      const personalPoints = quote.personalApplication.split('\n').filter(p => p.trim());
+      const personalPoints = (quote.personalApplication || '').split('\n').filter(p => p.trim());
       personalPoints.forEach((point, i) => {
         slide4.addText(`• ${point.replace(/^[-•]\s*/, '')}`, { 
           x: 0.5, y: 1.7 + (i * 0.4), w: 4, h: 0.4, 
@@ -953,7 +1097,7 @@ export default function AccountabilityTracker() {
         fontSize: 16, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      const businessPoints = quote.businessApplication.split('\n').filter(p => p.trim());
+      const businessPoints = (quote.businessApplication || '').split('\n').filter(p => p.trim());
       businessPoints.forEach((point, i) => {
         slide4.addText(`• ${point.replace(/^[-•]\s*/, '')}`, { 
           x: 5, y: 1.7 + (i * 0.4), w: 4.5, h: 0.4, 
@@ -970,7 +1114,7 @@ export default function AccountabilityTracker() {
         fontFace: 'Georgia'
       });
       slide5.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
-      slide5.addText(quote.closingThought, { 
+      slide5.addText(quote.closingThought || '', { 
         x: 0.5, y: 1.5, w: 9, h: 2, 
         fontSize: 20, color: '333333',
         fontFace: 'Georgia', valign: 'top'
@@ -983,8 +1127,10 @@ export default function AccountabilityTracker() {
       
       // Download
       pptx.writeFile({ fileName: `Quote_${quote.author.replace(/\s+/g, '_')}_${quote.weekOf || 'weekly'}.pptx` });
-    };
-    document.head.appendChild(script);
+    } catch (error) {
+      console.error('PowerPoint generation error:', error);
+      alert('Failed to generate PowerPoint. Please try again.');
+    }
   };
 
   // Get current week's quote
@@ -1145,6 +1291,147 @@ export default function AccountabilityTracker() {
             <div className="bg-white rounded-2xl p-4 border border-gray-100">
               <h3 className="font-semibold text-gray-800 text-sm mb-3">Participant Performance</h3>
               <div className="space-y-2">{participantData.map(p => <div key={p.name} className="flex items-center gap-2"><div className="w-16 text-sm font-medium text-gray-700">{p.name}</div><div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${p.rate}%`, backgroundColor: p.color }} /></div><div className="w-10 text-right text-sm font-semibold" style={{ color: p.color }}>{p.rate}%</div><div className="w-16 text-right text-xs text-gray-400">{p.completed}/{p.total}</div></div>)}</div>
+            </div>
+            
+            {/* NEW: Leaderboard & Streaks */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Leaderboard */}
+              <div className="bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] rounded-2xl p-4 text-white">
+                <div className="flex items-center gap-2 mb-4">
+                  <Trophy className="w-5 h-5 text-[#F5B800]" />
+                  <h3 className="font-semibold">Leaderboard</h3>
+                </div>
+                <div className="space-y-3">
+                  {leaderboard.map((p, i) => (
+                    <div key={p.name} className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${i === 0 ? 'bg-[#F5B800] text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
+                        {i === 0 ? <Crown className="w-4 h-4" /> : i === 1 ? <Medal className="w-4 h-4" /> : i === 2 ? <Award className="w-4 h-4" /> : <span className="text-sm font-bold">{i + 1}</span>}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{p.name}</p>
+                        <p className="text-xs text-white/60">{p.rate}% completion</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-[#F5B800]">{p.score}</p>
+                        <p className="text-xs text-white/60">points</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Streaks */}
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-4">
+                  <Flame className="w-5 h-5 text-orange-500" />
+                  <h3 className="font-semibold text-gray-800">Weekly Streaks</h3>
+                </div>
+                <p className="text-xs text-gray-500 mb-4">Consecutive weeks with 70%+ completion</p>
+                <div className="space-y-3">
+                  {PARTICIPANTS.map(p => {
+                    const streak = calculateStreaks[p] || 0;
+                    return (
+                      <div key={p} className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: PARTICIPANT_COLORS[p] + '20' }}>
+                          <span className="text-lg">🔥</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800">{p}</p>
+                          <div className="flex gap-1 mt-1">
+                            {[...Array(Math.min(streak, 10))].map((_, i) => (
+                              <div key={i} className="w-3 h-3 rounded-full bg-orange-400" />
+                            ))}
+                            {streak > 10 && <span className="text-xs text-gray-400">+{streak - 10}</span>}
+                            {streak === 0 && <span className="text-xs text-gray-400">No streak yet</span>}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-orange-500">{streak}</p>
+                          <p className="text-xs text-gray-400">weeks</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            
+            {/* NEW: Weekly Check-in */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100">
+              <div className="flex items-center gap-2 mb-4">
+                <MessageSquare className="w-5 h-5 text-[#1E3A5F]" />
+                <h3 className="font-semibold text-gray-800">Weekly Check-in</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">🎉 Wins this week</label>
+                  <input 
+                    type="text" 
+                    value={checkInWins} 
+                    onChange={(e) => setCheckInWins(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]" 
+                    placeholder="What went well?" 
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">💪 Challenges</label>
+                  <input 
+                    type="text" 
+                    value={checkInChallenges} 
+                    onChange={(e) => setCheckInChallenges(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]" 
+                    placeholder="What was hard?" 
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={checkInText} 
+                  onChange={(e) => setCheckInText(e.target.value)}
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]" 
+                  placeholder="Any other reflections..." 
+                />
+                <button 
+                  onClick={submitCheckIn}
+                  disabled={!checkInWins.trim() && !checkInChallenges.trim() && !checkInText.trim()}
+                  className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors disabled:opacity-50"
+                >
+                  Share
+                </button>
+              </div>
+              
+              {/* Recent Check-ins */}
+              {checkIns.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 mb-3">Recent check-ins</p>
+                  <div className="space-y-3 max-h-48 overflow-y-auto">
+                    {checkIns.slice(0, 5).map(ci => (
+                      <div key={ci.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                        {ci.participantPhoto ? (
+                          <img src={ci.participantPhoto} alt="" className="w-8 h-8 rounded-full" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-[#1E3A5F] flex items-center justify-center text-white text-sm font-medium">
+                            {ci.participant?.[0] || '?'}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-medium text-gray-800">{ci.participant}</p>
+                            <span className="text-xs text-gray-400">{new Date(ci.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          {ci.wins && <p className="text-xs text-gray-600"><span className="text-green-600">🎉</span> {ci.wins}</p>}
+                          {ci.challenges && <p className="text-xs text-gray-600"><span className="text-orange-600">💪</span> {ci.challenges}</p>}
+                          {ci.reflection && <p className="text-xs text-gray-500 mt-1">{ci.reflection}</p>}
+                        </div>
+                        <button onClick={() => deleteCheckIn(ci.id)} className="text-gray-300 hover:text-red-400">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1416,14 +1703,22 @@ export default function AccountabilityTracker() {
                     </div>
                     
                     <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                      <p className="text-sm italic text-gray-500">"{quote.closingThought}"</p>
-                      <button
-                        onClick={() => downloadQuotePPTX(quote)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 rounded-lg text-sm text-amber-700 transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        PowerPoint
-                      </button>
+                      <p className="text-sm italic text-gray-500 flex-1 mr-4">"{quote.closingThought}"</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => downloadQuotePPTX(quote)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-[#F5F3E8] hover:bg-[#EBE6D3] rounded-lg text-sm text-[#1E3A5F] transition-colors"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span className="hidden md:inline">PowerPoint</span>
+                        </button>
+                        <button
+                          onClick={() => deleteQuote(quote.id)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 rounded-lg text-sm text-red-600 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
