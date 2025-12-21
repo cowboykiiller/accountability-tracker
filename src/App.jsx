@@ -405,7 +405,8 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
     'scorecard': 'Scorecard', 
     'add': 'Add Habit', 
     'quotes': 'Quotes', 
-    'ai-coach': 'AI Coach' 
+    'ai-coach': 'AI Coach',
+    'profile': 'My Profile'
   };
   const allNavItems = [
     { id: 'dashboard', icon: Home, label: 'Home' },
@@ -432,7 +433,10 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
     </nav>
     {user && (
       <div className="pt-4 border-t border-gray-100">
-        <div className="flex items-center gap-2 px-2 mb-2">
+        <button 
+          onClick={() => setActiveView('profile')}
+          className={`w-full flex items-center gap-2 px-2 mb-2 p-2 rounded-lg transition-colors ${activeView === 'profile' ? 'bg-[#F5F3E8]' : 'hover:bg-gray-50'}`}
+        >
           {user.photoURL ? (
             <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full" />
           ) : (
@@ -440,11 +444,11 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
               <User className="w-4 h-4 text-[#162D4D]" />
             </div>
           )}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
             <p className="text-sm font-medium text-gray-800 truncate">{user.displayName || 'User'}</p>
             <p className="text-xs text-gray-400 truncate">{user.email}</p>
           </div>
-        </div>
+        </button>
         <button onClick={onSignOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50">
           <LogOut className="w-4 h-4" />Sign Out
         </button>
@@ -620,8 +624,16 @@ export default function AccountabilityTracker() {
   
   // Bets/Challenges state
   const [bets, setBets] = useState([]);
-  const [newBet, setNewBet] = useState({ challenger: '', challenged: '', goal: '', amount: '', deadline: '' });
+  const [newBet, setNewBet] = useState({ challenger: '', challenged: '', goal: '', reward: '', deadline: '' });
   const [showNewBet, setShowNewBet] = useState(false);
+  const [editingBet, setEditingBet] = useState(null);
+  
+  // Profile state
+  const [profiles, setProfiles] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
+  const [profileForm, setProfileForm] = useState({ displayName: '', bio: '', linkedParticipant: '' });
+  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [newParticipantName, setNewParticipantName] = useState('');
   
   // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
@@ -631,6 +643,7 @@ export default function AccountabilityTracker() {
   
   const calendarRef = useRef(null);
   const fileInputRef = useRef(null);
+  const postTextRef = useRef(null);
 
   // Set favicon on mount
   useEffect(() => {
@@ -765,10 +778,60 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
+  // Profiles Firestore listener
+  useEffect(() => {
+    if (!user) {
+      setProfiles([]);
+      setUserProfile(null);
+      return;
+    }
+
+    const q = query(collection(db, 'profiles'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const profilesData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setProfiles(profilesData);
+      
+      // Find current user's profile
+      const myProfile = profilesData.find(p => p.odingUserId === user.uid);
+      setUserProfile(myProfile || null);
+      if (myProfile) {
+        setProfileForm({
+          displayName: myProfile.displayName || '',
+          bio: myProfile.bio || '',
+          linkedParticipant: myProfile.linkedParticipant || ''
+        });
+      }
+    }, (error) => {
+      console.error('Profiles error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Get all participants (base + any added via profiles)
+  const allParticipants = useMemo(() => {
+    const baseParticipants = [...PARTICIPANTS];
+    profiles.forEach(p => {
+      if (p.linkedParticipant && !baseParticipants.includes(p.linkedParticipant)) {
+        baseParticipants.push(p.linkedParticipant);
+      }
+    });
+    // Also add any participants from habits that aren't in the base list
+    habits.forEach(h => {
+      if (h.participant && !baseParticipants.includes(h.participant)) {
+        baseParticipants.push(h.participant);
+      }
+    });
+    return baseParticipants;
+  }, [profiles, habits]);
+
   // Calculate streaks for each participant
   const calculateStreaks = useMemo(() => {
     const streaks = {};
-    PARTICIPANTS.forEach(p => {
+    allParticipants.forEach(p => {
       // Group habits by week for this participant
       const participantHabits = habits.filter(h => h.participant === p);
       const weeklyData = {};
@@ -800,11 +863,11 @@ export default function AccountabilityTracker() {
       streaks[p] = currentStreak;
     });
     return streaks;
-  }, [habits]);
+  }, [habits, allParticipants]);
 
   // Calculate leaderboard
   const leaderboard = useMemo(() => {
-    return PARTICIPANTS.map(p => {
+    return allParticipants.map(p => {
       const participantHabits = habits.filter(h => h.participant === p);
       const totalPossible = participantHabits.reduce((sum, h) => sum + (h.target || 5), 0);
       const totalCompleted = participantHabits.reduce((sum, h) => {
@@ -850,43 +913,143 @@ export default function AccountabilityTracker() {
     }
   };
 
-  // Handle image selection for post
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image must be less than 5MB');
-        return;
-      }
+  // Compress image before upload
+  const compressImage = (file, maxWidth = 800, quality = 0.7) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewPostImage(reader.result);
-        setPostImagePreview(reader.result);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Scale down if too large
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convert to compressed base64
+          const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressedBase64);
+        };
+        img.src = e.target.result;
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle image selection for post
+  const handleImageSelect = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image must be less than 10MB');
+        return;
+      }
+      
+      try {
+        // Compress the image
+        const compressedImage = await compressImage(file, 800, 0.6);
+        setNewPostImage(compressedImage);
+        setPostImagePreview(compressedImage);
+      } catch (error) {
+        console.error('Error compressing image:', error);
+        alert('Failed to process image. Please try again.');
+      }
     }
+  };
+
+  // Apply text formatting
+  const applyFormat = (format) => {
+    const textarea = postTextRef.current;
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = newPostText;
+    const selectedText = text.substring(start, end);
+    
+    let formattedText = '';
+    let cursorOffset = 0;
+    
+    switch (format) {
+      case 'bold':
+        formattedText = `**${selectedText}**`;
+        cursorOffset = 2;
+        break;
+      case 'italic':
+        formattedText = `_${selectedText}_`;
+        cursorOffset = 1;
+        break;
+      case 'bullet':
+        formattedText = `\n• ${selectedText}`;
+        cursorOffset = 3;
+        break;
+      default:
+        return;
+    }
+    
+    const newText = text.substring(0, start) + formattedText + text.substring(end);
+    setNewPostText(newText);
+    
+    // Reset cursor position
+    setTimeout(() => {
+      textarea.focus();
+      const newPos = start + cursorOffset + (selectedText ? selectedText.length + cursorOffset : 0);
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
+  // Render formatted text
+  const renderFormattedText = (text) => {
+    if (!text) return null;
+    
+    // Convert markdown-style formatting to HTML
+    let formatted = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/_(.*?)_/g, '<em>$1</em>')
+      .replace(/\n/g, '<br/>');
+    
+    return <span dangerouslySetInnerHTML={{ __html: formatted }} />;
   };
 
   // Create new post
   const createPost = async () => {
     if (!newPostText.trim() && !newPostImage) return;
     
-    const post = {
-      id: `post_${Date.now()}`,
-      author: user.displayName || 'Anonymous',
-      authorPhoto: user.photoURL || null,
-      authorId: user.uid,
-      content: newPostText,
-      image: newPostImage,
-      reactions: {},
-      comments: [],
-      createdAt: new Date().toISOString()
-    };
-    
-    await setDoc(doc(db, 'posts', post.id), post);
-    setNewPostText('');
-    setNewPostImage(null);
-    setPostImagePreview(null);
+    try {
+      const post = {
+        id: `post_${Date.now()}`,
+        author: userProfile?.linkedParticipant || user.displayName || 'Anonymous',
+        authorPhoto: user.photoURL || null,
+        authorId: user.uid,
+        content: newPostText,
+        image: newPostImage || null,
+        reactions: {},
+        comments: [],
+        createdAt: new Date().toISOString()
+      };
+      
+      await setDoc(doc(db, 'posts', post.id), post);
+      setNewPostText('');
+      setNewPostImage(null);
+      setPostImagePreview(null);
+    } catch (error) {
+      console.error('Error creating post:', error);
+      if (error.message?.includes('bytes')) {
+        alert('Image is too large. Please try a smaller image.');
+      } else {
+        alert('Failed to create post. Please try again.');
+      }
+    }
   };
 
   // Add reaction to post
@@ -939,20 +1102,20 @@ export default function AccountabilityTracker() {
     }
   };
 
-  // Create new bet/challenge
+  // Create new challenge
   const createBet = async () => {
-    if (!newBet.challenged || !newBet.goal || !newBet.amount) return;
+    if (!newBet.challenged || !newBet.goal) return;
     
     const bet = {
       id: `bet_${Date.now()}`,
-      challenger: user.displayName || 'Anonymous',
+      challenger: userProfile?.linkedParticipant || user.displayName || 'Anonymous',
       challengerId: user.uid,
       challengerPhoto: user.photoURL,
       challenged: newBet.challenged,
       goal: newBet.goal,
-      amount: newBet.amount,
+      reward: newBet.reward || 'Bragging rights! 🏆',
       deadline: newBet.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'pending', // pending, accepted, declined, completed, won, lost
+      status: 'pending', // pending, accepted, declined, completed
       acceptedAt: null,
       completedAt: null,
       winner: null,
@@ -960,11 +1123,21 @@ export default function AccountabilityTracker() {
     };
     
     await setDoc(doc(db, 'bets', bet.id), bet);
-    setNewBet({ challenger: '', challenged: '', goal: '', amount: '', deadline: '' });
+    setNewBet({ challenger: '', challenged: '', goal: '', reward: '', deadline: '' });
     setShowNewBet(false);
   };
 
-  // Accept bet
+  // Update/Edit challenge
+  const updateBet = async () => {
+    if (!editingBet || !editingBet.goal) return;
+    
+    await setDoc(doc(db, 'bets', editingBet.id), {
+      ...editingBet
+    }, { merge: true });
+    setEditingBet(null);
+  };
+
+  // Accept challenge
   const acceptBet = async (betId) => {
     const bet = bets.find(b => b.id === betId);
     if (!bet) return;
@@ -976,7 +1149,7 @@ export default function AccountabilityTracker() {
     }, { merge: true });
   };
 
-  // Decline bet
+  // Decline challenge
   const declineBet = async (betId) => {
     const bet = bets.find(b => b.id === betId);
     if (!bet) return;
@@ -987,24 +1160,53 @@ export default function AccountabilityTracker() {
     }, { merge: true });
   };
 
-  // Complete bet (mark winner)
-  const completeBet = async (betId, winnerId) => {
+  // Complete challenge (mark winner)
+  const completeBet = async (betId, winnerName) => {
     const bet = bets.find(b => b.id === betId);
     if (!bet) return;
     
     await setDoc(doc(db, 'bets', betId), { 
       ...bet, 
       status: 'completed',
-      winner: winnerId,
+      winner: winnerName,
       completedAt: new Date().toISOString()
     }, { merge: true });
   };
 
-  // Delete bet
+  // Delete challenge
   const deleteBet = async (betId) => {
-    if (window.confirm('Delete this bet?')) {
+    if (window.confirm('Delete this challenge?')) {
       await deleteDoc(doc(db, 'bets', betId));
     }
+  };
+
+  // Save profile
+  const saveProfile = async () => {
+    if (!user) return;
+    
+    const profile = {
+      odingUserId: user.uid,
+      odingEmail: user.email,
+      odingDisplayName: user.displayName,
+      odingPhoto: user.photoURL,
+      displayName: profileForm.displayName || user.displayName,
+      bio: profileForm.bio || '',
+      linkedParticipant: profileForm.linkedParticipant || '',
+      updatedAt: new Date().toISOString()
+    };
+    
+    const profileId = userProfile?.id || `profile_${user.uid}`;
+    await setDoc(doc(db, 'profiles', profileId), profile, { merge: true });
+  };
+
+  // Add new participant
+  const addNewParticipant = async () => {
+    if (!newParticipantName.trim()) return;
+    
+    // Just set it as the linked participant - it will automatically be added to allParticipants
+    setProfileForm({ ...profileForm, linkedParticipant: newParticipantName.trim() });
+    setNewParticipantName('');
+    setShowAddParticipant(false);
   };
 
   // Load initial data to Firestore
@@ -1685,10 +1887,36 @@ export default function AccountabilityTracker() {
                   </div>
                 )}
                 <div className="flex-1">
+                  {/* Formatting Toolbar */}
+                  <div className="flex gap-1 mb-2">
+                    <button 
+                      onClick={() => applyFormat('bold')}
+                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold text-gray-600"
+                      title="Bold"
+                    >
+                      B
+                    </button>
+                    <button 
+                      onClick={() => applyFormat('italic')}
+                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs italic text-gray-600"
+                      title="Italic"
+                    >
+                      I
+                    </button>
+                    <button 
+                      onClick={() => applyFormat('bullet')}
+                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs text-gray-600"
+                      title="Bullet Point"
+                    >
+                      • List
+                    </button>
+                    <span className="text-xs text-gray-400 ml-2 self-center">Select text then click to format</span>
+                  </div>
                   <textarea
+                    ref={postTextRef}
                     value={newPostText}
                     onChange={(e) => setNewPostText(e.target.value)}
-                    placeholder="Share an update, win, or challenge..."
+                    placeholder="Share an update, win, or challenge... Use **bold** or _italic_"
                     className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800] resize-none"
                     rows={3}
                   />
@@ -1750,7 +1978,7 @@ export default function AccountabilityTracker() {
                         <p className="font-semibold text-gray-800">{post.author}</p>
                         <span className="text-xs text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</span>
                       </div>
-                      <p className="text-gray-700 mt-1 whitespace-pre-wrap">{post.content}</p>
+                      <div className="text-gray-700 mt-1 whitespace-pre-wrap">{renderFormattedText(post.content)}</div>
                     </div>
                     {post.authorId === user?.uid && (
                       <button onClick={() => deletePost(post.id)} className="text-gray-300 hover:text-red-400">
@@ -1853,7 +2081,7 @@ export default function AccountabilityTracker() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-gray-800">Compete & Challenge</h2>
-                <p className="text-sm text-gray-500">Put your money where your habits are!</p>
+                <p className="text-sm text-gray-500">Challenge your teammates to reach their goals!</p>
               </div>
               <button 
                 onClick={() => setShowNewBet(true)}
@@ -1927,11 +2155,23 @@ export default function AccountabilityTracker() {
                             <span className="text-purple-400">vs</span>
                             <span className="font-medium text-purple-800">{bet.challenged}</span>
                           </div>
-                          <span className="text-lg font-bold text-green-600">${bet.amount}</span>
+                          <div className="flex items-center gap-1">
+                            {bet.challengerId === user?.uid && (
+                              <>
+                                <button onClick={() => setEditingBet(bet)} className="p-1 text-purple-400 hover:text-purple-600">
+                                  <Wand2 className="w-3 h-3" />
+                                </button>
+                                <button onClick={() => deleteBet(bet.id)} className="p-1 text-purple-400 hover:text-red-500">
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-sm text-purple-700 mb-2">{bet.goal}</p>
+                        <p className="text-sm text-purple-700 mb-1">{bet.goal}</p>
+                        {bet.reward && <p className="text-xs text-purple-500 mb-1">🎁 {bet.reward}</p>}
                         <p className="text-xs text-purple-500 mb-3">Deadline: {new Date(bet.deadline).toLocaleDateString()}</p>
-                        {bet.challenged === user?.displayName && (
+                        {(bet.challenged === user?.displayName || bet.challenged === userProfile?.linkedParticipant) && bet.challengerId !== user?.uid && (
                           <div className="flex gap-2">
                             <button 
                               onClick={() => acceptBet(bet.id)}
@@ -1972,15 +2212,22 @@ export default function AccountabilityTracker() {
                             <span className="text-gray-400">vs</span>
                             <span className="font-medium text-gray-800">{bet.challenged}</span>
                           </div>
-                          <span className="text-lg font-bold text-green-600">${bet.amount}</span>
+                          <div className="flex items-center gap-1">
+                            {bet.challengerId === user?.uid && (
+                              <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-400 hover:text-red-500">
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-700 mb-2">{bet.goal}</p>
+                        <p className="text-sm text-gray-700 mb-1">{bet.goal}</p>
+                        {bet.reward && <p className="text-xs text-orange-600 mb-2">🎁 {bet.reward}</p>}
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-gray-500">Ends: {new Date(bet.deadline).toLocaleDateString()}</p>
-                          {(bet.challengerId === user?.uid || bet.challenged === user?.displayName) && (
+                          {(bet.challengerId === user?.uid || bet.challenged === user?.displayName || bet.challenged === userProfile?.linkedParticipant) && (
                             <div className="flex gap-1">
                               <button 
-                                onClick={() => completeBet(bet.id, bet.challengerId)}
+                                onClick={() => completeBet(bet.id, bet.challenger)}
                                 className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
                               >
                                 {bet.challenger} won
@@ -2013,17 +2260,19 @@ export default function AccountabilityTracker() {
                     <div key={bet.id} className="p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-600">{bet.challenger} vs {bet.challenged}</span>
-                        <span className="text-sm font-bold text-green-600">${bet.amount}</span>
+                        <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-300 hover:text-red-400">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
                       <p className="text-xs text-gray-500">{bet.goal}</p>
-                      <p className="text-sm font-medium text-purple-600 mt-1">🏆 Winner: {bet.winner === bet.challengerId ? bet.challenger : bet.challenged}</p>
+                      <p className="text-sm font-medium text-purple-600 mt-1">🏆 Winner: {bet.winner}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             
-            {/* New Bet Modal */}
+            {/* New Challenge Modal */}
             {showNewBet && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-2xl p-6 w-full max-w-md">
@@ -2041,7 +2290,7 @@ export default function AccountabilityTracker() {
                         className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
                       >
                         <option value="">Select opponent...</option>
-                        {PARTICIPANTS.filter(p => p !== user?.displayName).map(p => (
+                        {allParticipants.filter(p => p !== userProfile?.linkedParticipant && p !== user?.displayName).map(p => (
                           <option key={p} value={p}>{p}</option>
                         ))}
                       </select>
@@ -2060,12 +2309,12 @@ export default function AccountabilityTracker() {
                     
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-sm text-gray-600 block mb-1">Stakes ($)</label>
+                        <label className="text-sm text-gray-600 block mb-1">Reward (optional)</label>
                         <input
-                          type="number"
-                          value={newBet.amount}
-                          onChange={(e) => setNewBet({ ...newBet, amount: e.target.value })}
-                          placeholder="50"
+                          type="text"
+                          value={newBet.reward}
+                          onChange={(e) => setNewBet({ ...newBet, reward: e.target.value })}
+                          placeholder="Bragging rights 🏆"
                           className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
                         />
                       </div>
@@ -2090,10 +2339,84 @@ export default function AccountabilityTracker() {
                     </button>
                     <button 
                       onClick={createBet}
-                      disabled={!newBet.challenged || !newBet.goal || !newBet.amount}
+                      disabled={!newBet.challenged || !newBet.goal}
                       className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
                     >
                       Send Challenge
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Edit Challenge Modal */}
+            {editingBet && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <Wand2 className="w-5 h-5 text-purple-600" />
+                    Edit Challenge
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm text-gray-600 block mb-1">Challenge Who?</label>
+                      <select 
+                        value={editingBet.challenged}
+                        onChange={(e) => setEditingBet({ ...editingBet, challenged: e.target.value })}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      >
+                        {allParticipants.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm text-gray-600 block mb-1">The Challenge</label>
+                      <input
+                        type="text"
+                        value={editingBet.goal}
+                        onChange={(e) => setEditingBet({ ...editingBet, goal: e.target.value })}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm text-gray-600 block mb-1">Reward (optional)</label>
+                        <input
+                          type="text"
+                          value={editingBet.reward || ''}
+                          onChange={(e) => setEditingBet({ ...editingBet, reward: e.target.value })}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm text-gray-600 block mb-1">Deadline</label>
+                        <input
+                          type="date"
+                          value={editingBet.deadline}
+                          onChange={(e) => setEditingBet({ ...editingBet, deadline: e.target.value })}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3 mt-6">
+                    <button 
+                      onClick={() => setEditingBet(null)}
+                      className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={updateBet}
+                      disabled={!editingBet.challenged || !editingBet.goal}
+                      className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+                    >
+                      Save Changes
                     </button>
                   </div>
                 </div>
@@ -2104,7 +2427,7 @@ export default function AccountabilityTracker() {
 
         {activeView === 'tracker' && (
           <div className="space-y-4">
-            <div className="flex gap-2 flex-wrap">{['All', ...PARTICIPANTS].map(p => <button key={p} onClick={() => setSelectedParticipant(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedParticipant === p ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}>{p === 'All' ? `All (${currentWeekHabits.length})` : `${p} (${currentWeekHabits.filter(h => h.participant === p).length})`}</button>)}</div>
+            <div className="flex gap-2 flex-wrap">{['All', ...allParticipants].map(p => <button key={p} onClick={() => setSelectedParticipant(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedParticipant === p ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}>{p === 'All' ? `All (${currentWeekHabits.length})` : `${p} (${currentWeekHabits.filter(h => h.participant === p).length})`}</button>)}</div>
             <div className="space-y-2">{filteredHabits.length === 0 ? <div className="bg-white rounded-xl p-8 text-center border border-gray-100"><p className="text-gray-400 mb-2">No habits for this week</p><button onClick={() => setActiveView('add')} className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors">Add a Habit</button></div> : filteredHabits.map(h => {
               const st = getStatus(h), cfg = STATUS_CONFIG[st];
               return <div key={h.id} className="bg-white rounded-xl p-3 border border-gray-100 hover:border-gray-200 transition-colors"><div className="flex flex-col md:flex-row md:items-center gap-3"><div className="flex-1"><div className="flex items-center gap-2 mb-0.5"><span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span><span className="text-gray-400 text-xs">{h.participant}</span></div><h3 className="text-gray-800 font-medium text-sm">{h.habit}</h3><p className="text-gray-400 text-xs">{h.daysCompleted.length}/{h.target} days</p></div><div className="flex items-center gap-1">{DAYS.map((d, i) => <button key={d} onClick={() => toggleDay(h.id, i)} className={`w-8 h-8 md:w-7 md:h-7 rounded text-xs font-medium transition-colors ${h.daysCompleted.includes(i) ? 'bg-[#1E3A5F] text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>{d[0]}</button>)}<button onClick={() => deleteHabit(h.id)} className="w-8 h-8 md:w-7 md:h-7 rounded bg-red-50 text-red-400 hover:bg-red-100 ml-1 transition-colors"><Trash2 className="w-3 h-3 mx-auto" /></button></div></div></div>;
@@ -2131,7 +2454,7 @@ export default function AccountabilityTracker() {
                 <div className="space-y-3">
                   <input type="text" value={newHabit.habit} onChange={(e) => setNewHabit({ ...newHabit, habit: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]" placeholder="Habit name" />
                   <div className="grid grid-cols-2 gap-2">
-                    <select value={newHabit.participant} onChange={(e) => setNewHabit({ ...newHabit, participant: e.target.value })} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{PARTICIPANTS.map(p => <option key={p} value={p}>{p}</option>)}</select>
+                    <select value={newHabit.participant} onChange={(e) => setNewHabit({ ...newHabit, participant: e.target.value })} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{allParticipants.map(p => <option key={p} value={p}>{p}</option>)}</select>
                     <select value={newHabit.target} onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days</option>)}</select>
                   </div>
                   <button onClick={addHabit} className="w-full bg-[#1E3A5F] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors">Add Habit</button>
@@ -2140,7 +2463,7 @@ export default function AccountabilityTracker() {
                 <div className="space-y-3">
                   <textarea value={bulkHabits} onChange={(e) => setBulkHabits(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm h-28 focus:outline-none focus:border-[#F5B800]" placeholder="One habit per line..." />
                   <div className="grid grid-cols-2 gap-2">
-                    <select value={bulkParticipant} onChange={(e) => setBulkParticipant(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{PARTICIPANTS.map(p => <option key={p} value={p}>{p}</option>)}</select>
+                    <select value={bulkParticipant} onChange={(e) => setBulkParticipant(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{allParticipants.map(p => <option key={p} value={p}>{p}</option>)}</select>
                     <select value={bulkTarget} onChange={(e) => setBulkTarget(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days</option>)}</select>
                   </div>
                   <button onClick={addBulkHabits} className="w-full bg-[#1E3A5F] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors">Add {bulkHabits.split('\n').filter(l => l.trim()).length} Habits</button>
@@ -2177,7 +2500,7 @@ export default function AccountabilityTracker() {
                   onChange={(e) => setSelectedAiParticipant(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3"
                 >
-                  {PARTICIPANTS.map(p => <option key={p} value={p}>{p}</option>)}
+                  {allParticipants.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
                 <button 
                   onClick={() => callAI('weekly-coach')}
@@ -2388,6 +2711,176 @@ export default function AccountabilityTracker() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PROFILE VIEW */}
+        {activeView === 'profile' && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            {/* Profile Header */}
+            <div className="bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] rounded-2xl p-6 text-white">
+              <div className="flex items-center gap-4">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt="" className="w-20 h-20 rounded-full border-4 border-white/20" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
+                    <User className="w-10 h-10 text-white" />
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-2xl font-bold">{userProfile?.displayName || user?.displayName || 'Anonymous'}</h2>
+                  <p className="text-white/60">{user?.email}</p>
+                  {userProfile?.linkedParticipant && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="px-2 py-1 bg-[#F5B800] text-[#1E3A5F] rounded-lg text-xs font-medium">
+                        Linked to: {userProfile.linkedParticipant}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Profile Settings */}
+            <div className="bg-white rounded-xl p-6 border border-gray-100">
+              <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <User className="w-5 h-5 text-[#1E3A5F]" />
+                Profile Settings
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={profileForm.displayName}
+                    onChange={(e) => setProfileForm({ ...profileForm, displayName: e.target.value })}
+                    placeholder={user?.displayName || 'Your name'}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Bio</label>
+                  <textarea
+                    value={profileForm.bio}
+                    onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
+                    placeholder="Tell us about yourself..."
+                    rows={3}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800] resize-none"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Link to Habit Tracker Participant</label>
+                  <p className="text-xs text-gray-400 mb-2">Connect your profile to a participant to track your habits</p>
+                  <div className="flex gap-2">
+                    <select
+                      value={profileForm.linkedParticipant}
+                      onChange={(e) => setProfileForm({ ...profileForm, linkedParticipant: e.target.value })}
+                      className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                    >
+                      <option value="">Not linked</option>
+                      {allParticipants.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setShowAddParticipant(true)}
+                      className="px-3 py-2 bg-[#F5B800] text-[#1E3A5F] rounded-lg text-sm font-medium hover:bg-[#E5AB00] transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={saveProfile}
+                  className="w-full py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] transition-colors"
+                >
+                  Save Profile
+                </button>
+              </div>
+            </div>
+            
+            {/* Stats Overview */}
+            {userProfile?.linkedParticipant && (
+              <div className="bg-white rounded-xl p-6 border border-gray-100">
+                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-[#1E3A5F]" />
+                  Your Stats
+                </h3>
+                
+                {(() => {
+                  const myStats = leaderboard.find(l => l.name === userProfile.linkedParticipant);
+                  const myStreak = calculateStreaks[userProfile.linkedParticipant] || 0;
+                  return myStats ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center p-4 bg-purple-50 rounded-xl">
+                        <p className="text-3xl font-bold text-purple-600">{myStats.rate}%</p>
+                        <p className="text-xs text-purple-500">Completion Rate</p>
+                      </div>
+                      <div className="text-center p-4 bg-amber-50 rounded-xl">
+                        <p className="text-3xl font-bold text-amber-600">{myStats.score}</p>
+                        <p className="text-xs text-amber-500">Total Points</p>
+                      </div>
+                      <div className="text-center p-4 bg-orange-50 rounded-xl">
+                        <p className="text-3xl font-bold text-orange-600">{myStreak}</p>
+                        <p className="text-xs text-orange-500">Week Streak</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-400 text-sm">No stats available yet</p>
+                  );
+                })()}
+              </div>
+            )}
+            
+            {/* Account Actions */}
+            <div className="bg-white rounded-xl p-6 border border-gray-100">
+              <h3 className="font-semibold text-gray-800 mb-4">Account</h3>
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+            
+            {/* Add New Participant Modal */}
+            {showAddParticipant && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4">Add New Participant</h3>
+                  <p className="text-sm text-gray-500 mb-4">Create a new participant name for the habit tracker</p>
+                  
+                  <input
+                    type="text"
+                    value={newParticipantName}
+                    onChange={(e) => setNewParticipantName(e.target.value)}
+                    placeholder="Enter participant name"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:border-[#F5B800]"
+                  />
+                  
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setShowAddParticipant(false); setNewParticipantName(''); }}
+                      className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={addNewParticipant}
+                      disabled={!newParticipantName.trim()}
+                      className="flex-1 py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] disabled:opacity-50"
+                    >
+                      Add & Link
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
