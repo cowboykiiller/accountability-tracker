@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2 } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -383,11 +383,12 @@ const getWeekStartFromDate = (date) => {
 
 // Components
 const NAV_ITEMS = [
-  { id: 'dashboard', icon: Home, label: 'Dashboard' },
+  { id: 'dashboard', icon: Home, label: 'Home' },
   { id: 'tracker', icon: Calendar, label: 'Tracker' },
-  { id: 'scorecard', icon: BarChart3, label: 'Scorecard' },
+  { id: 'scorecard', icon: BarChart3, label: 'Score' },
   { id: 'add', icon: Plus, label: 'Add' },
-  { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' }
+  { id: 'quotes', icon: Quote, label: 'Quotes' },
+  { id: 'ai-coach', icon: Sparkles, label: 'AI' }
 ];
 
 const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
@@ -427,16 +428,16 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
 );
 
 const MobileNav = ({ activeView, setActiveView }) => (
-  <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 pt-2 pb-6 z-50 shadow-lg" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+  <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-1 pt-2 pb-6 z-50 shadow-lg" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
     <div className="flex justify-around items-center">
       {NAV_ITEMS.map(item => (
         <button
           key={item.id}
           onClick={() => setActiveView(item.id)}
-          className={`flex flex-col items-center py-1 px-3 rounded-lg ${activeView === item.id ? 'text-violet-600' : 'text-gray-400'}`}
+          className={`flex flex-col items-center py-1 px-1 rounded-lg ${activeView === item.id ? 'text-violet-600' : 'text-gray-400'}`}
         >
           <item.icon className="w-5 h-5" />
-          <span className="text-xs mt-1">{item.label}</span>
+          <span className="text-[10px] mt-0.5">{item.label}</span>
         </button>
       ))}
     </div>
@@ -581,6 +582,10 @@ export default function AccountabilityTracker() {
   const [aiGoal, setAiGoal] = useState('');
   const [selectedAiParticipant, setSelectedAiParticipant] = useState('Taylor');
   
+  // Quotes state
+  const [quotes, setQuotes] = useState([]);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  
   const calendarRef = useRef(null);
 
   // Auth listener
@@ -617,6 +622,27 @@ export default function AccountabilityTracker() {
     }, (error) => {
       console.error('Firestore error:', error);
       setDataLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Quotes Firestore listener
+  useEffect(() => {
+    if (!user) {
+      setQuotes([]);
+      return;
+    }
+
+    const q = query(collection(db, 'quotes'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const quotesData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setQuotes(quotesData);
+    }, (error) => {
+      console.error('Quotes error:', error);
     });
 
     return () => unsubscribe();
@@ -799,6 +825,170 @@ export default function AccountabilityTracker() {
     setAiLoading(false);
   };
 
+  // Generate new quote
+  const generateQuote = async () => {
+    setQuoteLoading(true);
+    try {
+      const response = await fetch('/api/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate-quote',
+          existingQuotes: quotes
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error('Quote error:', data.error);
+      } else {
+        // Save to Firestore
+        await setDoc(doc(db, 'quotes', data.id), data);
+      }
+    } catch (error) {
+      console.error('Failed to generate quote:', error);
+    }
+    setQuoteLoading(false);
+  };
+
+  // Generate PowerPoint for a quote
+  const downloadQuotePPTX = async (quote) => {
+    // Dynamically load pptxgenjs from CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
+    script.onload = () => {
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_16x9';
+      pptx.title = `Weekly Quote - ${quote.author}`;
+      
+      // Slide 1: Title
+      let slide1 = pptx.addSlide();
+      slide1.addText('THE ACCOUNTABILITY GROUP', { 
+        x: 0.5, y: 2, w: 9, h: 0.8, 
+        fontSize: 32, bold: true, color: '1a1a1a',
+        fontFace: 'Arial'
+      });
+      slide1.addShape('rect', { x: 0.5, y: 2.7, w: 3, h: 0.05, fill: { color: 'C9A227' } });
+      slide1.addText(`Week of ${new Date(quote.weekOf || quote.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, { 
+        x: 0.5, y: 2.9, w: 9, h: 0.5, 
+        fontSize: 18, color: '666666',
+        fontFace: 'Arial'
+      });
+      
+      // Slide 2: Quote
+      let slide2 = pptx.addSlide();
+      slide2.addText('Quote', { 
+        x: 0.5, y: 0.5, w: 9, h: 0.6, 
+        fontSize: 24, italic: true, color: '1a1a1a',
+        fontFace: 'Georgia'
+      });
+      slide2.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'C9A227' } });
+      slide2.addText(`"${quote.quote}"`, { 
+        x: 0.5, y: 1.5, w: 9, h: 2, 
+        fontSize: 28, color: '333333',
+        fontFace: 'Georgia', valign: 'top'
+      });
+      slide2.addText(`— ${quote.author}`, { 
+        x: 0.5, y: 3.5, w: 9, h: 0.5, 
+        fontSize: 18, color: '666666',
+        fontFace: 'Arial'
+      });
+      
+      // Slide 3: About the Person
+      let slide3 = pptx.addSlide();
+      slide3.addText(`About ${quote.author}`, { 
+        x: 0.5, y: 0.5, w: 9, h: 0.6, 
+        fontSize: 24, italic: true, color: '1a1a1a',
+        fontFace: 'Georgia'
+      });
+      slide3.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'C9A227' } });
+      slide3.addText(quote.authorTitle, { 
+        x: 0.5, y: 1.3, w: 9, h: 0.5, 
+        fontSize: 18, bold: true, color: 'C9A227',
+        fontFace: 'Arial'
+      });
+      slide3.addText(quote.authorBio, { 
+        x: 0.5, y: 1.9, w: 9, h: 1.5, 
+        fontSize: 16, color: '333333',
+        fontFace: 'Arial', valign: 'top'
+      });
+      slide3.addText('Why This Quote Matters:', { 
+        x: 0.5, y: 3.3, w: 9, h: 0.4, 
+        fontSize: 16, bold: true, color: '1a1a1a',
+        fontFace: 'Arial'
+      });
+      slide3.addText(quote.whyItMatters, { 
+        x: 0.5, y: 3.7, w: 9, h: 1, 
+        fontSize: 14, color: '666666',
+        fontFace: 'Arial', valign: 'top'
+      });
+      
+      // Slide 4: Applications
+      let slide4 = pptx.addSlide();
+      slide4.addText('Applying This Lesson', { 
+        x: 0.5, y: 0.5, w: 9, h: 0.6, 
+        fontSize: 24, italic: true, color: '1a1a1a',
+        fontFace: 'Georgia'
+      });
+      slide4.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'C9A227' } });
+      
+      slide4.addText('Personal Life:', { 
+        x: 0.5, y: 1.3, w: 4, h: 0.4, 
+        fontSize: 16, bold: true, color: '1a1a1a',
+        fontFace: 'Arial'
+      });
+      const personalPoints = quote.personalApplication.split('\n').filter(p => p.trim());
+      personalPoints.forEach((point, i) => {
+        slide4.addText(`• ${point.replace(/^[-•]\s*/, '')}`, { 
+          x: 0.5, y: 1.7 + (i * 0.4), w: 4, h: 0.4, 
+          fontSize: 12, color: '333333',
+          fontFace: 'Arial'
+        });
+      });
+      
+      slide4.addText('Business & Career:', { 
+        x: 5, y: 1.3, w: 4.5, h: 0.4, 
+        fontSize: 16, bold: true, color: '1a1a1a',
+        fontFace: 'Arial'
+      });
+      const businessPoints = quote.businessApplication.split('\n').filter(p => p.trim());
+      businessPoints.forEach((point, i) => {
+        slide4.addText(`• ${point.replace(/^[-•]\s*/, '')}`, { 
+          x: 5, y: 1.7 + (i * 0.4), w: 4.5, h: 0.4, 
+          fontSize: 12, color: '333333',
+          fontFace: 'Arial'
+        });
+      });
+      
+      // Slide 5: Closing
+      let slide5 = pptx.addSlide();
+      slide5.addText('Closing Thought', { 
+        x: 0.5, y: 0.5, w: 9, h: 0.6, 
+        fontSize: 24, italic: true, color: '1a1a1a',
+        fontFace: 'Georgia'
+      });
+      slide5.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'C9A227' } });
+      slide5.addText(quote.closingThought, { 
+        x: 0.5, y: 1.5, w: 9, h: 2, 
+        fontSize: 20, color: '333333',
+        fontFace: 'Georgia', valign: 'top'
+      });
+      slide5.addText('THE ACCOUNTABILITY GROUP', { 
+        x: 0.5, y: 4.5, w: 9, h: 0.5, 
+        fontSize: 14, color: '999999',
+        fontFace: 'Arial'
+      });
+      
+      // Download
+      pptx.writeFile({ fileName: `Quote_${quote.author.replace(/\s+/g, '_')}_${quote.weekOf || 'weekly'}.pptx` });
+    };
+    document.head.appendChild(script);
+  };
+
+  // Get current week's quote
+  const currentQuote = quotes.length > 0 ? quotes[0] : null;
+
   const prevWeek = () => currentWeekIndex > 0 && setCurrentWeekIndex(currentWeekIndex - 1);
   const nextWeek = () => currentWeekIndex < ALL_WEEKS.length - 1 && setCurrentWeekIndex(currentWeekIndex + 1);
 
@@ -897,6 +1087,30 @@ export default function AccountabilityTracker() {
 
         {activeView === 'dashboard' && (
           <div className="space-y-4">
+            {/* Quote of the Week */}
+            {currentQuote && (
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 md:p-6 border border-amber-200">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Quote className="w-5 h-5 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-700">Quote of the Week</span>
+                  </div>
+                  <button 
+                    onClick={() => downloadQuotePPTX(currentQuote)}
+                    className="flex items-center gap-1 px-2 py-1 bg-amber-100 hover:bg-amber-200 rounded-lg text-xs text-amber-700 transition-colors"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span className="hidden md:inline">Download</span>
+                  </button>
+                </div>
+                <blockquote className="text-lg md:text-xl font-medium text-gray-800 mb-2 italic">
+                  "{currentQuote.quote}"
+                </blockquote>
+                <p className="text-sm text-gray-600">— {currentQuote.author}, <span className="text-amber-600">{currentQuote.authorTitle}</span></p>
+                <p className="text-xs text-gray-500 mt-2">{currentQuote.whyItMatters}</p>
+              </div>
+            )}
+            
             <div className="flex gap-2 flex-wrap">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-violet-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{v}</button>)}</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatCard title="Completion Rate" value={`${overallStats.rate}%`} icon={Target} trend={`+${overallStats.trend}%`} trendUp={true} color="purple" />
@@ -1121,6 +1335,99 @@ export default function AccountabilityTracker() {
                     <Markdown>{aiResponse}</Markdown>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeView === 'quotes' && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Inspirational Quotes</h2>
+                <p className="text-sm text-gray-500">Weekly wisdom for the accountability group</p>
+              </div>
+              <button
+                onClick={generateQuote}
+                disabled={quoteLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
+              >
+                {quoteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Generate New Quote
+              </button>
+            </div>
+
+            {/* Quote List */}
+            {quotes.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center border border-gray-100">
+                <Quote className="w-12 h-12 text-amber-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">No quotes yet. Generate your first weekly quote!</p>
+                <button
+                  onClick={generateQuote}
+                  disabled={quoteLoading}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
+                >
+                  {quoteLoading ? 'Generating...' : 'Generate Quote'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {quotes.map((quote, index) => (
+                  <div 
+                    key={quote.id} 
+                    className={`bg-white rounded-xl p-4 md:p-6 border ${index === 0 ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-100'}`}
+                  >
+                    {index === 0 && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">Current Week</span>
+                      </div>
+                    )}
+                    
+                    <blockquote className="text-lg md:text-xl font-medium text-gray-800 mb-3 italic">
+                      "{quote.quote}"
+                    </blockquote>
+                    
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <p className="font-semibold text-gray-800">{quote.author}</p>
+                        <p className="text-sm text-amber-600">{quote.authorTitle}</p>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        {new Date(quote.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                    
+                    <p className="text-sm text-gray-600 mb-4">{quote.authorBio}</p>
+                    
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Why It Matters</p>
+                      <p className="text-sm text-gray-600">{quote.whyItMatters}</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="bg-violet-50 rounded-lg p-4">
+                        <p className="text-sm font-medium text-violet-700 mb-2">Personal Application</p>
+                        <p className="text-sm text-gray-600 whitespace-pre-line">{quote.personalApplication}</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <p className="text-sm font-medium text-blue-700 mb-2">Business Application</p>
+                        <p className="text-sm text-gray-600 whitespace-pre-line">{quote.businessApplication}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                      <p className="text-sm italic text-gray-500">"{quote.closingThought}"</p>
+                      <button
+                        onClick={() => downloadQuotePPTX(quote)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 rounded-lg text-sm text-amber-700 transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        PowerPoint
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
