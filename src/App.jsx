@@ -530,13 +530,9 @@ export default function AccountabilityTracker() {
   // Sign in
   const handleSignIn = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
-      if (error.code === 'auth/popup-blocked') {
-        await signInWithRedirect(auth, googleProvider);
-      } else {
-        console.error('Sign in error:', error);
-      }
+      console.error('Sign in error:', error);
     }
   };
 
