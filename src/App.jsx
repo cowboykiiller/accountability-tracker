@@ -501,8 +501,8 @@ export default function AccountabilityTracker() {
         loadInitialData();
       } else {
         const habitsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
+          ...doc.data(),
+          id: doc.id
         }));
         setHabits(habitsData);
         setDataLoading(false);
