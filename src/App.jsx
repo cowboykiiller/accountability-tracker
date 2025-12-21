@@ -9,13 +9,13 @@ import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, or
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCNSLf9NQ8b8CzBd_r8u4L6AFuD6pyH0Mk",
-  authDomain: "accountability-group.firebaseapp.com",
-  projectId: "accountability-group",
-  storageBucket: "accountability-group.firebasestorage.app",
-  messagingSenderId: "977461954756",
-  appId: "1:977461954756:web:aceb8f834332efc3676191",
-  measurementId: "G-BXTYMFSJB4"
+  apiKey: "AIzaSyBKRKnQjV2r7DDEL_BHIyl5Fi0JDAl4foc",
+  authDomain: "the-accountability-group.firebaseapp.com",
+  projectId: "the-accountability-group",
+  storageBucket: "the-accountability-group.firebasestorage.app",
+  messagingSenderId: "1060411657406",
+  appId: "1:1060411657406:web:473bdee102d480a1e7e2ef",
+  measurementId: "G-5W573SPKVB"
 };
 
 // Initialize Firebase
