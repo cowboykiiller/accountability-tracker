@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -389,7 +389,7 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
       <span className="text-lg font-bold text-gray-800">Tracker</span>
     </div>
     <nav className="flex-1 space-y-1">
-      {[{ id: 'dashboard', icon: Home, label: 'Dashboard' }, { id: 'tracker', icon: Calendar, label: 'Tracker' }, { id: 'scorecard', icon: BarChart3, label: 'Scorecard' }, { id: 'add', icon: Plus, label: 'Add Habits' }].map(item => (
+      {[{ id: 'dashboard', icon: Home, label: 'Dashboard' }, { id: 'tracker', icon: Calendar, label: 'Tracker' }, { id: 'scorecard', icon: BarChart3, label: 'Scorecard' }, { id: 'add', icon: Plus, label: 'Add Habits' }, { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' }].map(item => (
         <button key={item.id} onClick={() => setActiveView(item.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${activeView === item.id ? 'bg-violet-50 text-violet-700 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
           <item.icon className="w-4 h-4" />{item.label}
         </button>
@@ -473,6 +473,12 @@ export default function AccountabilityTracker() {
   const [addMode, setAddMode] = useState('single');
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  
+  // AI Coach state
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiGoal, setAiGoal] = useState('');
+  const [selectedAiParticipant, setSelectedAiParticipant] = useState('Taylor');
   
   const calendarRef = useRef(null);
 
@@ -657,6 +663,41 @@ export default function AccountabilityTracker() {
     await deleteDoc(doc(db, 'habits', id));
   };
 
+  // AI Coach function
+  const callAI = async (action, goal = '') => {
+    setAiLoading(true);
+    setAiResponse('');
+    
+    try {
+      const participantHabits = selectedAiParticipant === 'All' 
+        ? currentWeekHabits 
+        : currentWeekHabits.filter(h => h.participant === selectedAiParticipant);
+      
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          habits: action === 'insights' ? habits : participantHabits,
+          participant: selectedAiParticipant,
+          goal
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        setAiResponse(`Error: ${data.error}`);
+      } else {
+        setAiResponse(data.message);
+      }
+    } catch (error) {
+      setAiResponse('Failed to connect to AI. Please try again.');
+    }
+    
+    setAiLoading(false);
+  };
+
   const prevWeek = () => currentWeekIndex > 0 && setCurrentWeekIndex(currentWeekIndex - 1);
   const nextWeek = () => currentWeekIndex < ALL_WEEKS.length - 1 && setCurrentWeekIndex(currentWeekIndex + 1);
 
@@ -828,6 +869,148 @@ export default function AccountabilityTracker() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeView === 'ai-coach' && (
+          <div className="space-y-4">
+            <div className="bg-gradient-to-r from-violet-500 to-purple-600 rounded-2xl p-6 text-white">
+              <div className="flex items-center gap-3 mb-2">
+                <Sparkles className="w-8 h-8" />
+                <h2 className="text-2xl font-bold">AI Coach</h2>
+              </div>
+              <p className="text-violet-100">Get personalized insights, feedback, and habit suggestions powered by AI.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Weekly Feedback */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                    <MessageCircle className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800">Weekly Coach</h3>
+                    <p className="text-xs text-gray-400">Get feedback on your progress</p>
+                  </div>
+                </div>
+                <select 
+                  value={selectedAiParticipant} 
+                  onChange={(e) => setSelectedAiParticipant(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3"
+                >
+                  {PARTICIPANTS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <button 
+                  onClick={() => callAI('weekly-coach')}
+                  disabled={aiLoading}
+                  className="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                  Get Feedback
+                </button>
+              </div>
+
+              {/* Team Insights */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <Lightbulb className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800">Team Insights</h3>
+                    <p className="text-xs text-gray-400">Analyze patterns across everyone</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500 mb-3">Discover trends, compare progress, and find opportunities for improvement.</p>
+                <button 
+                  onClick={() => callAI('insights')}
+                  disabled={aiLoading}
+                  className="w-full bg-emerald-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
+                  Analyze Team
+                </button>
+              </div>
+
+              {/* Habit Suggestions */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800">Habit Suggestions</h3>
+                    <p className="text-xs text-gray-400">Get AI-recommended habits</p>
+                  </div>
+                </div>
+                <input 
+                  type="text"
+                  value={aiGoal}
+                  onChange={(e) => setAiGoal(e.target.value)}
+                  placeholder="I want to get healthier..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3"
+                />
+                <button 
+                  onClick={() => callAI('suggest-habits', aiGoal)}
+                  disabled={aiLoading || !aiGoal.trim()}
+                  className="w-full bg-amber-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  Suggest Habits
+                </button>
+              </div>
+
+              {/* Habit Writer */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+                    <Wand2 className="w-5 h-5 text-violet-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800">Habit Writer</h3>
+                    <p className="text-xs text-gray-400">Turn goals into trackable habits</p>
+                  </div>
+                </div>
+                <input 
+                  type="text"
+                  value={aiGoal}
+                  onChange={(e) => setAiGoal(e.target.value)}
+                  placeholder="Read more books..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3"
+                />
+                <button 
+                  onClick={() => callAI('write-habit', aiGoal)}
+                  disabled={aiLoading || !aiGoal.trim()}
+                  className="w-full bg-violet-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-violet-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                  Write Habit
+                </button>
+              </div>
+            </div>
+
+            {/* AI Response */}
+            {(aiResponse || aiLoading) && (
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <h3 className="font-semibold text-gray-800">AI Response</h3>
+                </div>
+                {aiLoading ? (
+                  <div className="flex items-center gap-3 text-gray-500">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Thinking...</span>
+                  </div>
+                ) : (
+                  <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
+                    {aiResponse}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
