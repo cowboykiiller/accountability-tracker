@@ -382,14 +382,22 @@ const getWeekStartFromDate = (date) => {
 };
 
 // Components
+const NAV_ITEMS = [
+  { id: 'dashboard', icon: Home, label: 'Dashboard' },
+  { id: 'tracker', icon: Calendar, label: 'Tracker' },
+  { id: 'scorecard', icon: BarChart3, label: 'Scorecard' },
+  { id: 'add', icon: Plus, label: 'Add' },
+  { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' }
+];
+
 const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
-  <div className="w-56 bg-white border-r border-gray-100 min-h-screen p-4 flex flex-col">
+  <div className="hidden md:flex w-56 bg-white border-r border-gray-100 min-h-screen p-4 flex-col">
     <div className="flex items-center gap-2 mb-6">
       <div className="w-9 h-9 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center"><Target className="w-5 h-5 text-white" /></div>
       <span className="text-lg font-bold text-gray-800">Tracker</span>
     </div>
     <nav className="flex-1 space-y-1">
-      {[{ id: 'dashboard', icon: Home, label: 'Dashboard' }, { id: 'tracker', icon: Calendar, label: 'Tracker' }, { id: 'scorecard', icon: BarChart3, label: 'Scorecard' }, { id: 'add', icon: Plus, label: 'Add Habits' }, { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' }].map(item => (
+      {NAV_ITEMS.map(item => (
         <button key={item.id} onClick={() => setActiveView(item.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${activeView === item.id ? 'bg-violet-50 text-violet-700 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
           <item.icon className="w-4 h-4" />{item.label}
         </button>
@@ -415,6 +423,23 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
         </button>
       </div>
     )}
+  </div>
+);
+
+const MobileNav = ({ activeView, setActiveView }) => (
+  <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 z-50">
+    <div className="flex justify-around items-center">
+      {NAV_ITEMS.map(item => (
+        <button
+          key={item.id}
+          onClick={() => setActiveView(item.id)}
+          className={`flex flex-col items-center py-1 px-3 rounded-lg ${activeView === item.id ? 'text-violet-600' : 'text-gray-400'}`}
+        >
+          <item.icon className="w-5 h-5" />
+          <span className="text-xs mt-1">{item.label}</span>
+        </button>
+      ))}
+    </div>
   </div>
 );
 
@@ -745,13 +770,24 @@ export default function AccountabilityTracker() {
   return (
     <div className="flex min-h-screen bg-gray-50/50">
       <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} onSignOut={handleSignOut} />
-      <div className="flex-1 p-5 overflow-auto">
+      <div className="flex-1 p-3 md:p-5 overflow-auto pb-24 md:pb-5">
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <Target className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-bold text-gray-800">Tracker</span>
+          </div>
+          {user?.photoURL && <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full" />}
+        </div>
+        
         <div className="flex items-center justify-between mb-5">
           <div>
-            <p className="text-gray-400 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-            <h1 className="text-xl font-bold text-gray-800">Hello, {user.displayName?.split(' ')[0] || 'Team'} 👋</h1>
+            <p className="text-gray-400 text-xs md:text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <h1 className="text-lg md:text-xl font-bold text-gray-800">Hello, {user.displayName?.split(' ')[0] || 'Team'} 👋</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <div className="relative" ref={calendarRef}>
               <button onClick={() => setShowCalendar(!showCalendar)} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 hover:border-violet-300 text-sm transition-colors">
                 <CalendarDays className="w-4 h-4 text-violet-500" />
@@ -785,15 +821,15 @@ export default function AccountabilityTracker() {
 
         {activeView === 'dashboard' && (
           <div className="space-y-4">
-            <div className="flex gap-2">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-violet-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{v}</button>)}</div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="flex gap-2 flex-wrap">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-violet-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{v}</button>)}</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatCard title="Completion Rate" value={`${overallStats.rate}%`} icon={Target} trend={`+${overallStats.trend}%`} trendUp={true} color="purple" />
               <StatCard title="Total Habits" value={overallStats.total} icon={CheckCircle2} color="blue" />
               <StatCard title="Exceeded" value={overallStats.exceeded} icon={Award} color="green" />
               <StatCard title="Missed" value={overallStats.missed} icon={XCircle} color="orange" />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2 bg-white rounded-2xl p-4 border border-gray-100">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2 bg-white rounded-2xl p-4 border border-gray-100">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-800 text-sm">Completion Trend</h3>
                   <div className="flex gap-3">{PARTICIPANTS.map(p => <div key={p} className="flex items-center gap-1 text-xs"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: PARTICIPANT_COLORS[p] }} /><span className="text-gray-500">{p}</span></div>)}</div>
@@ -826,17 +862,17 @@ export default function AccountabilityTracker() {
 
         {activeView === 'tracker' && (
           <div className="space-y-4">
-            <div className="flex gap-2">{['All', ...PARTICIPANTS].map(p => <button key={p} onClick={() => setSelectedParticipant(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedParticipant === p ? 'bg-violet-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{p === 'All' ? `All (${currentWeekHabits.length})` : `${p} (${currentWeekHabits.filter(h => h.participant === p).length})`}</button>)}</div>
+            <div className="flex gap-2 flex-wrap">{['All', ...PARTICIPANTS].map(p => <button key={p} onClick={() => setSelectedParticipant(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedParticipant === p ? 'bg-violet-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{p === 'All' ? `All (${currentWeekHabits.length})` : `${p} (${currentWeekHabits.filter(h => h.participant === p).length})`}</button>)}</div>
             <div className="space-y-2">{filteredHabits.length === 0 ? <div className="bg-white rounded-xl p-8 text-center border border-gray-100"><p className="text-gray-400 mb-2">No habits for this week</p><button onClick={() => setActiveView('add')} className="px-4 py-2 bg-violet-500 text-white rounded-lg text-sm font-medium hover:bg-violet-600 transition-colors">Add a Habit</button></div> : filteredHabits.map(h => {
               const st = getStatus(h), cfg = STATUS_CONFIG[st];
-              return <div key={h.id} className="bg-white rounded-xl p-3 border border-gray-100 hover:border-gray-200 transition-colors"><div className="flex items-center gap-3"><div className="flex-1"><div className="flex items-center gap-2 mb-0.5"><span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span><span className="text-gray-400 text-xs">{h.participant}</span></div><h3 className="text-gray-800 font-medium text-sm">{h.habit}</h3><p className="text-gray-400 text-xs">{h.daysCompleted.length}/{h.target} days</p></div><div className="flex items-center gap-1">{DAYS.map((d, i) => <button key={d} onClick={() => toggleDay(h.id, i)} className={`w-7 h-7 rounded text-xs font-medium transition-colors ${h.daysCompleted.includes(i) ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>{d[0]}</button>)}<button onClick={() => deleteHabit(h.id)} className="w-7 h-7 rounded bg-red-50 text-red-400 hover:bg-red-100 ml-1 transition-colors"><Trash2 className="w-3 h-3 mx-auto" /></button></div></div></div>;
+              return <div key={h.id} className="bg-white rounded-xl p-3 border border-gray-100 hover:border-gray-200 transition-colors"><div className="flex flex-col md:flex-row md:items-center gap-3"><div className="flex-1"><div className="flex items-center gap-2 mb-0.5"><span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span><span className="text-gray-400 text-xs">{h.participant}</span></div><h3 className="text-gray-800 font-medium text-sm">{h.habit}</h3><p className="text-gray-400 text-xs">{h.daysCompleted.length}/{h.target} days</p></div><div className="flex items-center gap-1">{DAYS.map((d, i) => <button key={d} onClick={() => toggleDay(h.id, i)} className={`w-8 h-8 md:w-7 md:h-7 rounded text-xs font-medium transition-colors ${h.daysCompleted.includes(i) ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>{d[0]}</button>)}<button onClick={() => deleteHabit(h.id)} className="w-8 h-8 md:w-7 md:h-7 rounded bg-red-50 text-red-400 hover:bg-red-100 ml-1 transition-colors"><Trash2 className="w-3 h-3 mx-auto" /></button></div></div></div>;
             })}</div>
           </div>
         )}
 
         {activeView === 'scorecard' && (
           <div className="space-y-4">
-            <div className="flex gap-2">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-violet-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{v}</button>)}</div>
+            <div className="flex gap-2 flex-wrap">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-violet-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{v}</button>)}</div>
             {PARTICIPANTS.map(p => {
               const pH = getRangeHabits.filter(h => h.participant === p), completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length, rate = pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0;
               return <div key={p} className="bg-white rounded-xl p-4 border border-gray-100"><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: PARTICIPANT_COLORS[p] }}>{p[0]}</div><h3 className="font-bold text-gray-800">{p}</h3></div><div className="text-right"><p className="text-xl font-bold" style={{ color: PARTICIPANT_COLORS[p] }}>{rate}%</p></div></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2"><div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: PARTICIPANT_COLORS[p] }} /></div><div className="grid grid-cols-4 gap-2 text-xs"><div><p className="text-gray-400">Total</p><p className="font-semibold text-gray-800">{pH.length}</p></div><div><p className="text-gray-400">Completed</p><p className="font-semibold text-green-600">{completed}</p></div><div><p className="text-gray-400">Exceeded</p><p className="font-semibold text-emerald-600">{pH.filter(h => getStatus(h) === 'Exceeded').length}</p></div><div><p className="text-gray-400">Missed</p><p className="font-semibold text-red-500">{pH.filter(h => getStatus(h) === 'Missed').length}</p></div></div></div>;
@@ -882,7 +918,7 @@ export default function AccountabilityTracker() {
               <p className="text-violet-100">Get personalized insights, feedback, and habit suggestions powered by AI.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Weekly Feedback */}
               <div className="bg-white rounded-xl p-4 border border-gray-100">
                 <div className="flex items-center gap-2 mb-3">
@@ -1014,6 +1050,7 @@ export default function AccountabilityTracker() {
           </div>
         )}
       </div>
+      <MobileNav activeView={activeView} setActiveView={setActiveView} />
     </div>
   );
 }
