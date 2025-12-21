@@ -427,7 +427,7 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => (
 );
 
 const MobileNav = ({ activeView, setActiveView }) => (
-  <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 z-50">
+  <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 pt-2 pb-6 z-50 shadow-lg" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
     <div className="flex justify-around items-center">
       {NAV_ITEMS.map(item => (
         <button
@@ -455,6 +455,82 @@ const StatCard = ({ title, value, icon: Icon, trend, trendUp, color }) => {
       <p className="text-gray-500 text-sm">{title}</p>
     </div>
   );
+};
+
+// Simple Markdown renderer
+const Markdown = ({ children }) => {
+  if (!children) return null;
+  
+  const lines = children.split('\n');
+  
+  return (
+    <div className="space-y-2">
+      {lines.map((line, i) => {
+        // Headers
+        if (line.startsWith('### ')) return <h3 key={i} className="font-bold text-gray-800 mt-3">{line.slice(4)}</h3>;
+        if (line.startsWith('## ')) return <h2 key={i} className="font-bold text-gray-800 text-lg mt-4">{line.slice(3)}</h2>;
+        if (line.startsWith('# ')) return <h1 key={i} className="font-bold text-gray-800 text-xl mt-4">{line.slice(2)}</h1>;
+        
+        // Bullet points
+        if (line.startsWith('- ') || line.startsWith('* ')) {
+          const content = line.slice(2);
+          return <div key={i} className="flex gap-2 ml-2"><span className="text-violet-500">•</span><span>{formatInline(content)}</span></div>;
+        }
+        
+        // Numbered lists
+        const numberedMatch = line.match(/^(\d+)\.\s(.+)/);
+        if (numberedMatch) {
+          return <div key={i} className="flex gap-2 ml-2"><span className="text-violet-500 font-medium">{numberedMatch[1]}.</span><span>{formatInline(numberedMatch[2])}</span></div>;
+        }
+        
+        // Empty lines
+        if (!line.trim()) return <div key={i} className="h-2" />;
+        
+        // Regular paragraphs
+        return <p key={i}>{formatInline(line)}</p>;
+      })}
+    </div>
+  );
+};
+
+// Format inline markdown (bold, italic)
+const formatInline = (text) => {
+  const parts = [];
+  let remaining = text;
+  let key = 0;
+  
+  while (remaining) {
+    // Bold **text**
+    const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+    if (boldMatch && boldMatch.index === 0) {
+      parts.push(<strong key={key++} className="font-semibold text-gray-800">{boldMatch[1]}</strong>);
+      remaining = remaining.slice(boldMatch[0].length);
+      continue;
+    }
+    
+    // Italic *text*
+    const italicMatch = remaining.match(/\*(.+?)\*/);
+    if (italicMatch && italicMatch.index === 0) {
+      parts.push(<em key={key++}>{italicMatch[1]}</em>);
+      remaining = remaining.slice(italicMatch[0].length);
+      continue;
+    }
+    
+    // Find next special char or end
+    const nextSpecial = remaining.search(/\*/);
+    if (nextSpecial === -1) {
+      parts.push(remaining);
+      break;
+    } else if (nextSpecial > 0) {
+      parts.push(remaining.slice(0, nextSpecial));
+      remaining = remaining.slice(nextSpecial);
+    } else {
+      parts.push(remaining[0]);
+      remaining = remaining.slice(1);
+    }
+  }
+  
+  return parts;
 };
 
 const LoginScreen = ({ onSignIn, loading }) => (
@@ -770,7 +846,7 @@ export default function AccountabilityTracker() {
   return (
     <div className="flex min-h-screen bg-gray-50/50">
       <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} onSignOut={handleSignOut} />
-      <div className="flex-1 p-3 md:p-5 overflow-auto pb-24 md:pb-5">
+      <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -1041,8 +1117,8 @@ export default function AccountabilityTracker() {
                     <span>Thinking...</span>
                   </div>
                 ) : (
-                  <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
-                    {aiResponse}
+                  <div className="text-gray-700 text-sm">
+                    <Markdown>{aiResponse}</Markdown>
                   </div>
                 )}
               </div>
