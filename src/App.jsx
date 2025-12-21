@@ -1110,9 +1110,14 @@ export default function AccountabilityTracker() {
         fontSize: 16, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      const personalPoints = (quote.personalApplication || '').split('\n').filter(p => p.trim()).slice(0, 4);
+      // Handle both array and string formats
+      const personalApp = quote.personalApplication || '';
+      const personalPoints = Array.isArray(personalApp) 
+        ? personalApp.slice(0, 4) 
+        : (typeof personalApp === 'string' ? personalApp.split('\n').filter(p => p.trim()).slice(0, 4) : []);
       personalPoints.forEach((point, i) => {
-        slide4.addText(`• ${point.replace(/^[-•]\s*/, '')}`, { 
+        const pointText = typeof point === 'string' ? point.replace(/^[-•]\s*/, '') : String(point);
+        slide4.addText(`• ${pointText}`, { 
           x: 0.5, y: 1.7 + (i * 0.4), w: 4, h: 0.4, 
           fontSize: 12, color: '333333',
           fontFace: 'Arial'
@@ -1124,9 +1129,14 @@ export default function AccountabilityTracker() {
         fontSize: 16, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      const businessPoints = (quote.businessApplication || '').split('\n').filter(p => p.trim()).slice(0, 4);
+      // Handle both array and string formats
+      const businessApp = quote.businessApplication || '';
+      const businessPoints = Array.isArray(businessApp) 
+        ? businessApp.slice(0, 4) 
+        : (typeof businessApp === 'string' ? businessApp.split('\n').filter(p => p.trim()).slice(0, 4) : []);
       businessPoints.forEach((point, i) => {
-        slide4.addText(`• ${point.replace(/^[-•]\s*/, '')}`, { 
+        const pointText = typeof point === 'string' ? point.replace(/^[-•]\s*/, '') : String(point);
+        slide4.addText(`• ${pointText}`, { 
           x: 5, y: 1.7 + (i * 0.4), w: 4.5, h: 0.4, 
           fontSize: 12, color: '333333',
           fontFace: 'Arial'
