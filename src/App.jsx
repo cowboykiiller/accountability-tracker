@@ -391,7 +391,7 @@ const NAV_ITEMS = [
   { id: 'scorecard', icon: BarChart3, label: 'Score' },
   { id: 'add', icon: Plus, label: 'Add' },
   { id: 'quotes', icon: Quote, label: 'Quotes' },
-  { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
+  { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' }
 ];
 
 const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
@@ -986,25 +986,50 @@ export default function AccountabilityTracker() {
   };
 
   const downloadQuotePPTX = async (quote) => {
-    // Check if PptxGenJS is already loaded
-    if (typeof window.PptxGenJS !== 'undefined') {
+    // Check if script is already loaded
+    const existingScript = document.querySelector('script[src*="pptxgen"]');
+    
+    if (existingScript && window.PptxGenJS) {
       generatePPTX(quote);
       return;
+    }
+    
+    // Remove any existing failed script
+    if (existingScript) {
+      existingScript.remove();
     }
     
     // Dynamically load pptxgenjs from CDN
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
-    script.onload = () => generatePPTX(quote);
-    script.onerror = () => alert('Failed to load PowerPoint library. Please try again.');
+    script.async = true;
+    
+    script.onload = () => {
+      // Wait for library to fully initialize
+      setTimeout(() => {
+        if (window.PptxGenJS) {
+          generatePPTX(quote);
+        } else {
+          console.error('PptxGenJS not found on window after load');
+          alert('PowerPoint library failed to initialize. Please refresh the page and try again.');
+        }
+      }, 200);
+    };
+    
+    script.onerror = (e) => {
+      console.error('Script load error:', e);
+      alert('Failed to load PowerPoint library. Please check your internet connection and try again.');
+    };
+    
     document.head.appendChild(script);
   };
 
   const generatePPTX = (quote) => {
     try {
+      // Create new presentation instance
       const pptx = new window.PptxGenJS();
       pptx.layout = 'LAYOUT_16x9';
-      pptx.title = `Weekly Quote - ${quote.author}`;
+      pptx.title = `Weekly Quote - ${quote.author || 'Unknown'}`;
       pptx.author = 'The Accountability Group';
       
       // Slide 1: Title
@@ -1014,8 +1039,10 @@ export default function AccountabilityTracker() {
         fontSize: 32, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      slide1.addShape('rect', { x: 0.5, y: 2.7, w: 3, h: 0.05, fill: { color: 'F5B800' } });
-      slide1.addText(`Week of ${new Date(quote.weekOf || quote.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, { 
+      slide1.addShape(pptx.ShapeType.rect, { x: 0.5, y: 2.7, w: 3, h: 0.05, fill: { color: 'F5B800' } });
+      
+      const weekDate = quote.weekOf || quote.createdAt || new Date().toISOString();
+      slide1.addText(`Week of ${new Date(weekDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, { 
         x: 0.5, y: 2.9, w: 9, h: 0.5, 
         fontSize: 18, color: '666666',
         fontFace: 'Arial'
@@ -1028,13 +1055,13 @@ export default function AccountabilityTracker() {
         fontSize: 24, italic: true, color: '1E3A5F',
         fontFace: 'Georgia'
       });
-      slide2.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
-      slide2.addText(`"${quote.quote}"`, { 
+      slide2.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
+      slide2.addText(`"${quote.quote || ''}"`, { 
         x: 0.5, y: 1.5, w: 9, h: 2, 
         fontSize: 28, color: '333333',
         fontFace: 'Georgia', valign: 'top'
       });
-      slide2.addText(`— ${quote.author}`, { 
+      slide2.addText(`— ${quote.author || 'Unknown'}`, { 
         x: 0.5, y: 3.5, w: 9, h: 0.5, 
         fontSize: 18, color: '666666',
         fontFace: 'Arial'
@@ -1042,12 +1069,12 @@ export default function AccountabilityTracker() {
       
       // Slide 3: About the Person
       let slide3 = pptx.addSlide();
-      slide3.addText(`About ${quote.author}`, { 
+      slide3.addText(`About ${quote.author || 'the Author'}`, { 
         x: 0.5, y: 0.5, w: 9, h: 0.6, 
         fontSize: 24, italic: true, color: '1E3A5F',
         fontFace: 'Georgia'
       });
-      slide3.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
+      slide3.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
       slide3.addText(quote.authorTitle || '', { 
         x: 0.5, y: 1.3, w: 9, h: 0.5, 
         fontSize: 18, bold: true, color: 'F5B800',
@@ -1076,14 +1103,14 @@ export default function AccountabilityTracker() {
         fontSize: 24, italic: true, color: '1E3A5F',
         fontFace: 'Georgia'
       });
-      slide4.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
+      slide4.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
       
       slide4.addText('Personal Life:', { 
         x: 0.5, y: 1.3, w: 4, h: 0.4, 
         fontSize: 16, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      const personalPoints = (quote.personalApplication || '').split('\n').filter(p => p.trim());
+      const personalPoints = (quote.personalApplication || '').split('\n').filter(p => p.trim()).slice(0, 4);
       personalPoints.forEach((point, i) => {
         slide4.addText(`• ${point.replace(/^[-•]\s*/, '')}`, { 
           x: 0.5, y: 1.7 + (i * 0.4), w: 4, h: 0.4, 
@@ -1097,7 +1124,7 @@ export default function AccountabilityTracker() {
         fontSize: 16, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      const businessPoints = (quote.businessApplication || '').split('\n').filter(p => p.trim());
+      const businessPoints = (quote.businessApplication || '').split('\n').filter(p => p.trim()).slice(0, 4);
       businessPoints.forEach((point, i) => {
         slide4.addText(`• ${point.replace(/^[-•]\s*/, '')}`, { 
           x: 5, y: 1.7 + (i * 0.4), w: 4.5, h: 0.4, 
@@ -1113,7 +1140,7 @@ export default function AccountabilityTracker() {
         fontSize: 24, italic: true, color: '1E3A5F',
         fontFace: 'Georgia'
       });
-      slide5.addShape('rect', { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
+      slide5.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
       slide5.addText(quote.closingThought || '', { 
         x: 0.5, y: 1.5, w: 9, h: 2, 
         fontSize: 20, color: '333333',
@@ -1125,11 +1152,23 @@ export default function AccountabilityTracker() {
         fontFace: 'Arial'
       });
       
+      // Generate filename
+      const authorName = (quote.author || 'Quote').replace(/[^a-zA-Z0-9]/g, '_');
+      const weekStr = quote.weekOf || new Date().toISOString().split('T')[0];
+      
       // Download
-      pptx.writeFile({ fileName: `Quote_${quote.author.replace(/\s+/g, '_')}_${quote.weekOf || 'weekly'}.pptx` });
+      pptx.writeFile({ fileName: `Quote_${authorName}_${weekStr}.pptx` })
+        .then(() => {
+          console.log('PowerPoint generated successfully');
+        })
+        .catch(err => {
+          console.error('Write file error:', err);
+          alert('Failed to save PowerPoint file. Please try again.');
+        });
+        
     } catch (error) {
       console.error('PowerPoint generation error:', error);
-      alert('Failed to generate PowerPoint. Please try again.');
+      alert(`Failed to generate PowerPoint: ${error.message}`);
     }
   };
 
