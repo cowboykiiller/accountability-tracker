@@ -2386,7 +2386,7 @@ export default function AccountabilityTracker() {
                 </div>
                 {bets.filter(b => b.status === 'accepted').slice(0, 2).map(bet => (
                   <div key={bet.id} className="p-2 bg-purple-50 rounded-lg mb-2">
-                    <p className="text-xs font-medium text-purple-800">{bet.challenger} vs {bet.challenged}</p>
+                    <p className="text-xs font-medium text-purple-800">{bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</p>
                     <p className="text-[10px] text-purple-600">{bet.goal}</p>
                     {bet.reward && <p className="text-[10px] text-purple-500">🎁 {bet.reward}</p>}
                   </div>
@@ -2812,11 +2812,10 @@ export default function AccountabilityTracker() {
                                 ))}
                               </div>
                             )}
-                            </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2833,7 +2832,7 @@ export default function AccountabilityTracker() {
                   {bets.filter(b => b.status === 'completed').map(bet => (
                     <div key={bet.id} className="p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">{bet.challenger} vs {bet.challenged}</span>
+                        <span className="text-sm text-gray-600">{bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</span>
                         <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-300 hover:text-red-400">
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -3901,7 +3900,7 @@ export default function AccountabilityTracker() {
                     const myChallenges = bets.filter(b => 
                       (b.status === 'pending' || b.status === 'accepted') &&
                       (b.challenger === userProfile?.linkedParticipant || 
-                       b.challenged === userProfile?.linkedParticipant ||
+                       (Array.isArray(b.challenged) ? b.challenged.includes(userProfile?.linkedParticipant) : b.challenged === userProfile?.linkedParticipant) ||
                        b.challengerId === user?.uid)
                     );
                     return myChallenges.length > 0 ? (
@@ -3913,7 +3912,7 @@ export default function AccountabilityTracker() {
                                 <span className={`text-xs px-2 py-0.5 rounded ${bet.status === 'pending' ? 'bg-purple-200 text-purple-700' : 'bg-yellow-200 text-yellow-700'}`}>
                                   {bet.status}
                                 </span>
-                                <span className="font-medium text-gray-800">{bet.challenger} vs {bet.challenged}</span>
+                                <span className="font-medium text-gray-800">{bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</span>
                               </div>
                             </div>
                             <p className="text-sm text-gray-600 mt-1">{bet.goal}</p>
@@ -3940,7 +3939,7 @@ export default function AccountabilityTracker() {
                     ).length;
                     const lostChallenges = bets.filter(b => 
                       b.status === 'completed' && 
-                      (b.challenger === userProfile?.linkedParticipant || b.challenged === userProfile?.linkedParticipant) &&
+                      (b.challenger === userProfile?.linkedParticipant || (Array.isArray(b.challenged) ? b.challenged.includes(userProfile?.linkedParticipant) : b.challenged === userProfile?.linkedParticipant)) &&
                       b.winner !== userProfile?.linkedParticipant
                     ).length;
                     return (
@@ -4125,7 +4124,7 @@ export default function AccountabilityTracker() {
                   {(() => {
                     const theirChallenges = bets.filter(b => 
                       (b.status === 'pending' || b.status === 'accepted') &&
-                      (b.challenger === viewingProfile.participantName || b.challenged === viewingProfile.participantName)
+                      (b.challenger === viewingProfile.participantName || (Array.isArray(b.challenged) ? b.challenged.includes(viewingProfile.participantName) : b.challenged === viewingProfile.participantName))
                     );
                     return theirChallenges.length > 0 ? (
                       <div className="space-y-2">
@@ -4135,7 +4134,7 @@ export default function AccountabilityTracker() {
                               <Swords className="w-4 h-4 text-purple-500" />
                               <span className="font-medium">{bet.challenger}</span>
                               <span className="text-gray-400">vs</span>
-                              <span className="font-medium">{bet.challenged}</span>
+                              <span className="font-medium">{Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</span>
                             </div>
                             <p className="text-gray-600 mt-1">{bet.goal}</p>
                           </div>
@@ -4154,7 +4153,7 @@ export default function AccountabilityTracker() {
                     const won = bets.filter(b => b.status === 'completed' && b.winner === viewingProfile.participantName).length;
                     const lost = bets.filter(b => 
                       b.status === 'completed' && 
-                      (b.challenger === viewingProfile.participantName || b.challenged === viewingProfile.participantName) &&
+                      (b.challenger === viewingProfile.participantName || (Array.isArray(b.challenged) ? b.challenged.includes(viewingProfile.participantName) : b.challenged === viewingProfile.participantName)) &&
                       b.winner !== viewingProfile.participantName
                     ).length;
                     return (
