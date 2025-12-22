@@ -1971,43 +1971,57 @@ export default function AccountabilityTracker() {
       // Create new presentation instance
       const pptx = new window.PptxGenJS();
       pptx.layout = 'LAYOUT_16x9';
-      pptx.title = `Weekly Quote - ${quote.author || 'Unknown'}`;
+      pptx.title = `${quote.theme || 'Weekly Quote'} - ${quote.author || 'Unknown'}`;
       pptx.author = 'The Accountability Group';
       
-      // Slide 1: Title
+      // Slide 1: Title with Theme
       let slide1 = pptx.addSlide();
       slide1.addText('THE ACCOUNTABILITY GROUP', { 
-        x: 0.5, y: 2, w: 9, h: 0.8, 
-        fontSize: 32, bold: true, color: '1E3A5F',
+        x: 0.5, y: 1.2, w: 9, h: 0.6, 
+        fontSize: 28, bold: true, color: '1E3A5F',
         fontFace: 'Arial'
       });
-      slide1.addShape(pptx.ShapeType.rect, { x: 0.5, y: 2.7, w: 3, h: 0.05, fill: { color: 'F5B800' } });
+      slide1.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.75, w: 3, h: 0.05, fill: { color: 'F5B800' } });
+      
+      // Theme - large and prominent
+      slide1.addText(quote.theme || 'Weekly Wisdom', { 
+        x: 0.5, y: 2.2, w: 9, h: 1, 
+        fontSize: 44, bold: true, color: 'F5B800',
+        fontFace: 'Arial'
+      });
       
       const weekDate = quote.weekOf || quote.createdAt || new Date().toISOString();
       slide1.addText(`Week of ${new Date(weekDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, { 
-        x: 0.5, y: 2.9, w: 9, h: 0.5, 
+        x: 0.5, y: 3.3, w: 9, h: 0.5, 
         fontSize: 18, color: '666666',
         fontFace: 'Arial'
       });
       
-      // Slide 2: Quote
+      // Slide 2: Quote with Theme
       let slide2 = pptx.addSlide();
-      slide2.addText('Quote', { 
-        x: 0.5, y: 0.5, w: 9, h: 0.6, 
-        fontSize: 24, italic: true, color: '1E3A5F',
-        fontFace: 'Georgia'
+      slide2.addText(quote.theme || 'Weekly Wisdom', { 
+        x: 0.5, y: 0.4, w: 9, h: 0.5, 
+        fontSize: 20, bold: true, color: 'F5B800',
+        fontFace: 'Arial'
       });
-      slide2.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1, w: 2, h: 0.05, fill: { color: 'F5B800' } });
+      slide2.addShape(pptx.ShapeType.rect, { x: 0.5, y: 0.9, w: 2, h: 0.05, fill: { color: 'F5B800' } });
       slide2.addText(`"${quote.quote || ''}"`, { 
-        x: 0.5, y: 1.5, w: 9, h: 2, 
+        x: 0.5, y: 1.3, w: 9, h: 2.2, 
         fontSize: 28, color: '333333',
         fontFace: 'Georgia', valign: 'top'
       });
       slide2.addText(`— ${quote.author || 'Unknown'}`, { 
-        x: 0.5, y: 3.5, w: 9, h: 0.5, 
+        x: 0.5, y: 3.6, w: 9, h: 0.5, 
         fontSize: 18, color: '666666',
         fontFace: 'Arial'
       });
+      if (quote.authorTitle) {
+        slide2.addText(quote.authorTitle, { 
+          x: 0.5, y: 4, w: 9, h: 0.4, 
+          fontSize: 14, italic: true, color: '999999',
+          fontFace: 'Arial'
+        });
+      }
       
       // Slide 3: About the Person
       let slide3 = pptx.addSlide();
@@ -2105,11 +2119,11 @@ export default function AccountabilityTracker() {
       });
       
       // Generate filename
-      const authorName = (quote.author || 'Quote').replace(/[^a-zA-Z0-9]/g, '_');
+      const themeName = (quote.theme || 'Quote').replace(/[^a-zA-Z0-9]/g, '_');
       const weekStr = quote.weekOf || new Date().toISOString().split('T')[0];
       
       // Download
-      pptx.writeFile({ fileName: `Quote_${authorName}_${weekStr}.pptx` })
+      pptx.writeFile({ fileName: `${themeName}_${weekStr}.pptx` })
         .then(() => {
           console.log('PowerPoint generated successfully');
         })
