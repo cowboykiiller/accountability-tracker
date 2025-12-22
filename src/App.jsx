@@ -624,7 +624,7 @@ export default function AccountabilityTracker() {
   const [quotes, setQuotes] = useState([]);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [selectedQuoteIndex, setSelectedQuoteIndex] = useState(0);
-  const [quotesExpanded, setQuotesExpanded] = useState(false);
+  const [quotesExpanded, setQuotesExpanded] = useState(true);
   
   // Feed/Posts state
   const [posts, setPosts] = useState([]);
@@ -2233,58 +2233,58 @@ export default function AccountabilityTracker() {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             {/* Main content - left 3 columns */}
             <div className="lg:col-span-3 space-y-4">
-              {/* Quote of the Week - collapsible with previous themes */}
+              {/* Quote of the Week - fully collapsible */}
               {currentQuote && (
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 overflow-hidden">
-                  {/* Current Quote - Always visible */}
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Quote className="w-4 h-4 text-amber-600" />
+                  {/* Collapsible Header - Always visible */}
+                  <button 
+                    onClick={() => setQuotesExpanded(!quotesExpanded)}
+                    className="w-full p-4 flex items-center justify-between text-left hover:bg-amber-100/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <Quote className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div>
                         <span className="text-xs font-medium text-amber-700">Weekly Theme</span>
+                        <h3 className="text-lg font-bold text-amber-800">{currentQuote.theme || 'Weekly Wisdom'}</h3>
                       </div>
-                      <button 
-                        onClick={() => setQuotesExpanded(!quotesExpanded)}
-                        className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800"
-                      >
-                        <span>{quotesExpanded ? 'Hide' : 'Browse'} themes</span>
-                        <ChevronDown className={`w-3 h-3 transition-transform ${quotesExpanded ? 'rotate-180' : ''}`} />
-                      </button>
                     </div>
-                    {currentQuote.theme && (
-                      <h3 className="text-lg font-bold text-amber-800 mb-2">{currentQuote.theme}</h3>
-                    )}
-                    <blockquote className="text-sm md:text-base font-medium text-gray-800 italic">"{currentQuote.quote}"</blockquote>
-                    <p className="text-xs text-gray-600 mt-1">— {currentQuote.author}</p>
-                  </div>
+                    <ChevronDown className={`w-5 h-5 text-amber-600 transition-transform ${quotesExpanded ? 'rotate-180' : ''}`} />
+                  </button>
                   
-                  {/* Expanded: Previous Themes */}
-                  {quotesExpanded && quotes.length > 1 && (
-                    <div className="border-t border-amber-200 bg-white/50 p-3">
-                      <p className="text-xs font-medium text-amber-700 mb-2">Previous Themes</p>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {quotes.slice(1).map((q, idx) => (
+                  {/* Expanded Content */}
+                  {quotesExpanded && (
+                    <div className="px-4 pb-4 border-t border-amber-200/50">
+                      <blockquote className="text-sm md:text-base font-medium text-gray-800 italic mt-3">"{currentQuote.quote}"</blockquote>
+                      <p className="text-xs text-gray-600 mt-1">— {currentQuote.author}{currentQuote.authorTitle ? `, ${currentQuote.authorTitle}` : ''}</p>
+                      
+                      {/* Previous Themes */}
+                      {quotes.length > 1 && (
+                        <div className="mt-4 pt-3 border-t border-amber-200/50">
+                          <p className="text-xs font-medium text-amber-700 mb-2">Previous Themes</p>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {quotes.slice(1, 6).map((q) => (
+                              <button
+                                key={q.id}
+                                onClick={(e) => { e.stopPropagation(); setActiveView('quotes'); }}
+                                className="w-full text-left p-2 rounded-lg hover:bg-amber-100/50 transition-colors flex items-center justify-between"
+                              >
+                                <span className="text-sm font-medium text-gray-700">{q.theme || 'Weekly Wisdom'}</span>
+                                <span className="text-[10px] text-gray-400">
+                                  {new Date(q.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
                           <button
-                            key={q.id}
-                            onClick={() => setActiveView('quotes')}
-                            className="w-full text-left p-2 rounded-lg hover:bg-amber-100/50 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setActiveView('quotes'); }}
+                            className="w-full mt-2 text-xs text-amber-600 hover:text-amber-800 font-medium"
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-800">{q.theme || 'Weekly Wisdom'}</span>
-                              <span className="text-[10px] text-gray-400">
-                                {new Date(q.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-500 truncate">"{q.quote}" — {q.author}</p>
+                            View All Quotes →
                           </button>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => setActiveView('quotes')}
-                        className="w-full mt-2 text-xs text-amber-600 hover:text-amber-800 font-medium"
-                      >
-                        View All Quotes →
-                      </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
