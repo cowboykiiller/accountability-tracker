@@ -634,7 +634,7 @@ export default function AccountabilityTracker() {
   
   // Bets/Challenges state
   const [bets, setBets] = useState([]);
-  const [newBet, setNewBet] = useState({ challenger: '', challenged: '', goal: '', reward: '', deadline: '' });
+  const [newBet, setNewBet] = useState({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false });
   const [showNewBet, setShowNewBet] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
   
@@ -1207,18 +1207,27 @@ export default function AccountabilityTracker() {
 
   // Create new challenge
   const createBet = async () => {
-    if (!newBet.challenged || !newBet.goal) return;
+    // For group challenges, check if at least one participant selected
+    // For 1v1, check if challenged is set
+    const hasParticipants = newBet.isGroup 
+      ? (newBet.challenged && newBet.challenged.length > 0)
+      : newBet.challenged;
+    
+    if (!hasParticipants || !newBet.goal) return;
     
     const bet = {
       id: `bet_${Date.now()}`,
       challenger: userProfile?.linkedParticipant || user.displayName || 'Anonymous',
       challengerId: user.uid,
-      challengerPhoto: user.photoURL,
-      challenged: newBet.challenged,
+      challengerPhoto: userProfile?.photoURL || user.photoURL,
+      challenged: newBet.isGroup ? newBet.challenged : [newBet.challenged], // Always store as array
+      isGroup: newBet.isGroup || false,
       goal: newBet.goal,
       reward: newBet.reward || 'Bragging rights! 🏆',
       deadline: newBet.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       status: 'pending', // pending, accepted, declined, completed
+      acceptedBy: [], // Track who has accepted (for group challenges)
+      declinedBy: [], // Track who has declined
       acceptedAt: null,
       completedAt: null,
       winner: null,
@@ -1226,7 +1235,7 @@ export default function AccountabilityTracker() {
     };
     
     await setDoc(doc(db, 'bets', bet.id), bet);
-    setNewBet({ challenger: '', challenged: '', goal: '', reward: '', deadline: '' });
+    setNewBet({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false });
     setShowNewBet(false);
   };
 
@@ -1240,16 +1249,38 @@ export default function AccountabilityTracker() {
     setEditingBet(null);
   };
 
-  // Accept challenge
+  // Accept challenge (updated for group support)
   const acceptBet = async (betId) => {
     const bet = bets.find(b => b.id === betId);
     if (!bet) return;
     
-    await setDoc(doc(db, 'bets', betId), { 
-      ...bet, 
-      status: 'accepted',
-      acceptedAt: new Date().toISOString()
-    }, { merge: true });
+    const myName = userProfile?.linkedParticipant || user.displayName;
+    
+    if (bet.isGroup) {
+      // For group challenges, add to acceptedBy array
+      const acceptedBy = [...(bet.acceptedBy || [])];
+      if (!acceptedBy.includes(myName)) {
+        acceptedBy.push(myName);
+      }
+      
+      // Check if all participants have accepted
+      const allAccepted = bet.challenged.every(p => acceptedBy.includes(p));
+      
+      await setDoc(doc(db, 'bets', betId), { 
+        ...bet, 
+        acceptedBy,
+        status: allAccepted ? 'accepted' : 'pending',
+        acceptedAt: allAccepted ? new Date().toISOString() : null
+      }, { merge: true });
+    } else {
+      // 1v1 challenge - original behavior
+      await setDoc(doc(db, 'bets', betId), { 
+        ...bet, 
+        status: 'accepted',
+        acceptedBy: [myName],
+        acceptedAt: new Date().toISOString()
+      }, { merge: true });
+    }
   };
 
   // Decline challenge
@@ -2181,6 +2212,21 @@ export default function AccountabilityTracker() {
                 </div>
               )}
               
+              {/* Timeframe Selector */}
+              <div className="flex items-center justify-between">
+                <div className="flex gap-2 flex-wrap">
+                  {Object.entries(rangeLabels).map(([k, v]) => (
+                    <button 
+                      key={k} 
+                      onClick={() => setScorecardRange(k)} 
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
               {/* Stats row */}
               <div className="grid grid-cols-4 gap-2">
                 <div className="bg-white rounded-xl p-3 border border-gray-100">
@@ -2640,49 +2686,73 @@ export default function AccountabilityTracker() {
                   <p className="text-gray-400 text-sm text-center py-4">No pending challenges</p>
                 ) : (
                   <div className="space-y-3">
-                    {bets.filter(b => b.status === 'pending').map(bet => (
-                      <div key={bet.id} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <Swords className="w-4 h-4 text-purple-600" />
-                            <span className="font-medium text-purple-800">{bet.challenger}</span>
-                            <span className="text-purple-400">vs</span>
-                            <span className="font-medium text-purple-800">{bet.challenged}</span>
+                    {bets.filter(b => b.status === 'pending').map(bet => {
+                      const challengedList = Array.isArray(bet.challenged) ? bet.challenged : [bet.challenged];
+                      const myName = userProfile?.linkedParticipant || user?.displayName;
+                      const isChallengee = challengedList.includes(myName);
+                      const hasAccepted = bet.acceptedBy?.includes(myName);
+                      const hasDeclined = bet.declinedBy?.includes(myName);
+                      
+                      return (
+                        <div key={bet.id} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {bet.isGroup && <span className="px-1.5 py-0.5 bg-purple-200 text-purple-800 text-[10px] font-medium rounded">GROUP</span>}
+                              <Swords className="w-4 h-4 text-purple-600" />
+                              <span className="font-medium text-purple-800">{bet.challenger}</span>
+                              <span className="text-purple-400">vs</span>
+                              <span className="font-medium text-purple-800">
+                                {challengedList.length > 2 
+                                  ? `${challengedList.slice(0, 2).join(', ')} +${challengedList.length - 2}`
+                                  : challengedList.join(', ')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {bet.challengerId === user?.uid && (
+                                <>
+                                  <button onClick={() => setEditingBet(bet)} className="p-1 text-purple-400 hover:text-purple-600">
+                                    <Wand2 className="w-3 h-3" />
+                                  </button>
+                                  <button onClick={() => deleteBet(bet.id)} className="p-1 text-purple-400 hover:text-red-500">
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            {bet.challengerId === user?.uid && (
-                              <>
-                                <button onClick={() => setEditingBet(bet)} className="p-1 text-purple-400 hover:text-purple-600">
-                                  <Wand2 className="w-3 h-3" />
-                                </button>
-                                <button onClick={() => deleteBet(bet.id)} className="p-1 text-purple-400 hover:text-red-500">
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </>
-                            )}
-                          </div>
+                          <p className="text-sm text-purple-700 mb-1">{bet.goal}</p>
+                          {bet.reward && <p className="text-xs text-purple-500 mb-1">🎁 {bet.reward}</p>}
+                          <p className="text-xs text-purple-500 mb-2">Deadline: {new Date(bet.deadline).toLocaleDateString()}</p>
+                          
+                          {/* Group challenge status */}
+                          {bet.isGroup && bet.acceptedBy?.length > 0 && (
+                            <p className="text-xs text-green-600 mb-2">
+                              ✓ Accepted: {bet.acceptedBy.join(', ')}
+                            </p>
+                          )}
+                          
+                          {isChallengee && bet.challengerId !== user?.uid && !hasAccepted && !hasDeclined && (
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => acceptBet(bet.id)}
+                                className="flex-1 py-1.5 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600"
+                              >
+                                Accept
+                              </button>
+                              <button 
+                                onClick={() => declineBet(bet.id)}
+                                className="flex-1 py-1.5 bg-red-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-200"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          )}
+                          {hasAccepted && (
+                            <p className="text-xs text-green-600 font-medium">✓ You accepted - waiting for others</p>
+                          )}
                         </div>
-                        <p className="text-sm text-purple-700 mb-1">{bet.goal}</p>
-                        {bet.reward && <p className="text-xs text-purple-500 mb-1">🎁 {bet.reward}</p>}
-                        <p className="text-xs text-purple-500 mb-3">Deadline: {new Date(bet.deadline).toLocaleDateString()}</p>
-                        {(bet.challenged === user?.displayName || bet.challenged === userProfile?.linkedParticipant) && bet.challengerId !== user?.uid && (
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => acceptBet(bet.id)}
-                              className="flex-1 py-1.5 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600"
-                            >
-                              Accept
-                            </button>
-                            <button 
-                              onClick={() => declineBet(bet.id)}
-                              className="flex-1 py-1.5 bg-red-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-200"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2697,41 +2767,51 @@ export default function AccountabilityTracker() {
                   <p className="text-gray-400 text-sm text-center py-4">No active challenges</p>
                 ) : (
                   <div className="space-y-3">
-                    {bets.filter(b => b.status === 'accepted').map(bet => (
-                      <div key={bet.id} className="p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">⚔️</span>
-                            <span className="font-medium text-gray-800">{bet.challenger}</span>
-                            <span className="text-gray-400">vs</span>
-                            <span className="font-medium text-gray-800">{bet.challenged}</span>
+                    {bets.filter(b => b.status === 'accepted').map(bet => {
+                      const challengedList = Array.isArray(bet.challenged) ? bet.challenged : [bet.challenged];
+                      const allParticipantsInChallenge = [bet.challenger, ...challengedList];
+                      const myName = userProfile?.linkedParticipant || user?.displayName;
+                      const isParticipant = allParticipantsInChallenge.includes(myName) || bet.challengerId === user?.uid;
+                      
+                      return (
+                        <div key={bet.id} className="p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {bet.isGroup && <span className="px-1.5 py-0.5 bg-orange-200 text-orange-800 text-[10px] font-medium rounded">GROUP</span>}
+                              <span className="text-lg">⚔️</span>
+                              <span className="font-medium text-gray-800">{bet.challenger}</span>
+                              <span className="text-gray-400">vs</span>
+                              <span className="font-medium text-gray-800">
+                                {challengedList.length > 2 
+                                  ? `${challengedList.slice(0, 2).join(', ')} +${challengedList.length - 2}`
+                                  : challengedList.join(', ')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {bet.challengerId === user?.uid && (
+                                <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-400 hover:text-red-500">
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            {bet.challengerId === user?.uid && (
-                              <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-400 hover:text-red-500">
-                                <Trash2 className="w-3 h-3" />
-                              </button>
+                          <p className="text-sm text-gray-700 mb-1">{bet.goal}</p>
+                          {bet.reward && <p className="text-xs text-orange-600 mb-2">🎁 {bet.reward}</p>}
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-gray-500">Ends: {new Date(bet.deadline).toLocaleDateString()}</p>
+                            {isParticipant && (
+                              <div className="flex gap-1 flex-wrap">
+                                {allParticipantsInChallenge.map(p => (
+                                  <button 
+                                    key={p}
+                                    onClick={() => completeBet(bet.id, p)}
+                                    className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
+                                  >
+                                    {p} won
+                                  </button>
+                                ))}
+                              </div>
                             )}
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-700 mb-1">{bet.goal}</p>
-                        {bet.reward && <p className="text-xs text-orange-600 mb-2">🎁 {bet.reward}</p>}
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-500">Ends: {new Date(bet.deadline).toLocaleDateString()}</p>
-                          {(bet.challengerId === user?.uid || bet.challenged === user?.displayName || bet.challenged === userProfile?.linkedParticipant) && (
-                            <div className="flex gap-1">
-                              <button 
-                                onClick={() => completeBet(bet.id, bet.challenger)}
-                                className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
-                              >
-                                {bet.challenger} won
-                              </button>
-                              <button 
-                                onClick={() => completeBet(bet.id, bet.challenged)}
-                                className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
-                              >
-                                {bet.challenged} won
-                              </button>
                             </div>
                           )}
                         </div>
@@ -2769,25 +2849,82 @@ export default function AccountabilityTracker() {
             {/* New Challenge Modal */}
             {showNewBet && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+                <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                   <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <Swords className="w-5 h-5 text-purple-600" />
                     Create New Challenge
                   </h3>
                   
                   <div className="space-y-4">
+                    {/* Challenge Type Toggle */}
                     <div>
-                      <label className="text-sm text-gray-600 block mb-1">Challenge Who?</label>
-                      <select 
-                        value={newBet.challenged}
-                        onChange={(e) => setNewBet({ ...newBet, challenged: e.target.value })}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                      >
-                        <option value="">Select opponent...</option>
-                        {allParticipants.filter(p => p !== userProfile?.linkedParticipant && p !== user?.displayName).map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
+                      <label className="text-sm text-gray-600 block mb-2">Challenge Type</label>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setNewBet({ ...newBet, isGroup: false, challenged: '' })}
+                          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${!newBet.isGroup ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                          <User className="w-4 h-4" />
+                          1 vs 1
+                        </button>
+                        <button
+                          onClick={() => setNewBet({ ...newBet, isGroup: true, challenged: [] })}
+                          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${newBet.isGroup ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                          <Users className="w-4 h-4" />
+                          Group
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Participant Selection */}
+                    <div>
+                      <label className="text-sm text-gray-600 block mb-1">
+                        {newBet.isGroup ? 'Challenge Who? (select multiple)' : 'Challenge Who?'}
+                      </label>
+                      
+                      {newBet.isGroup ? (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            {allParticipants.filter(p => p !== userProfile?.linkedParticipant && p !== user?.displayName).map(p => {
+                              const isSelected = Array.isArray(newBet.challenged) && newBet.challenged.includes(p);
+                              return (
+                                <button
+                                  key={p}
+                                  onClick={() => {
+                                    const current = Array.isArray(newBet.challenged) ? newBet.challenged : [];
+                                    if (isSelected) {
+                                      setNewBet({ ...newBet, challenged: current.filter(x => x !== p) });
+                                    } else {
+                                      setNewBet({ ...newBet, challenged: [...current, p] });
+                                    }
+                                  }}
+                                  className={`p-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${isSelected ? 'bg-purple-100 text-purple-700 border-2 border-purple-400' : 'bg-gray-50 text-gray-700 border-2 border-transparent hover:bg-gray-100'}`}
+                                >
+                                  {isSelected && <CheckCircle2 className="w-4 h-4" />}
+                                  {p}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {Array.isArray(newBet.challenged) && newBet.challenged.length > 0 && (
+                            <p className="text-xs text-purple-600">
+                              Selected: {newBet.challenged.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <select 
+                          value={typeof newBet.challenged === 'string' ? newBet.challenged : ''}
+                          onChange={(e) => setNewBet({ ...newBet, challenged: e.target.value })}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        >
+                          <option value="">Select opponent...</option>
+                          {allParticipants.filter(p => p !== userProfile?.linkedParticipant && p !== user?.displayName).map(p => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     
                     <div>
@@ -2796,7 +2933,7 @@ export default function AccountabilityTracker() {
                         type="text"
                         value={newBet.goal}
                         onChange={(e) => setNewBet({ ...newBet, goal: e.target.value })}
-                        placeholder="e.g., Complete all habits for 2 weeks"
+                        placeholder={newBet.isGroup ? "e.g., Everyone hits 80% completion this month" : "e.g., Complete all habits for 2 weeks"}
                         className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
@@ -2826,17 +2963,17 @@ export default function AccountabilityTracker() {
                   
                   <div className="flex gap-3 mt-6">
                     <button 
-                      onClick={() => setShowNewBet(false)}
+                      onClick={() => { setShowNewBet(false); setNewBet({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false }); }}
                       className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
                     >
                       Cancel
                     </button>
                     <button 
                       onClick={createBet}
-                      disabled={!newBet.challenged || !newBet.goal}
+                      disabled={!(newBet.isGroup ? (Array.isArray(newBet.challenged) && newBet.challenged.length > 0) : newBet.challenged) || !newBet.goal}
                       className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
                     >
-                      Send Challenge
+                      {newBet.isGroup ? 'Send Group Challenge' : 'Send Challenge'}
                     </button>
                   </div>
                 </div>
