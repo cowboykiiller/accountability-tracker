@@ -654,6 +654,11 @@ export default function AccountabilityTracker() {
   const [viewingProfile, setViewingProfile] = useState(null); // For viewing other profiles
   const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
   
+  // Habit editing state
+  const [editingHabit, setEditingHabit] = useState(null); // {id, habit, target}
+  const [weekHabitSuggestions, setWeekHabitSuggestions] = useState([]); // AI suggestions for new week
+  const [weekSuggestLoading, setWeekSuggestLoading] = useState(false);
+  
   // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
   const [checkInText, setCheckInText] = useState('');
@@ -906,7 +911,7 @@ export default function AccountabilityTracker() {
       const participantHabits = habits.filter(h => h.participant === p);
       const totalPossible = participantHabits.reduce((sum, h) => sum + (h.target || 5), 0);
       const totalCompleted = participantHabits.reduce((sum, h) => {
-        return sum + DAYS.filter(d => h.days?.[d]).length;
+        return sum + (h.daysCompleted?.length || 0);
       }, 0);
       const rate = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
       
@@ -918,7 +923,7 @@ export default function AccountabilityTracker() {
         score: rate + (calculateStreaks[p] || 0) * 10 // Rate + streak bonus
       };
     }).sort((a, b) => b.score - a.score);
-  }, [habits, calculateStreaks]);
+  }, [habits, calculateStreaks, allParticipants]);
 
   // Submit weekly check-in
   const submitCheckIn = async () => {
@@ -964,28 +969,54 @@ export default function AccountabilityTracker() {
             
             // Scale down if too large
             if (width > maxWidth) {
-              height = (height * maxWidth) / width;
+              height = Math.round((height * maxWidth) / width);
               width = maxWidth;
+            }
+            
+            // Also limit height
+            const maxHeight = 800;
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
             }
             
             canvas.width = width;
             canvas.height = height;
             
             const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
             
             // Convert to compressed base64
-            const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+            let compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+            console.log(`Image compressed: ${width}x${height}, quality ${quality}, size: ${compressedBase64.length}`);
             
-            // Check if the result is too large for Firestore (roughly 1MB limit for document)
-            if (compressedBase64.length > 900000) {
-              // Try again with lower quality
-              const smallerBase64 = canvas.toDataURL('image/jpeg', 0.4);
-              resolve(smallerBase64);
-            } else {
-              resolve(compressedBase64);
+            // Progressively reduce quality if still too large (Firestore limit ~1MB per doc)
+            const maxSize = 700000; // Leave room for other document fields
+            let currentQuality = quality;
+            
+            while (compressedBase64.length > maxSize && currentQuality > 0.1) {
+              currentQuality -= 0.1;
+              compressedBase64 = canvas.toDataURL('image/jpeg', currentQuality);
+              console.log(`Re-compressed at quality ${currentQuality.toFixed(1)}, size: ${compressedBase64.length}`);
             }
+            
+            // If still too large, reduce dimensions
+            if (compressedBase64.length > maxSize) {
+              const scale = 0.7;
+              canvas.width = Math.round(width * scale);
+              canvas.height = Math.round(height * scale);
+              ctx.fillStyle = '#FFFFFF';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
+              console.log(`Scaled down to ${canvas.width}x${canvas.height}, size: ${compressedBase64.length}`);
+            }
+            
+            resolve(compressedBase64);
           } catch (err) {
+            console.error('Canvas error:', err);
             reject(err);
           }
         };
@@ -1000,20 +1031,34 @@ export default function AccountabilityTracker() {
     const file = e.target.files[0];
     if (!file) return;
     
+    console.log('Selected file:', file.name, file.type, file.size);
+    
     if (file.size > 10 * 1024 * 1024) {
       alert('Image must be less than 10MB');
       return;
     }
     
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+    
     try {
-      // Compress the image more aggressively for posts
-      const compressedImage = await compressImage(file, 600, 0.5);
-      console.log('Compressed image size:', compressedImage.length);
+      // Compress the image aggressively for posts
+      const compressedImage = await compressImage(file, 500, 0.6);
+      console.log('Final compressed image size:', compressedImage.length, 'characters');
+      
+      if (compressedImage.length > 900000) {
+        alert('Image is still too large after compression. Please try a smaller image.');
+        return;
+      }
+      
       setNewPostImage(compressedImage);
       setPostImagePreview(compressedImage);
     } catch (error) {
       console.error('Error compressing image:', error);
-      alert('Failed to process image. Please try a different image.');
+      alert('Failed to process image: ' + error.message);
     }
     
     // Reset the input so the same file can be selected again
@@ -1243,20 +1288,35 @@ export default function AccountabilityTracker() {
     const file = e.target.files[0];
     if (!file) return;
     
+    console.log('Profile photo selected:', file.name, file.type, file.size);
+    
     if (file.size > 10 * 1024 * 1024) {
       alert('Image must be less than 10MB');
       return;
     }
     
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+    
     try {
-      // Compress profile photo to smaller size
-      const compressedImage = await compressImage(file, 200, 0.6);
+      // Compress profile photo to smaller size (profile photos are small)
+      const compressedImage = await compressImage(file, 150, 0.7);
       console.log('Profile photo compressed, size:', compressedImage.length);
-      setProfilePhotoPreview(compressedImage);
-      setProfileForm({ ...profileForm, photoURL: compressedImage });
+      
+      if (compressedImage.length > 200000) {
+        // Profile photos should be small
+        const smallerImage = await compressImage(file, 100, 0.5);
+        setProfilePhotoPreview(smallerImage);
+        setProfileForm({ ...profileForm, photoURL: smallerImage });
+      } else {
+        setProfilePhotoPreview(compressedImage);
+        setProfileForm({ ...profileForm, photoURL: compressedImage });
+      }
     } catch (error) {
       console.error('Error compressing profile image:', error);
-      alert('Failed to process image. Please try a different image.');
+      alert('Failed to process image: ' + error.message);
     }
     
     // Reset the input
@@ -1473,6 +1533,133 @@ export default function AccountabilityTracker() {
 
   const deleteHabit = async (id) => {
     await deleteDoc(doc(db, 'habits', id));
+  };
+
+  // Edit existing habit
+  const updateHabit = async () => {
+    if (!editingHabit || !editingHabit.habit.trim()) return;
+    
+    const habit = habits.find(h => h.id === editingHabit.id);
+    if (!habit) return;
+    
+    await setDoc(doc(db, 'habits', editingHabit.id), {
+      ...habit,
+      habit: editingHabit.habit,
+      target: parseInt(editingHabit.target)
+    });
+    
+    setEditingHabit(null);
+  };
+
+  // Move habit up or down in the list
+  const moveHabit = async (habitId, direction) => {
+    const currentHabits = currentWeekHabits.filter(h => 
+      h.participant === (userProfile?.linkedParticipant || selectedParticipant)
+    );
+    const idx = currentHabits.findIndex(h => h.id === habitId);
+    if (idx === -1) return;
+    
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= currentHabits.length) return;
+    
+    // Swap order values
+    const habit1 = currentHabits[idx];
+    const habit2 = currentHabits[newIdx];
+    
+    const order1 = habit1.order || idx;
+    const order2 = habit2.order || newIdx;
+    
+    await setDoc(doc(db, 'habits', habit1.id), { ...habit1, order: order2 });
+    await setDoc(doc(db, 'habits', habit2.id), { ...habit2, order: order1 });
+  };
+
+  // Auto-suggest habits based on past 4 weeks
+  const suggestWeeklyHabits = async () => {
+    setWeekSuggestLoading(true);
+    setWeekHabitSuggestions([]);
+    
+    try {
+      // Get habits from past 4 weeks
+      const idx = ALL_WEEKS.indexOf(currentWeek);
+      const past4Weeks = ALL_WEEKS.slice(Math.max(0, idx - 4), idx);
+      const participant = userProfile?.linkedParticipant || selectedAiParticipant;
+      
+      const pastHabits = habits.filter(h => 
+        h.participant === participant && 
+        past4Weeks.includes(h.weekStart)
+      );
+      
+      // Calculate success rates for each habit
+      const habitStats = {};
+      pastHabits.forEach(h => {
+        const key = h.habit;
+        if (!habitStats[key]) {
+          habitStats[key] = { habit: key, totalCompleted: 0, totalTarget: 0, count: 0 };
+        }
+        habitStats[key].totalCompleted += h.daysCompleted?.length || 0;
+        habitStats[key].totalTarget += h.target || 5;
+        habitStats[key].count++;
+      });
+      
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'suggest-weekly',
+          participant,
+          pastHabits: Object.values(habitStats).map(s => ({
+            habit: s.habit,
+            successRate: s.totalTarget > 0 ? Math.round((s.totalCompleted / s.totalTarget) * 100) : 0,
+            timesTracked: s.count
+          }))
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!data.error && data.message) {
+        const habitMatches = data.message.match(/(?:^|\n)[-•*]\s*(.+?)(?:\s*[-–]\s*(\d+)\s*(?:days?|x)?)?(?=\n|$)/gim);
+        if (habitMatches) {
+          const parsed = habitMatches.map(match => {
+            const cleaned = match.replace(/^[\n\s]*[-•*]\s*/, '').trim();
+            const targetMatch = cleaned.match(/[-–]\s*(\d+)\s*(?:days?|x)?/);
+            const habitName = cleaned.replace(/\s*[-–]\s*\d+\s*(?:days?|x)?\s*(?:per\s*)?(?:week)?$/i, '').trim();
+            return {
+              habit: habitName,
+              target: targetMatch ? parseInt(targetMatch[1]) : 5,
+              added: false
+            };
+          }).filter(h => h.habit.length > 3 && h.habit.length < 100);
+          setWeekHabitSuggestions(parsed);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to suggest weekly habits:', error);
+    }
+    
+    setWeekSuggestLoading(false);
+  };
+
+  // Add habit from weekly suggestions
+  const addWeeklyHabit = async (habit, index) => {
+    if (!currentWeek) return;
+    
+    const participant = userProfile?.linkedParticipant || selectedAiParticipant;
+    const newHabitDoc = {
+      id: `habit_${Date.now()}_weekly_${index}`,
+      participant,
+      habit: habit.habit,
+      target: habit.target,
+      daysCompleted: [],
+      weekStart: currentWeek,
+      order: currentWeekHabits.filter(h => h.participant === participant).length + index
+    };
+    
+    await setDoc(doc(db, 'habits', newHabitDoc.id), newHabitDoc);
+    
+    setWeekHabitSuggestions(prev => prev.map((h, i) => 
+      i === index ? { ...h, added: true } : h
+    ));
   };
 
   // AI Coach function
@@ -2735,10 +2922,203 @@ export default function AccountabilityTracker() {
         {activeView === 'tracker' && (
           <div className="space-y-4">
             <div className="flex gap-2 flex-wrap">{['All', ...allParticipants].map(p => <button key={p} onClick={() => setSelectedParticipant(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedParticipant === p ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}>{p === 'All' ? `All (${currentWeekHabits.length})` : `${p} (${currentWeekHabits.filter(h => h.participant === p).length})`}</button>)}</div>
-            <div className="space-y-2">{filteredHabits.length === 0 ? <div className="bg-white rounded-xl p-8 text-center border border-gray-100"><p className="text-gray-400 mb-2">No habits for this week</p><button onClick={() => setActiveView('add')} className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors">Add a Habit</button></div> : filteredHabits.map(h => {
-              const st = getStatus(h), cfg = STATUS_CONFIG[st];
-              return <div key={h.id} className="bg-white rounded-xl p-3 border border-gray-100 hover:border-gray-200 transition-colors"><div className="flex flex-col md:flex-row md:items-center gap-3"><div className="flex-1"><div className="flex items-center gap-2 mb-0.5"><span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span><span className="text-gray-400 text-xs">{h.participant}</span></div><h3 className="text-gray-800 font-medium text-sm">{h.habit}</h3><p className="text-gray-400 text-xs">{h.daysCompleted.length}/{h.target} days</p></div><div className="flex items-center gap-1">{DAYS.map((d, i) => <button key={d} onClick={() => toggleDay(h.id, i)} className={`w-8 h-8 md:w-7 md:h-7 rounded text-xs font-medium transition-colors ${h.daysCompleted.includes(i) ? 'bg-[#1E3A5F] text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>{d[0]}</button>)}<button onClick={() => deleteHabit(h.id)} className="w-8 h-8 md:w-7 md:h-7 rounded bg-red-50 text-red-400 hover:bg-red-100 ml-1 transition-colors"><Trash2 className="w-3 h-3 mx-auto" /></button></div></div></div>;
-            })}</div>
+            
+            {/* No habits - Show AI suggestions */}
+            {currentWeekHabits.length === 0 ? (
+              <div className="bg-white rounded-xl p-6 border border-gray-100">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-[#F5F3E8] rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Calendar className="w-8 h-8 text-[#1E3A5F]" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800 mb-2">Start Your Week Fresh!</h3>
+                  <p className="text-gray-500 text-sm">No habits set for this week yet. Get AI suggestions based on your past performance, or add habits manually.</p>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
+                  <button 
+                    onClick={suggestWeeklyHabits}
+                    disabled={weekSuggestLoading}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50"
+                  >
+                    {weekSuggestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    AI Suggest Habits
+                  </button>
+                  <button 
+                    onClick={() => setActiveView('add')} 
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Manually
+                  </button>
+                </div>
+                
+                {/* AI Suggestions */}
+                {weekHabitSuggestions.length > 0 && (
+                  <div className="border-t border-gray-100 pt-4">
+                    <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-500" />
+                      AI Suggested Habits
+                    </h4>
+                    <div className="space-y-2">
+                      {weekHabitSuggestions.map((habit, idx) => (
+                        <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${habit.added ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                          <div className="flex-1">
+                            <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>{habit.habit}</p>
+                            <p className="text-xs text-gray-500">{habit.target} days/week</p>
+                          </div>
+                          {habit.added ? (
+                            <span className="flex items-center gap-1 text-green-600 text-sm">
+                              <CheckCircle2 className="w-4 h-4" />
+                              Added!
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => addWeeklyHabit(habit, idx)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm hover:bg-[#162D4D] transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Add
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* AI Suggest button when some habits exist */}
+                <div className="flex justify-end mb-2">
+                  <button 
+                    onClick={suggestWeeklyHabits}
+                    disabled={weekSuggestLoading}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors disabled:opacity-50"
+                  >
+                    {weekSuggestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    AI Suggest More
+                  </button>
+                </div>
+                
+                {/* AI Suggestions panel */}
+                {weekHabitSuggestions.length > 0 && (
+                  <div className="bg-purple-50 rounded-xl p-4 border border-purple-200 mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-purple-800 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        AI Suggested Habits
+                      </h4>
+                      <button onClick={() => setWeekHabitSuggestions([])} className="text-purple-400 hover:text-purple-600">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {weekHabitSuggestions.map((habit, idx) => (
+                        <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${habit.added ? 'bg-green-100' : 'bg-white'}`}>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>{habit.habit}</p>
+                            <p className="text-xs text-gray-500">{habit.target} days</p>
+                          </div>
+                          {habit.added ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          ) : (
+                            <button onClick={() => addWeeklyHabit(habit, idx)} className="px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 flex-shrink-0">
+                              Add
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Habit list */}
+                {filteredHabits.sort((a, b) => (a.order || 0) - (b.order || 0)).map((h, idx) => {
+                  const st = getStatus(h), cfg = STATUS_CONFIG[st];
+                  const isEditing = editingHabit?.id === h.id;
+                  
+                  return (
+                    <div key={h.id} className="bg-white rounded-xl p-3 border border-gray-100 hover:border-gray-200 transition-colors">
+                      {isEditing ? (
+                        <div className="flex flex-col gap-3">
+                          <input
+                            type="text"
+                            value={editingHabit.habit}
+                            onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                          />
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={editingHabit.target}
+                              onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
+                              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                            >
+                              {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days</option>)}
+                            </select>
+                            <button onClick={updateHabit} className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600">Save</button>
+                            <button onClick={() => setEditingHabit(null)} className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-300">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col md:flex-row md:items-center gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
+                              <span className="text-gray-400 text-xs">{h.participant}</span>
+                            </div>
+                            <h3 className="text-gray-800 font-medium text-sm">{h.habit}</h3>
+                            <p className="text-gray-400 text-xs">{h.daysCompleted.length}/{h.target} days</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {/* Move buttons */}
+                            <div className="flex flex-col mr-1">
+                              <button 
+                                onClick={() => moveHabit(h.id, 'up')} 
+                                className="w-6 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                                disabled={idx === 0}
+                              >
+                                <ChevronUp className="w-3 h-3" />
+                              </button>
+                              <button 
+                                onClick={() => moveHabit(h.id, 'down')} 
+                                className="w-6 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                                disabled={idx === filteredHabits.length - 1}
+                              >
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+                            </div>
+                            {/* Day buttons */}
+                            {DAYS.map((d, i) => (
+                              <button 
+                                key={d} 
+                                onClick={() => toggleDay(h.id, i)} 
+                                className={`w-8 h-8 md:w-7 md:h-7 rounded text-xs font-medium transition-colors ${h.daysCompleted.includes(i) ? 'bg-[#1E3A5F] text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                              >
+                                {d[0]}
+                              </button>
+                            ))}
+                            {/* Edit button */}
+                            <button 
+                              onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })}
+                              className="w-8 h-8 md:w-7 md:h-7 rounded bg-blue-50 text-blue-400 hover:bg-blue-100 ml-1 transition-colors"
+                            >
+                              <Edit3 className="w-3 h-3 mx-auto" />
+                            </button>
+                            {/* Delete button */}
+                            <button 
+                              onClick={() => deleteHabit(h.id)} 
+                              className="w-8 h-8 md:w-7 md:h-7 rounded bg-red-50 text-red-400 hover:bg-red-100 ml-1 transition-colors"
+                            >
+                              <Trash2 className="w-3 h-3 mx-auto" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
