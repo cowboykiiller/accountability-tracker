@@ -614,6 +614,11 @@ export default function AccountabilityTracker() {
   const [aiResponse, setAiResponse] = useState('');
   const [aiGoal, setAiGoal] = useState('');
   const [selectedAiParticipant, setSelectedAiParticipant] = useState('Taylor');
+  const [aiConversation, setAiConversation] = useState([]); // {role: 'user'|'assistant', content: string}
+  const [aiFollowUp, setAiFollowUp] = useState('');
+  const [suggestedHabits, setSuggestedHabits] = useState([]); // [{habit: string, target: number, added: boolean}]
+  const [quoteHabitSuggestions, setQuoteHabitSuggestions] = useState([]); // Suggestions from quote
+  const [quoteHabitLoading, setQuoteHabitLoading] = useState(false);
   
   // Quotes state
   const [quotes, setQuotes] = useState([]);
@@ -1471,23 +1476,32 @@ export default function AccountabilityTracker() {
   };
 
   // AI Coach function
-  const callAI = async (action, goal = '') => {
+  const callAI = async (action, goal = '', followUp = '') => {
     setAiLoading(true);
-    setAiResponse('');
+    
+    // If it's a follow-up, don't clear the response
+    if (!followUp) {
+      setAiResponse('');
+      setSuggestedHabits([]);
+    }
     
     try {
       const participantHabits = selectedAiParticipant === 'All' 
         ? currentWeekHabits 
         : currentWeekHabits.filter(h => h.participant === selectedAiParticipant);
       
+      // Build conversation context
+      const conversationContext = followUp ? aiConversation : [];
+      
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action,
+          action: followUp ? 'follow-up' : action,
           habits: action === 'insights' ? habits : participantHabits,
           participant: selectedAiParticipant,
-          goal
+          goal: followUp || goal,
+          conversation: conversationContext
         })
       });
       
@@ -1496,13 +1510,135 @@ export default function AccountabilityTracker() {
       if (data.error) {
         setAiResponse(`Error: ${data.error}`);
       } else {
-        setAiResponse(data.message);
+        const newMessage = data.message;
+        setAiResponse(newMessage);
+        
+        // Update conversation history
+        if (followUp) {
+          setAiConversation([
+            ...aiConversation,
+            { role: 'user', content: followUp },
+            { role: 'assistant', content: newMessage }
+          ]);
+        } else {
+          setAiConversation([
+            { role: 'user', content: `${action}: ${goal || selectedAiParticipant}` },
+            { role: 'assistant', content: newMessage }
+          ]);
+        }
+        
+        // Parse suggested habits from response (for suggest-habits action)
+        if (action === 'suggest-habits' || action === 'write-habit') {
+          const habitMatches = newMessage.match(/(?:^|\n)[-•*]\s*(.+?)(?:\s*[-–]\s*(\d+)\s*(?:days?|x)?\s*(?:per\s*)?(?:week)?)?(?=\n|$)/gim);
+          if (habitMatches) {
+            const parsed = habitMatches.map(match => {
+              const cleaned = match.replace(/^[\n\s]*[-•*]\s*/, '').trim();
+              const targetMatch = cleaned.match(/[-–]\s*(\d+)\s*(?:days?|x)?/);
+              const habitName = cleaned.replace(/\s*[-–]\s*\d+\s*(?:days?|x)?\s*(?:per\s*)?(?:week)?$/i, '').trim();
+              return {
+                habit: habitName,
+                target: targetMatch ? parseInt(targetMatch[1]) : 5,
+                added: false
+              };
+            }).filter(h => h.habit.length > 3 && h.habit.length < 100);
+            setSuggestedHabits(parsed);
+          }
+        }
       }
     } catch (error) {
       setAiResponse('Failed to connect to AI. Please try again.');
     }
     
     setAiLoading(false);
+    setAiFollowUp('');
+  };
+
+  // Add a suggested habit
+  const addSuggestedHabit = async (habit, index) => {
+    if (!currentWeek) return;
+    
+    const participant = userProfile?.linkedParticipant || selectedAiParticipant;
+    const newHabitDoc = {
+      id: `habit_${Date.now()}_${index}`,
+      participant,
+      habit: habit.habit,
+      target: habit.target,
+      daysCompleted: [],
+      weekStart: currentWeek
+    };
+    
+    await setDoc(doc(db, 'habits', newHabitDoc.id), newHabitDoc);
+    
+    // Mark as added
+    setSuggestedHabits(prev => prev.map((h, i) => 
+      i === index ? { ...h, added: true } : h
+    ));
+  };
+
+  // Generate habit suggestions from a quote
+  const suggestHabitsFromQuote = async (quote) => {
+    setQuoteHabitLoading(true);
+    setQuoteHabitSuggestions([]);
+    
+    try {
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'quote-habits',
+          quote: quote.quote,
+          author: quote.author,
+          personalApplication: quote.personalApplication,
+          businessApplication: quote.businessApplication,
+          participant: userProfile?.linkedParticipant || selectedAiParticipant
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!data.error && data.message) {
+        // Parse habits from the response
+        const habitMatches = data.message.match(/(?:^|\n)[-•*]\s*(.+?)(?:\s*[-–]\s*(\d+)\s*(?:days?|x)?\s*(?:per\s*)?(?:week)?)?(?=\n|$)/gim);
+        if (habitMatches) {
+          const parsed = habitMatches.map(match => {
+            const cleaned = match.replace(/^[\n\s]*[-•*]\s*/, '').trim();
+            const targetMatch = cleaned.match(/[-–]\s*(\d+)\s*(?:days?|x)?/);
+            const habitName = cleaned.replace(/\s*[-–]\s*\d+\s*(?:days?|x)?\s*(?:per\s*)?(?:week)?$/i, '').trim();
+            return {
+              habit: habitName,
+              target: targetMatch ? parseInt(targetMatch[1]) : 5,
+              added: false
+            };
+          }).filter(h => h.habit.length > 3 && h.habit.length < 100);
+          setQuoteHabitSuggestions(parsed);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to suggest habits from quote:', error);
+    }
+    
+    setQuoteHabitLoading(false);
+  };
+
+  // Add habit from quote suggestion
+  const addQuoteHabit = async (habit, index) => {
+    if (!currentWeek) return;
+    
+    const participant = userProfile?.linkedParticipant || selectedAiParticipant;
+    const newHabitDoc = {
+      id: `habit_${Date.now()}_quote_${index}`,
+      participant,
+      habit: habit.habit,
+      target: habit.target,
+      daysCompleted: [],
+      weekStart: currentWeek
+    };
+    
+    await setDoc(doc(db, 'habits', newHabitDoc.id), newHabitDoc);
+    
+    setQuoteHabitSuggestions(prev => prev.map((h, i) => 
+      i === index ? { ...h, added: true } : h
+    ));
   };
 
   // Generate new quote
@@ -2609,9 +2745,50 @@ export default function AccountabilityTracker() {
         {activeView === 'scorecard' && (
           <div className="space-y-4">
             <div className="flex gap-2 flex-wrap">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}>{v}</button>)}</div>
-            {PARTICIPANTS.map(p => {
-              const pH = getRangeHabits.filter(h => h.participant === p), completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length, rate = pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0;
-              return <div key={p} className="bg-white rounded-xl p-4 border border-gray-100"><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: PARTICIPANT_COLORS[p] }}>{p[0]}</div><h3 className="font-bold text-gray-800">{p}</h3></div><div className="text-right"><p className="text-xl font-bold" style={{ color: PARTICIPANT_COLORS[p] }}>{rate}%</p></div></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2"><div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: PARTICIPANT_COLORS[p] }} /></div><div className="grid grid-cols-4 gap-2 text-xs"><div><p className="text-gray-400">Total</p><p className="font-semibold text-gray-800">{pH.length}</p></div><div><p className="text-gray-400">Completed</p><p className="font-semibold text-green-600">{completed}</p></div><div><p className="text-gray-400">Exceeded</p><p className="font-semibold text-emerald-600">{pH.filter(h => getStatus(h) === 'Exceeded').length}</p></div><div><p className="text-gray-400">Missed</p><p className="font-semibold text-red-500">{pH.filter(h => getStatus(h) === 'Missed').length}</p></div></div></div>;
+            {allParticipants.map(p => {
+              const pH = getRangeHabits.filter(h => h.participant === p);
+              const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+              const rate = pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0;
+              const profile = getProfileByParticipant(p);
+              return (
+                <div key={p} className="bg-white rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <button onClick={() => openProfileView(p)} className="flex items-center gap-3 hover:opacity-80">
+                      {profile?.photoURL ? (
+                        <img src={profile.photoURL} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: PARTICIPANT_COLORS[p] || '#6366f1' }}>{p[0]}</div>
+                      )}
+                      <h3 className="font-bold text-gray-800">{p}</h3>
+                    </button>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold" style={{ color: PARTICIPANT_COLORS[p] || '#6366f1' }}>{rate}%</p>
+                      <p className="text-xs text-gray-400">completion</p>
+                    </div>
+                  </div>
+                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: PARTICIPANT_COLORS[p] || '#6366f1' }} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-3 text-center">
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      <p className="text-lg font-bold text-gray-800">{pH.length}</p>
+                      <p className="text-xs text-gray-400">Total</p>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-2">
+                      <p className="text-lg font-bold text-green-600">{completed}</p>
+                      <p className="text-xs text-gray-400">Completed</p>
+                    </div>
+                    <div className="bg-emerald-50 rounded-lg p-2">
+                      <p className="text-lg font-bold text-emerald-600">{pH.filter(h => getStatus(h) === 'Exceeded').length}</p>
+                      <p className="text-xs text-gray-400">Exceeded</p>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-2">
+                      <p className="text-lg font-bold text-red-500">{pH.filter(h => getStatus(h) === 'Missed').length}</p>
+                      <p className="text-xs text-gray-400">Missed</p>
+                    </div>
+                  </div>
+                </div>
+              );
             })}
           </div>
         )}
@@ -2770,6 +2947,14 @@ export default function AccountabilityTracker() {
                     <Sparkles className="w-4 h-4 text-white" />
                   </div>
                   <h3 className="font-semibold text-gray-800">AI Response</h3>
+                  {aiResponse && (
+                    <button 
+                      onClick={() => { setAiResponse(''); setAiConversation([]); setSuggestedHabits([]); }}
+                      className="ml-auto text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
                 {aiLoading ? (
                   <div className="flex items-center gap-3 text-gray-500">
@@ -2777,9 +2962,68 @@ export default function AccountabilityTracker() {
                     <span>Thinking...</span>
                   </div>
                 ) : (
-                  <div className="text-gray-700 text-sm">
-                    <Markdown>{aiResponse}</Markdown>
-                  </div>
+                  <>
+                    <div className="text-gray-700 text-sm mb-4">
+                      <Markdown>{aiResponse}</Markdown>
+                    </div>
+                    
+                    {/* Suggested Habits with Add Buttons */}
+                    {suggestedHabits.length > 0 && (
+                      <div className="border-t border-gray-100 pt-4 mt-4">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          <Plus className="w-4 h-4" />
+                          Quick Add Habits
+                        </h4>
+                        <div className="space-y-2">
+                          {suggestedHabits.map((habit, idx) => (
+                            <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${habit.added ? 'bg-green-50' : 'bg-gray-50'}`}>
+                              <div className="flex-1">
+                                <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>
+                                  {habit.habit}
+                                </p>
+                                <p className="text-xs text-gray-500">{habit.target} days/week</p>
+                              </div>
+                              {habit.added ? (
+                                <span className="flex items-center gap-1 text-green-600 text-sm">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  Added!
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => addSuggestedHabit(habit, idx)}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm hover:bg-[#162D4D] transition-colors"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  Add
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Follow-up Conversation */}
+                    <div className="border-t border-gray-100 pt-4 mt-4">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={aiFollowUp}
+                          onChange={(e) => setAiFollowUp(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && aiFollowUp.trim() && callAI('follow-up', '', aiFollowUp)}
+                          placeholder="Ask a follow-up question..."
+                          className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                        />
+                        <button
+                          onClick={() => callAI('follow-up', '', aiFollowUp)}
+                          disabled={aiLoading || !aiFollowUp.trim()}
+                          className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -2851,15 +3095,97 @@ export default function AccountabilityTracker() {
                       <p className="text-sm text-gray-600">{quote.whyItMatters}</p>
                     </div>
                     
+                    {/* Improved Application Layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="bg-[#F5F3E8] rounded-lg p-4">
-                        <p className="text-sm font-medium text-[#0F2940] mb-2">Personal Application</p>
-                        <p className="text-sm text-gray-600 whitespace-pre-line">{quote.personalApplication}</p>
+                      <div className="bg-[#F5F3E8] rounded-xl p-4">
+                        <h4 className="text-sm font-semibold text-[#0F2940] mb-3 flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          Personal Application
+                        </h4>
+                        <ul className="space-y-2">
+                          {(Array.isArray(quote.personalApplication) 
+                            ? quote.personalApplication 
+                            : (quote.personalApplication || '').split(/[.•]/).filter(s => s.trim())
+                          ).map((item, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                              <span className="text-[#F5B800] mt-0.5">•</span>
+                              <span>{typeof item === 'string' ? item.trim() : item}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <div className="bg-blue-50 rounded-lg p-4">
-                        <p className="text-sm font-medium text-blue-700 mb-2">Business Application</p>
-                        <p className="text-sm text-gray-600 whitespace-pre-line">{quote.businessApplication}</p>
+                      <div className="bg-blue-50 rounded-xl p-4">
+                        <h4 className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                          <Target className="w-4 h-4" />
+                          Business Application
+                        </h4>
+                        <ul className="space-y-2">
+                          {(Array.isArray(quote.businessApplication) 
+                            ? quote.businessApplication 
+                            : (quote.businessApplication || '').split(/[.•]/).filter(s => s.trim())
+                          ).map((item, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                              <span className="text-blue-500 mt-0.5">•</span>
+                              <span>{typeof item === 'string' ? item.trim() : item}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
+                    </div>
+                    
+                    {/* AI Habit Suggestions from Quote */}
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 mb-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-purple-800 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4" />
+                          Apply This Wisdom to Your Habits
+                        </h4>
+                        <button
+                          onClick={() => suggestHabitsFromQuote(quote)}
+                          disabled={quoteHabitLoading}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+                        >
+                          {quoteHabitLoading ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Wand2 className="w-3 h-3" />
+                          )}
+                          Suggest Habits
+                        </button>
+                      </div>
+                      
+                      {quoteHabitSuggestions.length > 0 ? (
+                        <div className="space-y-2">
+                          {quoteHabitSuggestions.map((habit, idx) => (
+                            <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${habit.added ? 'bg-green-100' : 'bg-white'}`}>
+                              <div className="flex-1">
+                                <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>
+                                  {habit.habit}
+                                </p>
+                                <p className="text-xs text-gray-500">{habit.target} days/week</p>
+                              </div>
+                              {habit.added ? (
+                                <span className="flex items-center gap-1 text-green-600 text-sm">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  Added!
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => addQuoteHabit(habit, idx)}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs hover:bg-purple-700 transition-colors"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  Add Habit
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-purple-600/70 text-center py-2">
+                          Click "Suggest Habits" to get AI-powered habit ideas based on this quote's wisdom
+                        </p>
+                      )}
                     </div>
                     
                     <div className="flex items-center justify-between pt-4 border-t border-gray-100">
