@@ -4,7 +4,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { action, habits, participant, goal } = req.body;
+  const { action, habits, participant, goal, conversation, quote, author, personalApplication, businessApplication } = req.body;
 
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ error: 'OpenAI API key not configured' });
@@ -12,6 +12,7 @@ export default async function handler(req, res) {
 
   let systemPrompt = '';
   let userPrompt = '';
+  let messages = [];
 
   // Build prompts based on action type
   switch (action) {
@@ -74,31 +75,106 @@ Identify:
       break;
 
     case 'suggest-habits':
-      systemPrompt = `You are a habit design expert. Create specific, measurable habits that are achievable. Each habit should have a clear daily/weekly target.`;
+      systemPrompt = `You are a habit design expert. Create specific, measurable habits that are achievable. Each habit should have a clear daily/weekly target. Format your suggestions as a bulleted list with the habit name followed by the number of days.`;
       
       userPrompt = `${participant} wants to: "${goal}"
 
-Suggest 3-5 specific, measurable habits that would help achieve this goal. For each habit, include:
-- The habit name (keep it short, under 8 words)
-- Suggested days per week (1-7)
-- Why this habit helps
+Suggest 4-6 specific, measurable habits that would help achieve this goal.
 
-Format each as:
-**Habit Name** (X days/week)
-Brief explanation`;
+IMPORTANT: Format each habit as a bullet point like this:
+• Habit name here - X days
+
+Example format:
+• Morning meditation for 10 minutes - 5 days
+• Read for 20 minutes before bed - 7 days
+• Take a 15-minute walk after lunch - 5 days
+
+Keep habit names short (under 8 words). Include a mix of easy (3 days) and challenging (5-7 days) habits.`;
       break;
 
     case 'write-habit':
-      systemPrompt = `You are a habit design expert. Turn vague goals into specific, measurable habits.`;
+      systemPrompt = `You are a habit design expert. Turn vague goals into specific, measurable habits. Format suggestions as bullet points.`;
       
-      userPrompt = `Turn this goal into a specific, trackable habit: "${goal}"
+      userPrompt = `Turn this goal into specific, trackable habits: "${goal}"
 
-Provide:
-1. A clear habit name (under 8 words)
-2. Recommended days per week
-3. What "done" looks like each day
-4. One tip for staying consistent`;
+Provide 2-3 habit options formatted as bullet points:
+• Habit name - X days
+
+Then briefly explain what "done" looks like and one tip for consistency.`;
       break;
+
+    case 'quote-habits':
+      systemPrompt = `You are a habit design expert who helps people apply wisdom from inspirational quotes to their daily lives. Create practical, specific habits based on the quote's message.`;
+      
+      userPrompt = `Based on this inspirational quote and its applications, suggest 4-5 specific habits that would help ${participant} apply this wisdom in their daily life.
+
+Quote: "${quote}" - ${author}
+
+Personal Application: ${personalApplication}
+Business Application: ${businessApplication}
+
+Create habits that are:
+1. Specific and measurable
+2. Directly connected to the quote's message
+3. A mix of personal and professional development
+
+IMPORTANT: Format each habit as a bullet point:
+• Habit name - X days
+
+Example:
+• Reflect on one passion for 5 minutes - 5 days
+• Share one creative idea with team - 3 days
+• Do one thing outside comfort zone - 2 days
+
+Keep habit names under 8 words.`;
+      break;
+
+    case 'follow-up':
+      systemPrompt = `You are a helpful accountability coach continuing a conversation. Be conversational, helpful, and concise. If suggesting habits, format them as bullet points with "• Habit - X days".`;
+      
+      // Build messages from conversation history
+      messages = [
+        { role: 'system', content: systemPrompt }
+      ];
+      
+      if (conversation && conversation.length > 0) {
+        conversation.forEach(msg => {
+          messages.push({ role: msg.role, content: msg.content });
+        });
+      }
+      
+      messages.push({ role: 'user', content: goal });
+      
+      // Skip the normal message building
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: messages,
+            max_tokens: 1000,
+            temperature: 0.7
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          console.error('OpenAI error:', data.error);
+          return res.status(500).json({ error: data.error.message });
+        }
+
+        return res.status(200).json({ 
+          message: data.choices[0].message.content 
+        });
+      } catch (error) {
+        console.error('API error:', error);
+        return res.status(500).json({ error: 'Failed to get AI response' });
+      }
 
     default:
       return res.status(400).json({ error: 'Invalid action' });
