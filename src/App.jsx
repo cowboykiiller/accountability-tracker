@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
