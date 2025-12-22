@@ -129,6 +129,37 @@ Example:
 Keep habit names under 8 words.`;
       break;
 
+    case 'suggest-weekly':
+      systemPrompt = `You are a habit coach helping someone plan their week. Based on their past habit performance, suggest which habits they should continue, modify, or try new. Be practical and encouraging.`;
+      
+      const { pastHabits } = req.body;
+      
+      const successfulHabits = (pastHabits || []).filter(h => h.successRate >= 70);
+      const strugglingHabits = (pastHabits || []).filter(h => h.successRate < 50 && h.timesTracked >= 2);
+      const moderateHabits = (pastHabits || []).filter(h => h.successRate >= 50 && h.successRate < 70);
+      
+      userPrompt = `${participant} is planning habits for the upcoming week. Here's their performance over the past 4 weeks:
+
+**Successful habits (70%+ completion):**
+${successfulHabits.map(h => `- ${h.habit}: ${h.successRate}% success (tracked ${h.timesTracked}x)`).join('\n') || 'None yet'}
+
+**Moderate habits (50-70% completion):**
+${moderateHabits.map(h => `- ${h.habit}: ${h.successRate}% success (tracked ${h.timesTracked}x)`).join('\n') || 'None yet'}
+
+**Struggling habits (<50% completion):**
+${strugglingHabits.map(h => `- ${h.habit}: ${h.successRate}% success (tracked ${h.timesTracked}x)`).join('\n') || 'None yet'}
+
+Based on this data, suggest 5-7 habits for the upcoming week. Include:
+1. Successful habits they should continue (keep the momentum!)
+2. Modified versions of struggling habits (make them more achievable)
+3. 1-2 new habits to try
+
+IMPORTANT: Format each as a bullet point:
+• Habit name - X days
+
+Keep habit names short (under 8 words). Consider reducing days for struggling habits.`;
+      break;
+
     case 'follow-up':
       systemPrompt = `You are a helpful accountability coach continuing a conversation. Be conversational, helpful, and concise. If suggesting habits, format them as bullet points with "• Habit - X days".`;
       
