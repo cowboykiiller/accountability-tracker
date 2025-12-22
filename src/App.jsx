@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -660,6 +660,7 @@ export default function AccountabilityTracker() {
   const [editingHabit, setEditingHabit] = useState(null); // {id, habit, target}
   const [weekHabitSuggestions, setWeekHabitSuggestions] = useState([]); // AI suggestions for new week
   const [weekSuggestLoading, setWeekSuggestLoading] = useState(false);
+  const [editingPastWeek, setEditingPastWeek] = useState(false); // Allow editing locked past weeks;
   
   // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
@@ -1444,16 +1445,85 @@ export default function AccountabilityTracker() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showCalendar]);
 
-  // Computed values
-  const ALL_WEEKS = useMemo(() => [...new Set(habits.map(h => h.weekStart))].sort(), [habits]);
+  // Computed values - generate weeks from earliest habit through future
+  const ALL_WEEKS = useMemo(() => {
+    // Get weeks from existing habits
+    const habitWeeks = [...new Set(habits.map(h => h.weekStart))].filter(Boolean);
+    
+    // Get current week's Monday
+    const getMonday = (d) => {
+      const date = new Date(d);
+      const day = date.getDay();
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+      return new Date(date.setDate(diff)).toISOString().split('T')[0];
+    };
+    
+    const today = new Date();
+    const currentMonday = getMonday(today);
+    
+    // Find the earliest week (from habits or default to 8 weeks ago)
+    let earliestWeek = currentMonday;
+    if (habitWeeks.length > 0) {
+      earliestWeek = habitWeeks.sort()[0];
+    } else {
+      // Default start: 8 weeks ago
+      const eightWeeksAgo = new Date(today);
+      eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
+      earliestWeek = getMonday(eightWeeksAgo);
+    }
+    
+    // Generate all weeks from earliest through 52 weeks into future (1 year ahead)
+    const weeks = [];
+    const startDate = new Date(earliestWeek + 'T00:00:00');
+    const futureDate = new Date();
+    futureDate.setFullYear(futureDate.getFullYear() + 1); // 1 year ahead
+    
+    let current = new Date(startDate);
+    while (current <= futureDate) {
+      weeks.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 7);
+    }
+    
+    return weeks;
+  }, [habits]);
   
   useEffect(() => {
     if (ALL_WEEKS.length > 0 && currentWeekIndex === 0) {
-      setCurrentWeekIndex(ALL_WEEKS.length - 1);
+      // Find today's week and set index to it
+      const today = new Date();
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+      const thisMonday = new Date(today.setDate(diff)).toISOString().split('T')[0];
+      
+      const todayIndex = ALL_WEEKS.indexOf(thisMonday);
+      if (todayIndex !== -1) {
+        setCurrentWeekIndex(todayIndex);
+      } else {
+        // Fallback to most recent past week
+        setCurrentWeekIndex(Math.max(0, ALL_WEEKS.length - 9)); // 8 weeks from end is roughly "now"
+      }
     }
   }, [ALL_WEEKS]);
 
   const currentWeek = ALL_WEEKS[currentWeekIndex] || ALL_WEEKS[ALL_WEEKS.length - 1] || '';
+
+  // Check if a week is in the past (Sunday of that week has passed)
+  const isWeekPast = useMemo(() => {
+    if (!currentWeek) return false;
+    const weekStart = new Date(currentWeek + 'T00:00:00');
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
+    weekEnd.setHours(23, 59, 59, 999);
+    return new Date() > weekEnd;
+  }, [currentWeek]);
+
+  // Reset editingPastWeek when navigating to a different week
+  useEffect(() => {
+    setEditingPastWeek(false);
+  }, [currentWeek]);
+
+  // Get the user's assigned participant name
+  const myParticipant = userProfile?.linkedParticipant || user?.displayName || '';
 
   const calendarDays = useMemo(() => {
     const { year, month } = calendarMonth;
@@ -1586,18 +1656,17 @@ export default function AccountabilityTracker() {
 
   // Move habit up or down in the list
   const moveHabit = async (habitId, direction) => {
-    const currentHabits = currentWeekHabits.filter(h => 
-      h.participant === (userProfile?.linkedParticipant || selectedParticipant)
-    );
-    const idx = currentHabits.findIndex(h => h.id === habitId);
+    const participant = userProfile?.linkedParticipant || user?.displayName || '';
+    const myHabits = currentWeekHabits.filter(h => h.participant === participant).sort((a, b) => (a.order || 0) - (b.order || 0));
+    const idx = myHabits.findIndex(h => h.id === habitId);
     if (idx === -1) return;
     
     const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (newIdx < 0 || newIdx >= currentHabits.length) return;
+    if (newIdx < 0 || newIdx >= myHabits.length) return;
     
     // Swap order values
-    const habit1 = currentHabits[idx];
-    const habit2 = currentHabits[newIdx];
+    const habit1 = myHabits[idx];
+    const habit2 = myHabits[newIdx];
     
     const order1 = habit1.order || idx;
     const order2 = habit2.order || newIdx;
@@ -3216,6 +3285,31 @@ export default function AccountabilityTracker() {
               </div>
             ) : (
               <div className="space-y-2">
+                {/* Past week lock banner and edit button */}
+                {isWeekPast && (
+                  <div className={`flex items-center justify-between p-3 rounded-xl mb-2 ${editingPastWeek ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-200'}`}>
+                    <div className="flex items-center gap-2">
+                      {editingPastWeek ? (
+                        <>
+                          <Edit3 className="w-4 h-4 text-amber-600" />
+                          <span className="text-sm font-medium text-amber-800">Editing past week - changes enabled for your habits</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-600">This week is complete and locked</span>
+                        </>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => setEditingPastWeek(!editingPastWeek)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${editingPastWeek ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+                    >
+                      {editingPastWeek ? 'Done Editing' : 'Edit Week'}
+                    </button>
+                  </div>
+                )}
+                
                 {/* AI Suggest button when some habits exist */}
                 <div className="flex justify-end mb-2">
                   <button 
@@ -3261,90 +3355,106 @@ export default function AccountabilityTracker() {
                 )}
                 
                 {/* Habit list */}
-                {filteredHabits.sort((a, b) => (a.order || 0) - (b.order || 0)).map((h, idx) => {
-                  const st = getStatus(h), cfg = STATUS_CONFIG[st];
-                  const isEditing = editingHabit?.id === h.id;
+                {(() => {
+                  const sortedHabits = filteredHabits.sort((a, b) => (a.order || 0) - (b.order || 0));
+                  const myHabitsOnly = sortedHabits.filter(h => h.participant === myParticipant);
                   
-                  return (
-                    <div key={h.id} className="bg-white rounded-xl p-3 border border-gray-100 hover:border-gray-200 transition-colors">
-                      {isEditing ? (
-                        <div className="flex flex-col gap-3">
-                          <input
-                            type="text"
-                            value={editingHabit.habit}
-                            onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
-                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
-                          />
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={editingHabit.target}
-                              onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                            >
-                              {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days</option>)}
-                            </select>
-                            <button onClick={updateHabit} className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600">Save</button>
-                            <button onClick={() => setEditingHabit(null)} className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-300">Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col md:flex-row md:items-center gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
-                              <span className="text-gray-400 text-xs">{h.participant}</span>
+                  return sortedHabits.map((h) => {
+                    const st = getStatus(h), cfg = STATUS_CONFIG[st];
+                    const isEditing = editingHabit?.id === h.id;
+                    const isMyHabit = h.participant === myParticipant;
+                    const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
+                    const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
+                    
+                    return (
+                      <div key={h.id} className={`bg-white rounded-xl p-3 border transition-colors ${isMyHabit ? 'border-gray-100 hover:border-gray-200' : 'border-gray-100 opacity-75'}`}>
+                        {isEditing && canEdit ? (
+                          <div className="flex flex-col gap-3">
+                            <input
+                              type="text"
+                              value={editingHabit.habit}
+                              onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
+                              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                            />
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={editingHabit.target}
+                                onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
+                                className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                              >
+                                {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days</option>)}
+                              </select>
+                              <button onClick={updateHabit} className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600">Save</button>
+                              <button onClick={() => setEditingHabit(null)} className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-300">Cancel</button>
                             </div>
-                            <h3 className="text-gray-800 font-medium text-sm">{h.habit}</h3>
-                            <p className="text-gray-400 text-xs">{h.daysCompleted.length}/{h.target} days</p>
                           </div>
-                          <div className="flex items-center gap-1">
-                            {/* Move buttons */}
-                            <div className="flex flex-col mr-1">
-                              <button 
-                                onClick={() => moveHabit(h.id, 'up')} 
-                                className="w-6 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                                disabled={idx === 0}
-                              >
-                                <ChevronUp className="w-3 h-3" />
-                              </button>
-                              <button 
-                                onClick={() => moveHabit(h.id, 'down')} 
-                                className="w-6 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                                disabled={idx === filteredHabits.length - 1}
-                              >
-                                <ChevronDown className="w-3 h-3" />
-                              </button>
+                        ) : (
+                          <div className="flex flex-col md:flex-row md:items-center gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
+                                <span className="text-gray-400 text-xs">{h.participant}</span>
+                                {!isMyHabit && <span className="text-gray-300 text-xs">(view only)</span>}
+                              </div>
+                              <h3 className="text-gray-800 font-medium text-sm">{h.habit}</h3>
+                              <p className="text-gray-400 text-xs">{h.daysCompleted.length}/{h.target} days</p>
                             </div>
-                            {/* Day buttons */}
-                            {DAYS.map((d, i) => (
-                              <button 
-                                key={d} 
-                                onClick={() => toggleDay(h.id, i)} 
-                                className={`w-8 h-8 md:w-7 md:h-7 rounded text-xs font-medium transition-colors ${h.daysCompleted.includes(i) ? 'bg-[#1E3A5F] text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                              >
-                                {d[0]}
-                              </button>
-                            ))}
-                            {/* Edit button */}
-                            <button 
-                              onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })}
-                              className="w-8 h-8 md:w-7 md:h-7 rounded bg-blue-50 text-blue-400 hover:bg-blue-100 ml-1 transition-colors"
-                            >
-                              <Edit3 className="w-3 h-3 mx-auto" />
-                            </button>
-                            {/* Delete button */}
-                            <button 
-                              onClick={() => deleteHabit(h.id)} 
-                              className="w-8 h-8 md:w-7 md:h-7 rounded bg-red-50 text-red-400 hover:bg-red-100 ml-1 transition-colors"
-                            >
-                              <Trash2 className="w-3 h-3 mx-auto" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              {/* Move buttons - only for own habits when editing allowed */}
+                              {canEdit && (
+                                <div className="flex flex-col mr-1">
+                                  <button 
+                                    onClick={() => moveHabit(h.id, 'up')} 
+                                    className="w-6 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
+                                    disabled={myHabitIndex === 0}
+                                  >
+                                    <ChevronUp className="w-3 h-3" />
+                                  </button>
+                                  <button 
+                                    onClick={() => moveHabit(h.id, 'down')} 
+                                    className="w-6 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
+                                    disabled={myHabitIndex === myHabitsOnly.length - 1}
+                                  >
+                                    <ChevronDown className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+                              {/* Day buttons */}
+                              {DAYS.map((d, i) => (
+                                <button 
+                                  key={d} 
+                                  onClick={() => canEdit && toggleDay(h.id, i)} 
+                                  disabled={!canEdit}
+                                  className={`w-8 h-8 md:w-7 md:h-7 rounded text-xs font-medium transition-colors ${h.daysCompleted.includes(i) ? 'bg-[#1E3A5F] text-white' : canEdit ? 'bg-gray-100 text-gray-400 hover:bg-gray-200' : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}
+                                >
+                                  {d[0]}
+                                </button>
+                              ))}
+                              {/* Edit button - only for own habits when editing allowed */}
+                              {canEdit && (
+                                <button 
+                                  onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })}
+                                  className="w-8 h-8 md:w-7 md:h-7 rounded bg-blue-50 text-blue-400 hover:bg-blue-100 ml-1 transition-colors"
+                                >
+                                  <Edit3 className="w-3 h-3 mx-auto" />
+                                </button>
+                              )}
+                              {/* Delete button - only for own habits when editing allowed */}
+                              {canEdit && (
+                                <button 
+                                  onClick={() => deleteHabit(h.id)} 
+                                  className="w-8 h-8 md:w-7 md:h-7 rounded bg-red-50 text-red-400 hover:bg-red-100 ml-1 transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3 mx-auto" />
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
