@@ -623,6 +623,8 @@ export default function AccountabilityTracker() {
   // Quotes state
   const [quotes, setQuotes] = useState([]);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [selectedQuoteIndex, setSelectedQuoteIndex] = useState(0);
+  const [quotesExpanded, setQuotesExpanded] = useState(false);
   
   // Feed/Posts state
   const [posts, setPosts] = useState([]);
@@ -1660,7 +1662,26 @@ export default function AccountabilityTracker() {
               target: targetMatch ? parseInt(targetMatch[1]) : 5,
               added: false
             };
-          }).filter(h => h.habit.length > 3 && h.habit.length < 100);
+          }).filter(h => 
+            h.habit.length > 3 && 
+            h.habit.length < 100 &&
+            // Filter out section headers and markdown formatting
+            !h.habit.startsWith('*') &&
+            !h.habit.endsWith('**') &&
+            !h.habit.endsWith(':') &&
+            !h.habit.match(/^\*+.+:\*+$/) &&
+            !h.habit.toLowerCase().includes('habits to continue') &&
+            !h.habit.toLowerCase().includes('habits to try') &&
+            !h.habit.toLowerCase().includes('struggling habits') &&
+            !h.habit.toLowerCase().includes('modified versions') &&
+            !h.habit.toLowerCase().includes('successful habits') &&
+            !h.habit.toLowerCase().includes('new habits') &&
+            !h.habit.toLowerCase().includes('here are') &&
+            !h.habit.toLowerCase().includes('based on') &&
+            !h.habit.toLowerCase().startsWith('continue') &&
+            !h.habit.toLowerCase().startsWith('modify') &&
+            !h.habit.toLowerCase().startsWith('suggestion')
+          );
           setWeekHabitSuggestions(parsed);
         }
       }
@@ -1758,7 +1779,13 @@ export default function AccountabilityTracker() {
                 target: targetMatch ? parseInt(targetMatch[1]) : 5,
                 added: false
               };
-            }).filter(h => h.habit.length > 3 && h.habit.length < 100);
+            }).filter(h => 
+              h.habit.length > 3 && 
+              h.habit.length < 100 &&
+              !h.habit.startsWith('*') &&
+              !h.habit.endsWith('**') &&
+              !h.habit.endsWith(':')
+            );
             setSuggestedHabits(parsed);
           }
         }
@@ -1827,7 +1854,13 @@ export default function AccountabilityTracker() {
               target: targetMatch ? parseInt(targetMatch[1]) : 5,
               added: false
             };
-          }).filter(h => h.habit.length > 3 && h.habit.length < 100);
+          }).filter(h => 
+            h.habit.length > 3 && 
+            h.habit.length < 100 &&
+            !h.habit.startsWith('*') &&
+            !h.habit.endsWith('**') &&
+            !h.habit.endsWith(':')
+          );
           setQuoteHabitSuggestions(parsed);
         }
       }
@@ -2200,15 +2233,60 @@ export default function AccountabilityTracker() {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             {/* Main content - left 3 columns */}
             <div className="lg:col-span-3 space-y-4">
-              {/* Quote of the Week - compact */}
+              {/* Quote of the Week - collapsible with previous themes */}
               {currentQuote && (
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Quote className="w-4 h-4 text-amber-600" />
-                    <span className="text-xs font-medium text-amber-700">Quote of the Week</span>
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 overflow-hidden">
+                  {/* Current Quote - Always visible */}
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Quote className="w-4 h-4 text-amber-600" />
+                        <span className="text-xs font-medium text-amber-700">Weekly Theme</span>
+                      </div>
+                      <button 
+                        onClick={() => setQuotesExpanded(!quotesExpanded)}
+                        className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800"
+                      >
+                        <span>{quotesExpanded ? 'Hide' : 'Browse'} themes</span>
+                        <ChevronDown className={`w-3 h-3 transition-transform ${quotesExpanded ? 'rotate-180' : ''}`} />
+                      </button>
+                    </div>
+                    {currentQuote.theme && (
+                      <h3 className="text-lg font-bold text-amber-800 mb-2">{currentQuote.theme}</h3>
+                    )}
+                    <blockquote className="text-sm md:text-base font-medium text-gray-800 italic">"{currentQuote.quote}"</blockquote>
+                    <p className="text-xs text-gray-600 mt-1">— {currentQuote.author}</p>
                   </div>
-                  <blockquote className="text-sm md:text-base font-medium text-gray-800 italic">"{currentQuote.quote}"</blockquote>
-                  <p className="text-xs text-gray-600 mt-1">— {currentQuote.author}</p>
+                  
+                  {/* Expanded: Previous Themes */}
+                  {quotesExpanded && quotes.length > 1 && (
+                    <div className="border-t border-amber-200 bg-white/50 p-3">
+                      <p className="text-xs font-medium text-amber-700 mb-2">Previous Themes</p>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {quotes.slice(1).map((q, idx) => (
+                          <button
+                            key={q.id}
+                            onClick={() => setActiveView('quotes')}
+                            className="w-full text-left p-2 rounded-lg hover:bg-amber-100/50 transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-800">{q.theme || 'Weekly Wisdom'}</span>
+                              <span className="text-[10px] text-gray-400">
+                                {new Date(q.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 truncate">"{q.quote}" — {q.author}</p>
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setActiveView('quotes')}
+                        className="w-full mt-2 text-xs text-amber-600 hover:text-amber-800 font-medium"
+                      >
+                        View All Quotes →
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -3551,8 +3629,8 @@ export default function AccountabilityTracker() {
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Inspirational Quotes</h2>
-                <p className="text-sm text-gray-500">Weekly wisdom for the accountability group</p>
+                <h2 className="text-xl font-bold text-gray-800">Weekly Themes & Quotes</h2>
+                <p className="text-sm text-gray-500">Wisdom for the accountability journey</p>
               </div>
               <button
                 onClick={generateQuote}
@@ -3568,7 +3646,7 @@ export default function AccountabilityTracker() {
             {quotes.length === 0 ? (
               <div className="bg-white rounded-xl p-8 text-center border border-gray-100">
                 <Quote className="w-12 h-12 text-amber-300 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">No quotes yet. Generate your first weekly quote!</p>
+                <p className="text-gray-500 mb-4">No quotes yet. Generate your first weekly theme!</p>
                 <button
                   onClick={generateQuote}
                   disabled={quoteLoading}
@@ -3579,151 +3657,179 @@ export default function AccountabilityTracker() {
               </div>
             ) : (
               <div className="space-y-4">
-                {quotes.map((quote, index) => (
-                  <div 
-                    key={quote.id} 
-                    className={`bg-white rounded-xl p-4 md:p-6 border ${index === 0 ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-100'}`}
-                  >
-                    {index === 0 && (
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">Current Week</span>
-                      </div>
-                    )}
-                    
-                    <blockquote className="text-lg md:text-xl font-medium text-gray-800 mb-3 italic">
-                      "{quote.quote}"
-                    </blockquote>
-                    
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <p className="font-semibold text-gray-800">{quote.author}</p>
-                        <p className="text-sm text-amber-600">{quote.authorTitle}</p>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        {new Date(quote.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    </div>
-                    
-                    <p className="text-sm text-gray-600 mb-4">{quote.authorBio}</p>
-                    
-                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Why It Matters</p>
-                      <p className="text-sm text-gray-600">{quote.whyItMatters}</p>
-                    </div>
-                    
-                    {/* Improved Application Layout */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="bg-[#F5F3E8] rounded-xl p-4">
-                        <h4 className="text-sm font-semibold text-[#0F2940] mb-3 flex items-center gap-2">
-                          <User className="w-4 h-4" />
-                          Personal Application
-                        </h4>
-                        <ul className="space-y-2">
-                          {(Array.isArray(quote.personalApplication) 
-                            ? quote.personalApplication 
-                            : (quote.personalApplication || '').split(/[.•]/).filter(s => s.trim())
-                          ).map((item, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                              <span className="text-[#F5B800] mt-0.5">•</span>
-                              <span>{typeof item === 'string' ? item.trim() : item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="bg-blue-50 rounded-xl p-4">
-                        <h4 className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
-                          <Target className="w-4 h-4" />
-                          Business Application
-                        </h4>
-                        <ul className="space-y-2">
-                          {(Array.isArray(quote.businessApplication) 
-                            ? quote.businessApplication 
-                            : (quote.businessApplication || '').split(/[.•]/).filter(s => s.trim())
-                          ).map((item, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                              <span className="text-blue-500 mt-0.5">•</span>
-                              <span>{typeof item === 'string' ? item.trim() : item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                    
-                    {/* AI Habit Suggestions from Quote */}
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 mb-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-semibold text-purple-800 flex items-center gap-2">
-                          <Sparkles className="w-4 h-4" />
-                          Apply This Wisdom to Your Habits
-                        </h4>
-                        <button
-                          onClick={() => suggestHabitsFromQuote(quote)}
-                          disabled={quoteHabitLoading}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
-                        >
-                          {quoteHabitLoading ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Wand2 className="w-3 h-3" />
-                          )}
-                          Suggest Habits
-                        </button>
-                      </div>
-                      
-                      {quoteHabitSuggestions.length > 0 ? (
-                        <div className="space-y-2">
-                          {quoteHabitSuggestions.map((habit, idx) => (
-                            <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${habit.added ? 'bg-green-100' : 'bg-white'}`}>
-                              <div className="flex-1">
-                                <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>
-                                  {habit.habit}
-                                </p>
-                                <p className="text-xs text-gray-500">{habit.target} days/week</p>
-                              </div>
-                              {habit.added ? (
-                                <span className="flex items-center gap-1 text-green-600 text-sm">
-                                  <CheckCircle2 className="w-4 h-4" />
-                                  Added!
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => addQuoteHabit(habit, idx)}
-                                  className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs hover:bg-purple-700 transition-colors"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  Add Habit
-                                </button>
+                {quotes.map((quote, index) => {
+                  const isExpanded = selectedQuoteIndex === index || index === 0;
+                  const isCurrentWeek = index === 0;
+                  
+                  return (
+                    <div 
+                      key={quote.id} 
+                      className={`bg-white rounded-xl border overflow-hidden transition-all ${isCurrentWeek ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-100'}`}
+                    >
+                      {/* Collapsed Header - Always visible */}
+                      <button
+                        onClick={() => setSelectedQuoteIndex(selectedQuoteIndex === index ? -1 : index)}
+                        className={`w-full p-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors ${isExpanded ? 'border-b border-gray-100' : ''}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isCurrentWeek ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                            <Quote className={`w-6 h-6 ${isCurrentWeek ? 'text-amber-600' : 'text-gray-400'}`} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              {isCurrentWeek && (
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">This Week</span>
                               )}
+                              <span className="text-xs text-gray-400">
+                                {new Date(quote.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
                             </div>
-                          ))}
+                            <h3 className="text-lg font-bold text-gray-800">
+                              {quote.theme || 'Weekly Wisdom'}
+                            </h3>
+                            <p className="text-sm text-gray-500">— {quote.author}</p>
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-sm text-purple-600/70 text-center py-2">
-                          Click "Suggest Habits" to get AI-powered habit ideas based on this quote's wisdom
-                        </p>
+                        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {/* Expanded Content */}
+                      {isExpanded && (
+                        <div className="p-4 md:p-6">
+                          <blockquote className="text-lg md:text-xl font-medium text-gray-800 mb-3 italic">
+                            "{quote.quote}"
+                          </blockquote>
+                          
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <p className="font-semibold text-gray-800">{quote.author}</p>
+                              <p className="text-sm text-amber-600">{quote.authorTitle}</p>
+                            </div>
+                          </div>
+                          
+                          <p className="text-sm text-gray-600 mb-4">{quote.authorBio}</p>
+                          
+                          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Why It Matters</p>
+                            <p className="text-sm text-gray-600">{quote.whyItMatters}</p>
+                          </div>
+                          
+                          {/* Application Layout */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div className="bg-[#F5F3E8] rounded-xl p-4">
+                              <h4 className="text-sm font-semibold text-[#0F2940] mb-3 flex items-center gap-2">
+                                <User className="w-4 h-4" />
+                                Personal Application
+                              </h4>
+                              <ul className="space-y-2">
+                                {(Array.isArray(quote.personalApplication) 
+                                  ? quote.personalApplication 
+                                  : (quote.personalApplication || '').split(/[.•]/).filter(s => s.trim())
+                                ).map((item, i) => (
+                                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                                    <span className="text-[#F5B800] mt-0.5">•</span>
+                                    <span>{typeof item === 'string' ? item.trim() : item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="bg-blue-50 rounded-xl p-4">
+                              <h4 className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                                <Target className="w-4 h-4" />
+                                Business Application
+                              </h4>
+                              <ul className="space-y-2">
+                                {(Array.isArray(quote.businessApplication) 
+                                  ? quote.businessApplication 
+                                  : (quote.businessApplication || '').split(/[.•]/).filter(s => s.trim())
+                                ).map((item, i) => (
+                                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                                    <span className="text-blue-500 mt-0.5">•</span>
+                                    <span>{typeof item === 'string' ? item.trim() : item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                          
+                          {/* AI Habit Suggestions from Quote */}
+                          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 mb-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-semibold text-purple-800 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4" />
+                                Apply This Wisdom to Your Habits
+                              </h4>
+                              <button
+                                onClick={() => suggestHabitsFromQuote(quote)}
+                                disabled={quoteHabitLoading}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+                              >
+                                {quoteHabitLoading ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Wand2 className="w-3 h-3" />
+                                )}
+                                Suggest Habits
+                              </button>
+                            </div>
+                            
+                            {quoteHabitSuggestions.length > 0 ? (
+                              <div className="space-y-2">
+                                {quoteHabitSuggestions.map((habit, idx) => (
+                                  <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${habit.added ? 'bg-green-100' : 'bg-white'}`}>
+                                    <div className="flex-1">
+                                      <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>
+                                        {habit.habit}
+                                      </p>
+                                      <p className="text-xs text-gray-500">{habit.target} days/week</p>
+                                    </div>
+                                    {habit.added ? (
+                                      <span className="flex items-center gap-1 text-green-600 text-sm">
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        Added!
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={() => addQuoteHabit(habit, idx)}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs hover:bg-purple-700 transition-colors"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        Add Habit
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-purple-600/70 text-center py-2">
+                                Click "Suggest Habits" to get AI-powered habit ideas based on this quote's wisdom
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                            <p className="text-sm italic text-gray-500 flex-1 mr-4">"{quote.closingThought}"</p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => downloadQuotePPTX(quote)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-[#F5F3E8] hover:bg-[#EBE6D3] rounded-lg text-sm text-[#1E3A5F] transition-colors"
+                              >
+                                <Download className="w-4 h-4" />
+                                <span className="hidden md:inline">PowerPoint</span>
+                              </button>
+                              <button
+                                onClick={() => deleteQuote(quote.id)}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 rounded-lg text-sm text-red-600 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
-                    
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                      <p className="text-sm italic text-gray-500 flex-1 mr-4">"{quote.closingThought}"</p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => downloadQuotePPTX(quote)}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-[#F5F3E8] hover:bg-[#EBE6D3] rounded-lg text-sm text-[#1E3A5F] transition-colors"
-                        >
-                          <Download className="w-4 h-4" />
-                          <span className="hidden md:inline">PowerPoint</span>
-                        </button>
-                        <button
-                          onClick={() => deleteQuote(quote.id)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 rounded-lg text-sm text-red-600 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
