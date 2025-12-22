@@ -396,7 +396,7 @@ const NAV_ITEMS = [
 // Emoji reactions
 const REACTIONS = ['👍', '🔥', '💪', '🎉', '❤️', '👏'];
 
-const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
+const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) => {
   const desktopLabels = { 
     'dashboard': 'Dashboard', 
     'feed': 'Community Feed',
@@ -418,6 +418,11 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
     { id: 'quotes', icon: Quote, label: 'Quotes' },
     { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
   ];
+  
+  // Use profile photo if available, otherwise fall back to Google photo
+  const displayPhoto = userProfile?.photoURL || user?.photoURL;
+  const displayName = userProfile?.displayName || user?.displayName || 'User';
+  
   return (
   <div className="hidden md:flex w-56 bg-white border-r border-gray-100 min-h-screen p-4 flex-col">
     <div className="flex items-center gap-2 mb-6">
@@ -437,15 +442,15 @@ const Sidebar = ({ activeView, setActiveView, user, onSignOut }) => {
           onClick={() => setActiveView('profile')}
           className={`w-full flex items-center gap-2 px-2 mb-2 p-2 rounded-lg transition-colors ${activeView === 'profile' ? 'bg-[#F5F3E8]' : 'hover:bg-gray-50'}`}
         >
-          {user.photoURL ? (
-            <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full" />
+          {displayPhoto ? (
+            <img src={displayPhoto} alt="" className="w-8 h-8 rounded-full object-cover" />
           ) : (
             <div className="w-8 h-8 rounded-full bg-[#EBE6D3] flex items-center justify-center">
               <User className="w-4 h-4 text-[#162D4D]" />
             </div>
           )}
           <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-medium text-gray-800 truncate">{user.displayName || 'User'}</p>
+            <p className="text-sm font-medium text-gray-800 truncate">{displayName}</p>
             <p className="text-xs text-gray-400 truncate">{user.email}</p>
           </div>
         </button>
@@ -940,30 +945,44 @@ export default function AccountabilityTracker() {
 
   // Compress image before upload
   const compressImage = (file, maxWidth = 800, quality = 0.7) => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Failed to read file'));
       reader.onload = (e) => {
         const img = new Image();
+        img.onerror = () => reject(new Error('Failed to load image'));
         img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          
-          // Scale down if too large
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
+          try {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // Scale down if too large
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Convert to compressed base64
+            const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+            
+            // Check if the result is too large for Firestore (roughly 1MB limit for document)
+            if (compressedBase64.length > 900000) {
+              // Try again with lower quality
+              const smallerBase64 = canvas.toDataURL('image/jpeg', 0.4);
+              resolve(smallerBase64);
+            } else {
+              resolve(compressedBase64);
+            }
+          } catch (err) {
+            reject(err);
           }
-          
-          canvas.width = width;
-          canvas.height = height;
-          
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          // Convert to compressed base64
-          const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-          resolve(compressedBase64);
         };
         img.src = e.target.result;
       };
@@ -974,22 +993,26 @@ export default function AccountabilityTracker() {
   // Handle image selection for post
   const handleImageSelect = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert('Image must be less than 10MB');
-        return;
-      }
-      
-      try {
-        // Compress the image
-        const compressedImage = await compressImage(file, 800, 0.6);
-        setNewPostImage(compressedImage);
-        setPostImagePreview(compressedImage);
-      } catch (error) {
-        console.error('Error compressing image:', error);
-        alert('Failed to process image. Please try again.');
-      }
+    if (!file) return;
+    
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image must be less than 10MB');
+      return;
     }
+    
+    try {
+      // Compress the image more aggressively for posts
+      const compressedImage = await compressImage(file, 600, 0.5);
+      console.log('Compressed image size:', compressedImage.length);
+      setNewPostImage(compressedImage);
+      setPostImagePreview(compressedImage);
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      alert('Failed to process image. Please try a different image.');
+    }
+    
+    // Reset the input so the same file can be selected again
+    e.target.value = '';
   };
 
   // Apply text formatting
@@ -1051,10 +1074,13 @@ export default function AccountabilityTracker() {
     if (!newPostText.trim() && !newPostImage) return;
     
     try {
+      // Use profile photo if available, otherwise Google photo
+      const authorPhoto = userProfile?.photoURL || user.photoURL || null;
+      
       const post = {
         id: `post_${Date.now()}`,
         author: userProfile?.linkedParticipant || user.displayName || 'Anonymous',
-        authorPhoto: user.photoURL || null,
+        authorPhoto: authorPhoto,
         authorId: user.uid,
         content: newPostText,
         image: newPostImage || null,
@@ -1063,16 +1089,18 @@ export default function AccountabilityTracker() {
         createdAt: new Date().toISOString()
       };
       
+      console.log('Creating post, image size:', newPostImage ? newPostImage.length : 0);
+      
       await setDoc(doc(db, 'posts', post.id), post);
       setNewPostText('');
       setNewPostImage(null);
       setPostImagePreview(null);
     } catch (error) {
       console.error('Error creating post:', error);
-      if (error.message?.includes('bytes')) {
-        alert('Image is too large. Please try a smaller image.');
+      if (error.message?.includes('bytes') || error.code === 'invalid-argument') {
+        alert('Image is too large for the database. Please try a smaller image or post without an image.');
       } else {
-        alert('Failed to create post. Please try again.');
+        alert('Failed to create post: ' + error.message);
       }
     }
   };
@@ -1208,21 +1236,26 @@ export default function AccountabilityTracker() {
   // Handle profile photo upload
   const handleProfilePhotoSelect = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert('Image must be less than 10MB');
-        return;
-      }
-      
-      try {
-        const compressedImage = await compressImage(file, 300, 0.7);
-        setProfilePhotoPreview(compressedImage);
-        setProfileForm({ ...profileForm, photoURL: compressedImage });
-      } catch (error) {
-        console.error('Error compressing image:', error);
-        alert('Failed to process image. Please try again.');
-      }
+    if (!file) return;
+    
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image must be less than 10MB');
+      return;
     }
+    
+    try {
+      // Compress profile photo to smaller size
+      const compressedImage = await compressImage(file, 200, 0.6);
+      console.log('Profile photo compressed, size:', compressedImage.length);
+      setProfilePhotoPreview(compressedImage);
+      setProfileForm({ ...profileForm, photoURL: compressedImage });
+    } catch (error) {
+      console.error('Error compressing profile image:', error);
+      alert('Failed to process image. Please try a different image.');
+    }
+    
+    // Reset the input
+    e.target.value = '';
   };
 
   // Save profile
@@ -1335,16 +1368,33 @@ export default function AccountabilityTracker() {
     return days;
   }, [calendarMonth]);
 
-  const weeklyTrendData = useMemo(() => ALL_WEEKS.map(week => {
-    const wH = habits.filter(h => h.weekStart === week);
-    const completed = wH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-    const byP = {};
-    PARTICIPANTS.forEach(p => {
-      const pH = wH.filter(h => h.participant === p);
-      byP[p] = pH.length > 0 ? Math.round((pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length / pH.length) * 100) : 0;
+  const weeklyTrendData = useMemo(() => {
+    // Get weeks based on selected range
+    let weeksToShow = ALL_WEEKS;
+    
+    if (scorecardRange === 'week') {
+      const idx = ALL_WEEKS.indexOf(currentWeek);
+      weeksToShow = ALL_WEEKS.slice(Math.max(0, idx - 7), idx + 1);
+    } else if (scorecardRange === '4weeks') {
+      const idx = ALL_WEEKS.indexOf(currentWeek);
+      weeksToShow = ALL_WEEKS.slice(Math.max(0, idx - 7), idx + 1);
+    } else if (scorecardRange === 'quarter') {
+      const d = new Date(currentWeek + 'T00:00:00');
+      const quarterStart = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
+      weeksToShow = ALL_WEEKS.filter(w => new Date(w + 'T00:00:00') >= quarterStart && new Date(w + 'T00:00:00') <= d);
+    }
+    
+    return weeksToShow.map(week => {
+      const wH = habits.filter(h => h.weekStart === week);
+      const completed = wH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+      const byP = {};
+      allParticipants.forEach(p => {
+        const pH = wH.filter(h => h.participant === p);
+        byP[p] = pH.length > 0 ? Math.round((pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length / pH.length) * 100) : 0;
+      });
+      return { week: formatWeekString(week), rate: wH.length > 0 ? Math.round((completed / wH.length) * 100) : 0, ...byP };
     });
-    return { week: formatWeekString(week), rate: wH.length > 0 ? Math.round((completed / wH.length) * 100) : 0, ...byP };
-  }), [habits, ALL_WEEKS]);
+  }, [habits, ALL_WEEKS, scorecardRange, currentWeek, allParticipants]);
 
   const getRangeHabits = useMemo(() => {
     if (scorecardRange === 'week') return habits.filter(h => h.weekStart === currentWeek);
@@ -1736,7 +1786,7 @@ export default function AccountabilityTracker() {
 
   return (
     <div className="flex min-h-screen bg-gray-50/50">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} onSignOut={handleSignOut} />
+      <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} />
       <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-4">
@@ -1744,13 +1794,21 @@ export default function AccountabilityTracker() {
             <img src={LOGO_BASE64} alt="Logo" className="w-8 h-8" />
             <span className="font-bold text-[#1E3A5F]">Accountability</span>
           </div>
-          {user?.photoURL && <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full" />}
+          <button onClick={() => setActiveView('profile')}>
+            {(userProfile?.photoURL || user?.photoURL) ? (
+              <img src={userProfile?.photoURL || user?.photoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center text-sm font-medium">
+                {user?.displayName?.[0] || '?'}
+              </div>
+            )}
+          </button>
         </div>
         
         <div className="flex items-center justify-between mb-5">
           <div>
             <p className="text-gray-400 text-xs md:text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-            <h1 className="text-lg md:text-xl font-bold text-gray-800">Hello, {user.displayName?.split(' ')[0] || 'Team'} 👋</h1>
+            <h1 className="text-lg md:text-xl font-bold text-gray-800">Hello, {userProfile?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Team'} 👋</h1>
           </div>
           <div className="flex items-center gap-1 md:gap-2">
             <div className="relative" ref={calendarRef}>
@@ -1830,9 +1888,9 @@ export default function AccountabilityTracker() {
               {/* Chart and breakdown side by side */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2 bg-white rounded-xl p-4 border border-gray-100">
-                  <h3 className="font-semibold text-gray-800 text-sm mb-2">Completion Trend</h3>
+                  <h3 className="font-semibold text-gray-800 text-sm mb-2">Completion Trend ({scorecardRange === 'week' ? 'Week' : scorecardRange === '4weeks' ? '4 Weeks' : scorecardRange === 'quarter' ? 'Quarter' : 'All Time'})</h3>
                   <ResponsiveContainer width="100%" height={160}>
-                    <AreaChart data={weeklyTrendData.slice(-8)}>
+                    <AreaChart data={weeklyTrendData}>
                       <defs>{allParticipants.map(p => <linearGradient key={p} id={`g-${p}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PARTICIPANT_COLORS[p] || '#6366f1'} stopOpacity={0.15} /><stop offset="95%" stopColor={PARTICIPANT_COLORS[p] || '#6366f1'} stopOpacity={0} /></linearGradient>)}</defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="week" tick={{ fill: '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} />
