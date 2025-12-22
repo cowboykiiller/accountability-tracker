@@ -10,26 +10,45 @@ export default async function handler(req, res) {
   }
 
   if (action === 'generate-quote') {
-    const existingAuthors = existingQuotes.map(q => q.author).join(', ');
+    const existingAuthors = existingQuotes.map(q => q.author).filter(Boolean).join(', ');
+    const existingThemes = existingQuotes.map(q => q.theme).filter(Boolean).join(', ');
     
-    const systemPrompt = `You are a curator of powerful, timeless quotes for an accountability group focused on personal growth, business success, and self-improvement. Select quotes that inspire action and accountability.`;
+    const systemPrompt = `You are a curator of powerful, timeless quotes for an accountability group focused on personal growth, business success, and self-improvement. 
+
+Your job is to:
+1. First, choose an inspiring THEME for the week
+2. Then, find a perfect quote that embodies that theme
+3. Build out the content around that theme-quote pairing
+
+The theme should be memorable, action-oriented, and 2-4 words.`;
     
-    const userPrompt = `Generate a weekly inspirational quote for an accountability group. 
-${existingAuthors ? `Avoid these authors who were already used: ${existingAuthors}` : ''}
+    const userPrompt = `Generate a weekly theme and matching inspirational quote for an accountability group.
+
+STEP 1: Choose a powerful theme first. Make it:
+- 2-4 words
+- Action-oriented and inspiring
+- Something that could guide someone's week
+${existingThemes ? `\nAvoid these themes already used: ${existingThemes}` : ''}
+
+Great theme examples: "Embrace the Struggle", "Relentless Focus", "Start Before Ready", "Own Your Morning", "Fear Is Fuel", "Progress Over Perfection", "Discipline Equals Freedom", "Show Up Daily", "Burn the Boats", "Trust the Process"
+
+STEP 2: Find a quote from a notable person that perfectly captures this theme.
+${existingAuthors ? `Avoid these authors already used: ${existingAuthors}` : ''}
 
 Respond in this exact JSON format:
 {
-  "quote": "The exact quote text",
+  "theme": "Your 2-4 word theme (THIS IS REQUIRED - do not leave blank)",
+  "quote": "The exact quote text that embodies this theme",
   "author": "Person's Name",
   "authorTitle": "Their most notable title/role (e.g., 'Founder of Apple', 'Roman Emperor', 'Civil Rights Leader')",
   "authorBio": "2-3 sentences about who they were and why they're significant",
-  "whyItMatters": "1-2 sentences on why this quote is powerful for accountability",
-  "personalApplication": "2-3 bullet points on how to apply this to personal life",
-  "businessApplication": "2-3 bullet points on how to apply this to business/career",
-  "closingThought": "One powerful sentence to end with - a call to action or reflection"
+  "whyItMatters": "1-2 sentences connecting the quote to the theme and why it matters for accountability",
+  "personalApplication": ["First bullet point for personal life", "Second bullet point", "Third bullet point"],
+  "businessApplication": ["First bullet point for business/career", "Second bullet point", "Third bullet point"],
+  "closingThought": "One powerful sentence call-to-action that references the theme"
 }
 
-Choose from influential leaders, entrepreneurs, philosophers, athletes, or historical figures. The quote should be authentic and verifiable.`;
+IMPORTANT: The theme field must be filled with an inspiring 2-4 word phrase. Never leave it empty or use generic text like "Weekly Wisdom".`;
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -45,7 +64,7 @@ Choose from influential leaders, entrepreneurs, philosophers, athletes, or histo
             { role: 'user', content: userPrompt }
           ],
           max_tokens: 1000,
-          temperature: 0.8
+          temperature: 0.85
         })
       });
 
@@ -64,6 +83,22 @@ Choose from influential leaders, entrepreneurs, philosophers, athletes, or histo
       }
       
       const quoteData = JSON.parse(jsonMatch[0]);
+      
+      // Ensure theme exists - fallback to generating from quote if missing
+      if (!quoteData.theme || quoteData.theme === 'Weekly Wisdom' || quoteData.theme.length < 3) {
+        // Extract a theme from the quote or author
+        const words = quoteData.quote.split(' ').slice(0, 4).join(' ');
+        quoteData.theme = words.length > 20 ? words.substring(0, 20) + '...' : words;
+      }
+      
+      // Ensure applications are arrays
+      if (typeof quoteData.personalApplication === 'string') {
+        quoteData.personalApplication = quoteData.personalApplication.split(/[•\-\n]/).filter(s => s.trim().length > 3).map(s => s.trim());
+      }
+      if (typeof quoteData.businessApplication === 'string') {
+        quoteData.businessApplication = quoteData.businessApplication.split(/[•\-\n]/).filter(s => s.trim().length > 3).map(s => s.trim());
+      }
+      
       quoteData.id = `quote_${Date.now()}`;
       quoteData.createdAt = new Date().toISOString();
       quoteData.weekOf = getWeekStart();
