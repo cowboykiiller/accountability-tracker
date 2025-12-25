@@ -1596,6 +1596,13 @@ export default function AccountabilityTracker() {
   // Get the user's assigned participant name
   const myParticipant = userProfile?.linkedParticipant || user?.displayName || '';
 
+  // Set selectedParticipant to user's participant when profile loads
+  useEffect(() => {
+    if (myParticipant && selectedParticipant === 'All') {
+      setSelectedParticipant(myParticipant);
+    }
+  }, [myParticipant]);
+
   const calendarDays = useMemo(() => {
     const { year, month } = calendarMonth;
     const firstDay = new Date(year, month, 1);
@@ -3349,8 +3356,31 @@ export default function AccountabilityTracker() {
         )}
 
         {activeView === 'tracker' && (
-          <div className="space-y-4">
-            <div className="flex gap-2 flex-wrap">{['All', ...allParticipants].map(p => <button key={p} onClick={() => setSelectedParticipant(p)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedParticipant === p ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}>{p === 'All' ? `All (${currentWeekHabits.length})` : `${p} (${currentWeekHabits.filter(h => h.participant === p).length})`}</button>)}</div>
+          <div className="space-y-3">
+            {/* Header with view toggle */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                <button 
+                  onClick={() => setSelectedParticipant(myParticipant)} 
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedParticipant === myParticipant ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                >
+                  My Habits ({currentWeekHabits.filter(h => h.participant === myParticipant).length})
+                </button>
+                <button 
+                  onClick={() => setSelectedParticipant('All')} 
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedParticipant === 'All' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                >
+                  Team ({currentWeekHabits.length})
+                </button>
+              </div>
+              <button 
+                onClick={() => setActiveView('add')} 
+                className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]"
+              >
+                <Plus className="w-3 h-3" />
+                Add
+              </button>
+            </div>
             
             {/* No habits - Show AI suggestions */}
             {currentWeekHabits.length === 0 ? (
@@ -3486,107 +3516,129 @@ export default function AccountabilityTracker() {
                   </div>
                 )}
                 
-                {/* Habit list */}
-                {(() => {
-                  const sortedHabits = filteredHabits.sort((a, b) => (a.order || 0) - (b.order || 0));
-                  const myHabitsOnly = sortedHabits.filter(h => h.participant === myParticipant);
-                  
-                  return sortedHabits.map((h) => {
-                    const st = getStatus(h), cfg = STATUS_CONFIG[st];
-                    const isEditing = editingHabit?.id === h.id;
-                    const isMyHabit = h.participant === myParticipant;
-                    const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
-                    const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
-                    
-                    return (
-                      <div key={h.id} className={`bg-white rounded-xl p-3 border transition-colors ${isMyHabit ? 'border-gray-100 hover:border-gray-200' : 'border-gray-100 opacity-75'}`}>
-                        {isEditing && canEdit ? (
-                          <div className="flex flex-col gap-3">
-                            <input
-                              type="text"
-                              value={editingHabit.habit}
-                              onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
-                              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
-                            />
-                            <div className="flex items-center gap-2">
-                              <select
-                                value={editingHabit.target}
-                                onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                                className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                              >
-                                {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days</option>)}
-                              </select>
-                              <button onClick={updateHabit} className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600">Save</button>
-                              <button onClick={() => setEditingHabit(null)} className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-300">Cancel</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col md:flex-row md:items-center gap-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
-                                <span className="text-gray-400 text-xs">{h.participant}</span>
-                                {!isMyHabit && <span className="text-gray-300 text-xs">(view only)</span>}
-                              </div>
-                              <h3 className="text-gray-800 font-medium text-sm">{h.habit}</h3>
-                              <p className="text-gray-400 text-xs">{h.daysCompleted.length}/{h.target} days</p>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {/* Move buttons - only for own habits when editing allowed */}
-                              {canEdit && (
-                                <div className="flex flex-col mr-1">
-                                  <button 
-                                    onClick={() => moveHabit(h.id, 'up')} 
-                                    className="w-6 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
-                                    disabled={myHabitIndex === 0}
-                                  >
-                                    <ChevronUp className="w-3 h-3" />
-                                  </button>
-                                  <button 
-                                    onClick={() => moveHabit(h.id, 'down')} 
-                                    className="w-6 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
-                                    disabled={myHabitIndex === myHabitsOnly.length - 1}
-                                  >
-                                    <ChevronDown className="w-3 h-3" />
-                                  </button>
+                {/* Compact Habit Table */}
+                <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        <th className="text-left p-2 pl-3 text-xs font-semibold text-gray-600 w-8"></th>
+                        <th className="text-left p-2 text-xs font-semibold text-gray-600">Habit</th>
+                        <th className="text-center p-2 text-xs font-semibold text-gray-600 w-12">Status</th>
+                        {DAYS.map(d => (
+                          <th key={d} className="text-center p-1 text-xs font-semibold text-gray-500 w-8">{d[0]}</th>
+                        ))}
+                        <th className="text-center p-2 text-xs font-semibold text-gray-600 w-16">Progress</th>
+                        <th className="w-16"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const sortedHabits = filteredHabits.sort((a, b) => (a.order || 0) - (b.order || 0));
+                        const myHabitsOnly = sortedHabits.filter(h => h.participant === myParticipant);
+                        
+                        return sortedHabits.map((h, idx) => {
+                          const st = getStatus(h), cfg = STATUS_CONFIG[st];
+                          const isEditing = editingHabit?.id === h.id;
+                          const isMyHabit = h.participant === myParticipant;
+                          const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
+                          const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
+                          const progressPct = h.target > 0 ? Math.round((h.daysCompleted.length / h.target) * 100) : 0;
+                          
+                          if (isEditing && canEdit) {
+                            return (
+                              <tr key={h.id} className="border-b border-gray-50 bg-blue-50">
+                                <td colSpan="11" className="p-3">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <input
+                                      type="text"
+                                      value={editingHabit.habit}
+                                      onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
+                                      className="flex-1 min-w-[200px] bg-white border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-[#F5B800]"
+                                    />
+                                    <select
+                                      value={editingHabit.target}
+                                      onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
+                                      className="bg-white border border-gray-200 rounded px-2 py-1 text-sm"
+                                    >
+                                      {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}d</option>)}
+                                    </select>
+                                    <button onClick={updateHabit} className="px-3 py-1 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600">Save</button>
+                                    <button onClick={() => setEditingHabit(null)} className="px-3 py-1 bg-gray-200 text-gray-600 rounded text-sm hover:bg-gray-300">Cancel</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+                          
+                          return (
+                            <tr key={h.id} className={`border-b border-gray-50 hover:bg-gray-50 ${!isMyHabit ? 'opacity-60' : ''}`}>
+                              {/* Move arrows */}
+                              <td className="p-1 pl-2">
+                                {canEdit && (
+                                  <div className="flex flex-col">
+                                    <button onClick={() => moveHabit(h.id, 'up')} disabled={myHabitIndex === 0} className="text-gray-300 hover:text-gray-500 disabled:opacity-30">
+                                      <ChevronUp className="w-3 h-3" />
+                                    </button>
+                                    <button onClick={() => moveHabit(h.id, 'down')} disabled={myHabitIndex === myHabitsOnly.length - 1} className="text-gray-300 hover:text-gray-500 disabled:opacity-30">
+                                      <ChevronDown className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                              {/* Habit name */}
+                              <td className="p-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-800 font-medium truncate max-w-[200px]" title={h.habit}>{h.habit}</span>
+                                  {selectedParticipant === 'All' && (
+                                    <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{h.participant}</span>
+                                  )}
                                 </div>
-                              )}
-                              {/* Day buttons */}
+                              </td>
+                              {/* Status badge */}
+                              <td className="p-1 text-center">
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
+                              </td>
+                              {/* Day toggles */}
                               {DAYS.map((d, i) => (
-                                <button 
-                                  key={d} 
-                                  onClick={() => canEdit && toggleDay(h.id, i)} 
-                                  disabled={!canEdit}
-                                  className={`w-8 h-8 md:w-7 md:h-7 rounded text-xs font-medium transition-colors ${h.daysCompleted.includes(i) ? 'bg-[#1E3A5F] text-white' : canEdit ? 'bg-gray-100 text-gray-400 hover:bg-gray-200' : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}
-                                >
-                                  {d[0]}
-                                </button>
+                                <td key={d} className="p-0.5 text-center">
+                                  <button 
+                                    onClick={() => canEdit && toggleDay(h.id, i)} 
+                                    disabled={!canEdit}
+                                    className={`w-6 h-6 rounded text-[10px] font-medium transition-all ${h.daysCompleted.includes(i) ? 'bg-[#1E3A5F] text-white' : canEdit ? 'bg-gray-100 text-gray-400 hover:bg-gray-200' : 'bg-gray-100 text-gray-300'}`}
+                                  >
+                                    {h.daysCompleted.includes(i) ? '✓' : d[0]}
+                                  </button>
+                                </td>
                               ))}
-                              {/* Edit button - only for own habits when editing allowed */}
-                              {canEdit && (
-                                <button 
-                                  onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })}
-                                  className="w-8 h-8 md:w-7 md:h-7 rounded bg-blue-50 text-blue-400 hover:bg-blue-100 ml-1 transition-colors"
-                                >
-                                  <Edit3 className="w-3 h-3 mx-auto" />
-                                </button>
-                              )}
-                              {/* Delete button - only for own habits when editing allowed */}
-                              {canEdit && (
-                                <button 
-                                  onClick={() => deleteHabit(h.id)} 
-                                  className="w-8 h-8 md:w-7 md:h-7 rounded bg-red-50 text-red-400 hover:bg-red-100 ml-1 transition-colors"
-                                >
-                                  <Trash2 className="w-3 h-3 mx-auto" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
+                              {/* Progress */}
+                              <td className="p-1">
+                                <div className="flex items-center gap-1">
+                                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(progressPct, 100)}%` }}></div>
+                                  </div>
+                                  <span className="text-[10px] text-gray-500 w-6">{h.daysCompleted.length}/{h.target}</span>
+                                </div>
+                              </td>
+                              {/* Actions */}
+                              <td className="p-1 pr-2">
+                                {canEdit && (
+                                  <div className="flex gap-0.5">
+                                    <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })} className="w-6 h-6 rounded text-blue-400 hover:bg-blue-50">
+                                      <Edit3 className="w-3 h-3 mx-auto" />
+                                    </button>
+                                    <button onClick={() => deleteHabit(h.id)} className="w-6 h-6 rounded text-red-400 hover:bg-red-50">
+                                      <Trash2 className="w-3 h-3 mx-auto" />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
@@ -3595,171 +3647,191 @@ export default function AccountabilityTracker() {
         {/* Monthly Habit Grid View */}
         {activeView === 'monthly' && (
           <div className="space-y-4">
-            {/* Month Navigation */}
-            <div className="flex items-center justify-between">
-              <button 
-                onClick={() => setMonthlyViewMonth(prev => {
-                  const d = new Date(prev.year, prev.month - 1, 1);
-                  return { year: d.getFullYear(), month: d.getMonth() };
-                })}
-                className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800]"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <h2 className="text-xl font-bold text-gray-800">
-                {new Date(monthlyViewMonth.year, monthlyViewMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </h2>
-              <button 
-                onClick={() => setMonthlyViewMonth(prev => {
-                  const d = new Date(prev.year, prev.month + 1, 1);
-                  return { year: d.getFullYear(), month: d.getMonth() };
-                })}
-                className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800]"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+            {/* Month Navigation & View Toggle */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setMonthlyViewMonth(prev => {
+                    const d = new Date(prev.year, prev.month - 1, 1);
+                    return { year: d.getFullYear(), month: d.getMonth() };
+                  })}
+                  className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800]"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <h2 className="text-lg font-bold text-gray-800 min-w-[150px] text-center">
+                  {new Date(monthlyViewMonth.year, monthlyViewMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </h2>
+                <button 
+                  onClick={() => setMonthlyViewMonth(prev => {
+                    const d = new Date(prev.year, prev.month + 1, 1);
+                    return { year: d.getFullYear(), month: d.getMonth() };
+                  })}
+                  className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800]"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {/* View Toggle: My Data vs Team */}
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                <button 
+                  onClick={() => setSelectedParticipant(myParticipant)} 
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedParticipant === myParticipant ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                >
+                  My Data
+                </button>
+                <button 
+                  onClick={() => setSelectedParticipant('All')} 
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedParticipant === 'All' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                >
+                  Team
+                </button>
+              </div>
             </div>
 
             {/* Stats Summary */}
             {(() => {
+              const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
               const monthHabits = habits.filter(h => {
                 const weekDate = new Date(h.weekStart + 'T00:00:00');
-                return weekDate.getMonth() === monthlyViewMonth.month && weekDate.getFullYear() === monthlyViewMonth.year;
+                return weekDate.getMonth() === monthlyViewMonth.month && 
+                       weekDate.getFullYear() === monthlyViewMonth.year &&
+                       (!viewParticipant || h.participant === viewParticipant);
               });
-              const myMonthHabits = monthHabits.filter(h => h.participant === myParticipant);
-              const totalCompleted = myMonthHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-              const totalTarget = myMonthHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+              const totalCompleted = monthHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+              const totalTarget = monthHabits.reduce((sum, h) => sum + (h.target || 0), 0);
               const progressPct = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
               
               return (
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-                    <p className="text-2xl font-bold text-[#1E3A5F]">{myMonthHabits.length}</p>
-                    <p className="text-xs text-gray-500">Habits</p>
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                    <p className="text-xl font-bold text-[#1E3A5F]">{monthHabits.length}</p>
+                    <p className="text-[10px] text-gray-500">Habits</p>
                   </div>
-                  <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-                    <p className="text-2xl font-bold text-green-600">{totalCompleted}</p>
-                    <p className="text-xs text-gray-500">Completed</p>
+                  <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                    <p className="text-xl font-bold text-green-600">{totalCompleted}</p>
+                    <p className="text-[10px] text-gray-500">Done</p>
                   </div>
-                  <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
-                      <div className="bg-green-500 h-2 rounded-full" style={{ width: `${progressPct}%` }}></div>
+                  <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                    <p className="text-xl font-bold text-purple-600">{totalTarget}</p>
+                    <p className="text-[10px] text-gray-500">Target</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 mb-0.5">
+                      <div className={`h-1.5 rounded-full ${progressPct >= 80 ? 'bg-green-500' : progressPct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${progressPct}%` }}></div>
                     </div>
-                    <p className="text-xs text-gray-500">{progressPct}% Progress</p>
-                  </div>
-                  <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-                    <p className="text-2xl font-bold text-purple-600">{totalTarget}</p>
-                    <p className="text-xs text-gray-500">Target Days</p>
+                    <p className="text-[10px] text-gray-500">{progressPct}%</p>
                   </div>
                 </div>
               );
             })()}
 
-            {/* Participant Filter */}
-            <div className="flex gap-2 flex-wrap">
-              {['All', ...allParticipants].map(p => (
-                <button 
-                  key={p} 
-                  onClick={() => setSelectedParticipant(p)} 
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedParticipant === p ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200'}`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-
-            {/* Monthly Grid */}
+            {/* Monthly Grid - Each row is one habit entry (not grouped) */}
             <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="text-left p-3 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[200px]">My Habits</th>
+                    <th className="text-left p-2 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[140px] z-10">Habit</th>
+                    <th className="text-left p-2 font-semibold text-gray-500 w-16">Week</th>
                     {(() => {
                       const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
                       return Array.from({ length: daysInMonth }, (_, i) => {
                         const d = new Date(monthlyViewMonth.year, monthlyViewMonth.month, i + 1);
                         const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })[0];
                         const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                        const isToday = d.toDateString() === new Date().toDateString();
                         return (
-                          <th key={i} className={`p-1 text-center min-w-[28px] ${isWeekend ? 'bg-gray-100' : ''}`}>
-                            <div className="text-[10px] text-gray-400">{dayName}</div>
-                            <div className="text-xs font-medium">{i + 1}</div>
+                          <th key={i} className={`p-0.5 text-center min-w-[22px] ${isWeekend ? 'bg-gray-100' : ''} ${isToday ? 'bg-amber-100' : ''}`}>
+                            <div className="text-[9px] text-gray-400">{dayName}</div>
+                            <div className="text-[10px] font-medium">{i + 1}</div>
                           </th>
                         );
                       });
                     })()}
-                    <th className="p-2 text-center bg-blue-50 min-w-[60px]">Goal</th>
-                    <th className="p-2 text-center bg-green-50 min-w-[60px]">Actual</th>
-                    <th className="p-2 text-center bg-purple-50 min-w-[100px]">Progress</th>
+                    <th className="p-1 text-center bg-blue-50 w-10">G</th>
+                    <th className="p-1 text-center bg-green-50 w-10">A</th>
+                    <th className="p-1 text-center bg-purple-50 w-14">%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(() => {
-                    // Get unique habits for selected participant in this month
+                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                    const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                    
+                    // Get all habits for this month
                     const monthHabits = habits.filter(h => {
                       const weekDate = new Date(h.weekStart + 'T00:00:00');
                       return weekDate.getMonth() === monthlyViewMonth.month && 
                              weekDate.getFullYear() === monthlyViewMonth.year &&
-                             (selectedParticipant === 'All' || h.participant === selectedParticipant);
-                    });
-                    
-                    // Group by habit name
-                    const habitGroups = {};
-                    monthHabits.forEach(h => {
-                      if (!habitGroups[h.habit]) {
-                        habitGroups[h.habit] = { habit: h.habit, participant: h.participant, weeks: [], totalTarget: 0, totalCompleted: 0 };
-                      }
-                      habitGroups[h.habit].weeks.push(h);
-                      habitGroups[h.habit].totalTarget += h.target || 0;
-                      habitGroups[h.habit].totalCompleted += h.daysCompleted?.length || 0;
+                             (!viewParticipant || h.participant === viewParticipant);
+                    }).sort((a, b) => {
+                      // Sort by participant, then by week, then by habit name
+                      if (a.participant !== b.participant) return a.participant.localeCompare(b.participant);
+                      if (a.weekStart !== b.weekStart) return a.weekStart.localeCompare(b.weekStart);
+                      return a.habit.localeCompare(b.habit);
                     });
 
-                    const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                    if (monthHabits.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={daysInMonth + 5} className="p-8 text-center text-gray-400">
+                            No habits tracked this month
+                          </td>
+                        </tr>
+                      );
+                    }
 
-                    return Object.values(habitGroups).map((group, idx) => {
-                      const progressPct = group.totalTarget > 0 ? Math.round((group.totalCompleted / group.totalTarget) * 100) : 0;
+                    return monthHabits.map((h, idx) => {
+                      const weekStart = new Date(h.weekStart + 'T00:00:00');
+                      const weekEnd = new Date(weekStart);
+                      weekEnd.setDate(weekEnd.getDate() + 6);
+                      const weekLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()}`;
+                      const progressPct = h.target > 0 ? Math.round((h.daysCompleted.length / h.target) * 100) : 0;
                       
                       return (
-                        <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50">
-                          <td className="p-2 sticky left-0 bg-white">
-                            <div className="font-medium text-gray-800 truncate max-w-[180px]">{group.habit}</div>
-                            <div className="text-[10px] text-gray-400">{group.participant}</div>
+                        <tr key={h.id || idx} className="border-t border-gray-50 hover:bg-gray-50/50">
+                          <td className="p-1.5 sticky left-0 bg-white z-10">
+                            <div className="font-medium text-gray-800 truncate max-w-[130px] text-[11px]" title={h.habit}>{h.habit}</div>
+                            {selectedParticipant === 'All' && (
+                              <div className="text-[9px] text-gray-400">{h.participant}</div>
+                            )}
                           </td>
+                          <td className="p-1 text-[10px] text-gray-500">{weekLabel}</td>
                           {Array.from({ length: daysInMonth }, (_, dayIdx) => {
                             const dayNum = dayIdx + 1;
                             const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
                             const dayOfWeek = (dayDate.getDay() + 6) % 7; // Mon=0, Sun=6
                             
-                            // Find which week this day belongs to
-                            const weekHabit = group.weeks.find(w => {
-                              const weekStart = new Date(w.weekStart + 'T00:00:00');
-                              const weekEnd = new Date(weekStart);
-                              weekEnd.setDate(weekEnd.getDate() + 6);
-                              return dayDate >= weekStart && dayDate <= weekEnd;
-                            });
-
-                            const isCompleted = weekHabit?.daysCompleted?.includes(dayOfWeek);
+                            // Check if this day falls within this habit's week
+                            const isInWeek = dayDate >= weekStart && dayDate <= weekEnd;
+                            const isCompleted = isInWeek && h.daysCompleted?.includes(dayOfWeek);
                             const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+                            const isToday = dayDate.toDateString() === new Date().toDateString();
 
                             return (
-                              <td key={dayIdx} className={`p-0.5 text-center ${isWeekend ? 'bg-gray-50' : ''}`}>
-                                <div className={`w-5 h-5 mx-auto rounded-sm flex items-center justify-center ${isCompleted ? 'bg-[#1E3A5F]' : weekHabit ? 'bg-gray-200' : 'bg-gray-100'}`}>
-                                  {isCompleted && <CheckCircle2 className="w-3 h-3 text-white" />}
-                                </div>
+                              <td key={dayIdx} className={`p-0 text-center ${isWeekend && !isToday ? 'bg-gray-50/50' : ''} ${isToday ? 'bg-amber-50' : ''}`}>
+                                {isInWeek ? (
+                                  <div className={`w-4 h-4 mx-auto rounded-sm flex items-center justify-center text-[9px] ${isCompleted ? 'bg-[#1E3A5F] text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                    {isCompleted ? '✓' : '·'}
+                                  </div>
+                                ) : (
+                                  <div className="w-4 h-4 mx-auto rounded-sm bg-gray-100/50"></div>
+                                )}
                               </td>
                             );
                           })}
-                          <td className="p-2 text-center bg-blue-50 font-medium">{group.totalTarget}</td>
-                          <td className="p-2 text-center bg-green-50 font-medium text-green-700">{group.totalCompleted}</td>
-                          <td className="p-2 bg-purple-50">
-                            <div className="flex items-center gap-1">
-                              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <td className="p-1 text-center bg-blue-50/50 font-medium text-[10px]">{h.target}</td>
+                          <td className="p-1 text-center bg-green-50/50 font-medium text-green-700 text-[10px]">{h.daysCompleted.length}</td>
+                          <td className="p-1 bg-purple-50/50">
+                            <div className="flex items-center gap-0.5">
+                              <div className="flex-1 bg-gray-200 rounded-full h-1">
                                 <div 
-                                  className={`h-2 rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 75 ? 'bg-blue-500' : progressPct >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                  className={`h-1 rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
                                   style={{ width: `${Math.min(progressPct, 100)}%` }}
                                 ></div>
                               </div>
-                              <span className="text-xs font-medium w-8">{progressPct}%</span>
+                              <span className="text-[9px] font-medium w-6 text-right">{progressPct}%</span>
                             </div>
                           </td>
                         </tr>
@@ -3771,16 +3843,17 @@ export default function AccountabilityTracker() {
             </div>
 
             {/* Daily Progress Row */}
-            <div className="bg-white rounded-xl p-4 border border-gray-100">
-              <h3 className="font-semibold text-gray-800 mb-3">Daily Completion Rate</h3>
-              <div className="flex gap-1 overflow-x-auto pb-2">
+            <div className="bg-white rounded-xl p-3 border border-gray-100">
+              <h3 className="font-semibold text-gray-800 mb-2 text-sm">Daily Completion Rate</h3>
+              <div className="flex gap-0.5 overflow-x-auto pb-1">
                 {(() => {
+                  const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
                   const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
                   const monthHabits = habits.filter(h => {
                     const weekDate = new Date(h.weekStart + 'T00:00:00');
                     return weekDate.getMonth() === monthlyViewMonth.month && 
                            weekDate.getFullYear() === monthlyViewMonth.year &&
-                           (selectedParticipant === 'All' || h.participant === selectedParticipant);
+                           (!viewParticipant || h.participant === viewParticipant);
                   });
 
                   return Array.from({ length: daysInMonth }, (_, dayIdx) => {
@@ -3803,11 +3876,11 @@ export default function AccountabilityTracker() {
                     const isToday = dayDate.toDateString() === new Date().toDateString();
 
                     return (
-                      <div key={dayIdx} className={`flex flex-col items-center min-w-[28px] ${isToday ? 'bg-amber-100 rounded-lg p-1' : ''}`}>
-                        <span className={`text-[10px] ${pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'} font-medium`}>
+                      <div key={dayIdx} className={`flex flex-col items-center min-w-[22px] ${isToday ? 'bg-amber-100 rounded p-0.5' : ''}`}>
+                        <span className={`text-[9px] ${total === 0 ? 'text-gray-300' : pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'} font-medium`}>
                           {total > 0 ? `${pct}%` : '-'}
                         </span>
-                        <span className="text-[10px] text-gray-400">{dayNum}</span>
+                        <span className="text-[9px] text-gray-400">{dayNum}</span>
                       </div>
                     );
                   });
@@ -3816,41 +3889,41 @@ export default function AccountabilityTracker() {
             </div>
 
             {/* Mood Tracker */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                  <Heart className="w-5 h-5 text-purple-500" />
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-3 border border-purple-200">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm">
+                  <Heart className="w-4 h-4 text-purple-500" />
                   Mood & Motivation
                 </h3>
                 <button 
                   onClick={() => setShowMoodModal(true)}
-                  className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600"
+                  className="px-2 py-1 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600"
                 >
-                  {todaysMoodEntry ? 'Update Today' : 'Log Today'}
+                  {todaysMoodEntry ? 'Update' : 'Log Today'}
                 </button>
               </div>
-              <div className="flex gap-1 overflow-x-auto pb-2">
+              <div className="flex gap-0.5 overflow-x-auto pb-1">
                 {(() => {
                   const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
                   return Array.from({ length: daysInMonth }, (_, dayIdx) => {
                     const dayNum = dayIdx + 1;
                     const dateStr = `${monthlyViewMonth.year}-${String(monthlyViewMonth.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                    const moodEntry = moodData.find(m => m.date === dateStr);
+                    const moodEntry = moodData.find(m => m.date === dateStr && (selectedParticipant === 'All' || m.participant === selectedParticipant));
                     const isToday = dateStr === new Date().toISOString().split('T')[0];
 
                     return (
-                      <div key={dayIdx} className={`flex flex-col items-center min-w-[28px] ${isToday ? 'bg-purple-100 rounded-lg p-1' : ''}`}>
-                        <span className="text-[10px] text-purple-600 font-medium">{moodEntry?.mood || '-'}</span>
-                        <span className="text-[10px] text-pink-600 font-medium">{moodEntry?.motivation || '-'}</span>
-                        <span className="text-[10px] text-gray-400">{dayNum}</span>
+                      <div key={dayIdx} className={`flex flex-col items-center min-w-[22px] ${isToday ? 'bg-purple-100 rounded p-0.5' : ''}`}>
+                        <span className="text-[9px] text-purple-600 font-medium">{moodEntry?.mood || '-'}</span>
+                        <span className="text-[9px] text-pink-600 font-medium">{moodEntry?.motivation || '-'}</span>
+                        <span className="text-[9px] text-gray-400">{dayNum}</span>
                       </div>
                     );
                   });
                 })()}
               </div>
-              <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-purple-500 rounded"></span> Mood</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-pink-500 rounded"></span> Motivation</span>
+              <div className="flex gap-3 mt-1 text-[10px] text-gray-500">
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-purple-500 rounded"></span> Mood</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-pink-500 rounded"></span> Motivation</span>
               </div>
             </div>
           </div>
@@ -3858,59 +3931,73 @@ export default function AccountabilityTracker() {
 
         {/* Tasks View */}
         {activeView === 'tasks' && (
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-gray-800">Task List</h2>
-                <p className="text-sm text-gray-500">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+          <div className="space-y-3">
+            {/* Header with view toggle */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-bold text-gray-800">Tasks</h2>
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                  <button 
+                    onClick={() => setSelectedParticipant(myParticipant)} 
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${selectedParticipant === myParticipant ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                  >
+                    My Tasks
+                  </button>
+                  <button 
+                    onClick={() => setSelectedParticipant('All')} 
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${selectedParticipant === 'All' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                  >
+                    Team
+                  </button>
+                </div>
               </div>
               <button 
                 onClick={() => setShowAddTask(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]"
+                className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3 h-3" />
                 Add Task
               </button>
             </div>
 
             {/* Stats Cards */}
             {(() => {
-              const myTasks = tasks.filter(t => t.participant === myParticipant);
+              const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+              const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
               const today = new Date().toISOString().split('T')[0];
-              const todayTasks = myTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
-              const overdueTasks = myTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
-              const completedTasks = myTasks.filter(t => t.status === 'Completed');
+              const todayTasks = viewTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
+              const overdueTasks = viewTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
+              const completedTasks = viewTasks.filter(t => t.status === 'Completed');
               
               return (
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Calendar className="w-4 h-4 text-blue-500" />
-                      <span className="text-xs text-blue-600 font-medium">Today</span>
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="bg-blue-50 rounded-lg p-2 border border-blue-200">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <Calendar className="w-3 h-3 text-blue-500" />
+                      <span className="text-[10px] text-blue-600 font-medium">Today</span>
                     </div>
-                    <p className="text-2xl font-bold text-blue-700">{todayTasks.length}</p>
+                    <p className="text-xl font-bold text-blue-700">{todayTasks.length}</p>
                   </div>
-                  <div className="bg-white rounded-xl p-3 border border-gray-200">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Target className="w-4 h-4 text-gray-500" />
-                      <span className="text-xs text-gray-600 font-medium">Total</span>
+                  <div className="bg-white rounded-lg p-2 border border-gray-200">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <Target className="w-3 h-3 text-gray-500" />
+                      <span className="text-[10px] text-gray-600 font-medium">Total</span>
                     </div>
-                    <p className="text-2xl font-bold text-gray-700">{myTasks.length}</p>
+                    <p className="text-xl font-bold text-gray-700">{viewTasks.length}</p>
                   </div>
-                  <div className="bg-red-50 rounded-xl p-3 border border-red-200">
-                    <div className="flex items-center gap-2 mb-1">
-                      <XCircle className="w-4 h-4 text-red-500" />
-                      <span className="text-xs text-red-600 font-medium">Overdue</span>
+                  <div className="bg-red-50 rounded-lg p-2 border border-red-200">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <XCircle className="w-3 h-3 text-red-500" />
+                      <span className="text-[10px] text-red-600 font-medium">Overdue</span>
                     </div>
-                    <p className="text-2xl font-bold text-red-700">{overdueTasks.length}</p>
+                    <p className="text-xl font-bold text-red-700">{overdueTasks.length}</p>
                   </div>
-                  <div className="bg-green-50 rounded-xl p-3 border border-green-200">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-xs text-green-600 font-medium">Done</span>
+                  <div className="bg-green-50 rounded-lg p-2 border border-green-200">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <CheckCircle2 className="w-3 h-3 text-green-500" />
+                      <span className="text-[10px] text-green-600 font-medium">Done</span>
                     </div>
-                    <p className="text-2xl font-bold text-green-700">{completedTasks.length}</p>
+                    <p className="text-xl font-bold text-green-700">{completedTasks.length}</p>
                   </div>
                 </div>
               );
@@ -3939,19 +4026,20 @@ export default function AccountabilityTracker() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="w-10 p-3"></th>
-                    <th className="text-left p-3 font-semibold text-gray-700">Task</th>
-                    <th className="text-left p-3 font-semibold text-gray-700 w-28">Due Date</th>
-                    <th className="text-left p-3 font-semibold text-gray-700 w-24">Priority</th>
-                    <th className="text-left p-3 font-semibold text-gray-700 w-28">Status</th>
-                    <th className="text-left p-3 font-semibold text-gray-700 w-28">Category</th>
-                    <th className="w-10 p-3"></th>
+                    <th className="w-8 p-2"></th>
+                    <th className="text-left p-2 font-semibold text-gray-700 text-xs">Task</th>
+                    <th className="text-left p-2 font-semibold text-gray-700 w-24 text-xs">Due</th>
+                    <th className="text-left p-2 font-semibold text-gray-700 w-20 text-xs">Priority</th>
+                    <th className="text-left p-2 font-semibold text-gray-700 w-24 text-xs">Status</th>
+                    <th className="text-left p-2 font-semibold text-gray-700 w-24 text-xs">Category</th>
+                    <th className="w-8 p-2"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {(() => {
+                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
                     const today = new Date().toISOString().split('T')[0];
-                    let filteredTasks = tasks.filter(t => t.participant === myParticipant);
+                    let filteredTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
                     
                     if (taskFilter === 'today') {
                       filteredTasks = filteredTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
@@ -3964,7 +4052,7 @@ export default function AccountabilityTracker() {
                     if (filteredTasks.length === 0) {
                       return (
                         <tr>
-                          <td colSpan="7" className="p-8 text-center text-gray-400">
+                          <td colSpan="7" className="p-6 text-center text-gray-400 text-sm">
                             No tasks found. Add your first task!
                           </td>
                         </tr>
@@ -3975,51 +4063,64 @@ export default function AccountabilityTracker() {
                       const isOverdue = task.dueDate < today && task.status !== 'Completed';
                       const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG['Medium'];
                       const categoryCfg = TASK_CATEGORIES.find(c => c.id === task.category) || TASK_CATEGORIES[0];
+                      const isMyTask = task.participant === myParticipant;
 
                       return (
-                        <tr key={task.id} className={`border-b border-gray-100 hover:bg-gray-50 ${task.status === 'Completed' ? 'opacity-60' : ''}`}>
-                          <td className="p-3">
+                        <tr key={task.id} className={`border-b border-gray-50 hover:bg-gray-50 ${task.status === 'Completed' ? 'opacity-50' : ''}`}>
+                          <td className="p-2">
                             <button 
-                              onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
-                              className="w-5 h-5 rounded border-2 border-gray-300 flex items-center justify-center hover:border-green-500"
+                              onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                              disabled={!isMyTask}
+                              className={`w-4 h-4 rounded border-2 flex items-center justify-center ${isMyTask ? 'border-gray-300 hover:border-green-500' : 'border-gray-200 cursor-not-allowed'}`}
                             >
-                              {task.status === 'Completed' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                              {task.status === 'Completed' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
                             </button>
                           </td>
-                          <td className={`p-3 ${task.status === 'Completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                            {task.task}
+                          <td className={`p-2 text-sm ${task.status === 'Completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                            <span className="truncate block max-w-[200px]" title={task.task}>{task.task}</span>
+                            {selectedParticipant === 'All' && (
+                              <span className="text-[10px] text-gray-400">{task.participant}</span>
+                            )}
                           </td>
-                          <td className={`p-3 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                          <td className={`p-2 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
                             {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </td>
-                          <td className="p-3">
-                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${priorityCfg.textColor}`}>
-                              {priorityCfg.icon} {task.priority}
+                          <td className="p-2">
+                            <span className={`text-[10px] font-medium ${priorityCfg.textColor}`}>
+                              {priorityCfg.icon}
                             </span>
                           </td>
-                          <td className="p-3">
-                            <select 
-                              value={task.status}
-                              onChange={(e) => updateTaskStatus(task.id, e.target.value)}
-                              className={`text-xs px-2 py-1 rounded border ${task.status === 'Completed' ? 'bg-green-100 text-green-700' : task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}
-                            >
-                              <option value="Not Started">Not Started</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="Completed">Completed</option>
-                            </select>
+                          <td className="p-2">
+                            {isMyTask ? (
+                              <select 
+                                value={task.status}
+                                onChange={(e) => updateTaskStatus(task.id, e.target.value)}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border ${task.status === 'Completed' ? 'bg-green-100 text-green-700' : task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}
+                              >
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                              </select>
+                            ) : (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.status === 'Completed' ? 'bg-green-100 text-green-700' : task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
+                                {task.status}
+                              </span>
+                            )}
                           </td>
-                          <td className="p-3">
-                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded ${categoryCfg.color}`}>
-                              {categoryCfg.icon} {task.category}
+                          <td className="p-2">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${categoryCfg.color}`}>
+                              {categoryCfg.icon}
                             </span>
                           </td>
-                          <td className="p-3">
-                            <button 
-                              onClick={() => deleteTask(task.id)}
-                              className="text-gray-400 hover:text-red-500"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          <td className="p-2">
+                            {isMyTask && (
+                              <button 
+                                onClick={() => deleteTask(task.id)}
+                                className="text-gray-300 hover:text-red-500"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
