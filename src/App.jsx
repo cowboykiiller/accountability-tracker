@@ -700,6 +700,10 @@ export default function AccountabilityTracker() {
   // Habit breakdown modal state
   const [showHabitBreakdown, setShowHabitBreakdown] = useState(null); // 'exceeded' | 'missed' | 'completed' | 'total' | null
   
+  // Participant AI summaries
+  const [participantSummaries, setParticipantSummaries] = useState({});
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  
   // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
   const [checkInText, setCheckInText] = useState('');
@@ -1562,10 +1566,12 @@ export default function AccountabilityTracker() {
     return weeks;
   }, [habits]);
   
-  const [hasInitializedWeek, setHasInitializedWeek] = useState(false);
+  // Track if we've done initial week setup
+  const weekInitialized = useRef(false);
   
+  // Initialize week to current week when ALL_WEEKS is ready
   useEffect(() => {
-    if (ALL_WEEKS.length > 0 && !hasInitializedWeek) {
+    if (ALL_WEEKS.length > 0 && !weekInitialized.current) {
       // Find today's week and set index to it
       const today = new Date();
       const day = today.getDay();
@@ -1576,6 +1582,7 @@ export default function AccountabilityTracker() {
       const todayIndex = ALL_WEEKS.indexOf(thisMonday);
       if (todayIndex !== -1) {
         setCurrentWeekIndex(todayIndex);
+        weekInitialized.current = true;
       } else {
         // Find the closest week that's not in the future
         const now = new Date();
@@ -1583,13 +1590,13 @@ export default function AccountabilityTracker() {
           const weekDate = new Date(ALL_WEEKS[i] + 'T00:00:00');
           if (weekDate <= now) {
             setCurrentWeekIndex(i);
+            weekInitialized.current = true;
             break;
           }
         }
       }
-      setHasInitializedWeek(true);
     }
-  }, [ALL_WEEKS, hasInitializedWeek]);
+  }, [ALL_WEEKS]);
 
   const currentWeek = ALL_WEEKS[currentWeekIndex] || ALL_WEEKS[ALL_WEEKS.length - 1] || '';
 
@@ -2071,6 +2078,73 @@ export default function AccountabilityTracker() {
     setAiLoading(false);
     setAiFollowUp('');
   };
+
+  // Generate AI summaries for all participants
+  const generateParticipantSummaries = async () => {
+    if (summaryLoading) return;
+    setSummaryLoading(true);
+    
+    try {
+      // Get last 4 weeks of data
+      const idx = ALL_WEEKS.indexOf(currentWeek);
+      const past4Weeks = ALL_WEEKS.slice(Math.max(0, idx - 3), idx + 1);
+      const recentHabits = habits.filter(h => past4Weeks.includes(h.weekStart));
+      
+      const summaries = {};
+      
+      for (const participant of allParticipants) {
+        const pHabits = recentHabits.filter(h => h.participant === participant);
+        if (pHabits.length === 0) {
+          summaries[participant] = "⏸️ No habits tracked recently";
+          continue;
+        }
+        
+        const completed = pHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+        const exceeded = pHabits.filter(h => getStatus(h) === 'Exceeded').length;
+        const missed = pHabits.filter(h => getStatus(h) === 'Missed').length;
+        const rate = pHabits.length > 0 ? Math.round((completed / pHabits.length) * 100) : 0;
+        
+        // Get top habit names
+        const habitNames = [...new Set(pHabits.map(h => h.habit))];
+        const topHabit = habitNames[0] || '';
+        
+        // Generate contextual summary
+        if (rate >= 90) {
+          if (exceeded > 2) {
+            summaries[participant] = `🔥 On fire! Exceeding ${exceeded} goals`;
+          } else {
+            summaries[participant] = `⭐ Excellent consistency at ${rate}%`;
+          }
+        } else if (rate >= 75) {
+          summaries[participant] = `📈 Strong momentum, ${completed}/${pHabits.length} completed`;
+        } else if (rate >= 60) {
+          summaries[participant] = `💪 Good progress, building habits`;
+        } else if (rate >= 40) {
+          summaries[participant] = missed > 2 ? `🎯 ${missed} habits need attention` : `🌱 Growing, ${rate}% completion`;
+        } else if (rate > 0) {
+          summaries[participant] = `🌱 Getting started, keep going!`;
+        } else {
+          summaries[participant] = `⏸️ Time to get back on track`;
+        }
+      }
+      
+      setParticipantSummaries(summaries);
+    } catch (error) {
+      console.error('Failed to generate summaries:', error);
+    }
+    
+    setSummaryLoading(false);
+  };
+
+  // Auto-generate summaries when data changes (debounced)
+  useEffect(() => {
+    if (allParticipants.length > 0 && habits.length > 0) {
+      const timer = setTimeout(() => {
+        generateParticipantSummaries();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [allParticipants, habits, currentWeek]);
 
   // Add a suggested habit
   const addSuggestedHabit = async (habit, index) => {
@@ -2652,23 +2726,41 @@ export default function AccountabilityTracker() {
                 </div>
               </div>
               
-              {/* Participant Performance - compact with profile photos */}
+              {/* Participant Performance - with AI summaries */}
               <div className="bg-white rounded-xl p-4 border border-gray-100">
-                <h3 className="font-semibold text-gray-800 text-sm mb-3">Performance</h3>
-                <div className="space-y-2">{participantData.map(p => {
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-800 text-sm">Performance</h3>
+                  <button 
+                    onClick={generateParticipantSummaries}
+                    disabled={summaryLoading}
+                    className="text-[10px] text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                  >
+                    {summaryLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    {summaryLoading ? 'Loading...' : 'Refresh AI'}
+                  </button>
+                </div>
+                <div className="space-y-3">{participantData.map(p => {
                   const profile = getProfileByParticipant(p.name);
+                  const summary = participantSummaries[p.name];
                   return (
-                  <div key={p.name} className="flex items-center gap-2">
-                    <button onClick={() => openProfileView(p.name)} className="flex items-center gap-2 w-20 hover:opacity-80">
-                      {profile?.photoURL ? (
-                        <img src={profile.photoURL} alt="" className="w-5 h-5 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: p.color }}>{p.name[0]}</div>
-                      )}
-                      <span className="text-xs font-medium text-gray-700 truncate">{p.name}</span>
-                    </button>
-                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${p.rate}%`, backgroundColor: p.color }} /></div>
-                    <div className="w-8 text-right text-xs font-semibold" style={{ color: p.color }}>{p.rate}%</div>
+                  <div key={p.name} className="p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      <button onClick={() => openProfileView(p.name)} className="flex items-center gap-2 hover:opacity-80">
+                        {profile?.photoURL ? (
+                          <img src={profile.photoURL} alt="" className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: p.color }}>{p.name[0]}</div>
+                        )}
+                        <span className="text-xs font-semibold text-gray-800">{p.name}</span>
+                      </button>
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${p.rate}%`, backgroundColor: p.color }} />
+                      </div>
+                      <div className="text-xs font-bold" style={{ color: p.color }}>{p.rate}%</div>
+                    </div>
+                    {summary && (
+                      <p className="text-[11px] text-gray-600 pl-8">{summary}</p>
+                    )}
                   </div>
                 );})}</div>
               </div>
