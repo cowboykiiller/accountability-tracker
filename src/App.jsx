@@ -2669,15 +2669,19 @@ export default function AccountabilityTracker() {
 
   // Glass card class helper
   const glassCard = darkMode 
-    ? 'bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg' 
-    : 'bg-white/70 backdrop-blur-xl border border-white/50 shadow-lg';
+    ? 'bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl' 
+    : 'bg-white/60 backdrop-blur-xl border border-white shadow-xl';
   
   const glassBg = darkMode
-    ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
-    : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100';
+    ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'
+    : 'bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100';
 
   return (
-    <div className={`flex min-h-screen transition-colors duration-300 ${glassBg}`}>
+    <div className={`flex min-h-screen transition-all duration-500 ${glassBg}`} style={{
+      backgroundImage: darkMode 
+        ? 'radial-gradient(ellipse at top right, rgba(59, 130, 246, 0.15), transparent 50%), radial-gradient(ellipse at bottom left, rgba(168, 85, 247, 0.1), transparent 50%)'
+        : 'radial-gradient(ellipse at top right, rgba(59, 130, 246, 0.2), transparent 50%), radial-gradient(ellipse at bottom left, rgba(236, 72, 153, 0.15), transparent 50%)'
+    }}>
       <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} />
       <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
         {/* Mobile Header */}
@@ -4834,28 +4838,34 @@ export default function AccountabilityTracker() {
         {/* INSIGHTS VIEW */}
         {activeView === 'insights' && (
           <div className="space-y-4">
-            {/* Dark header - inspired by the screenshot */}
-            <div className="bg-gradient-to-br from-[#0a1628] to-[#1a2d4a] rounded-2xl p-6 text-white">
-              <p className="text-gray-400 text-sm">Instead of asking why can't I</p>
-              <h2 className="text-3xl font-bold mb-1">DO MORE?</h2>
-              <p className="text-gray-400">first do a life audit:</p>
+            {/* Header Card - Glass */}
+            <div className={`rounded-2xl p-6 backdrop-blur-xl transition-all duration-300 ${
+              darkMode 
+                ? 'bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10' 
+                : 'bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-white/50'
+            }`}>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Instead of asking why can't I</p>
+              <h2 className={`text-3xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>DO MORE?</h2>
+              <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>first do a life audit:</p>
             </div>
 
             {/* Main Stats Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Radar Chart - Life Balance */}
-              <div className="bg-gradient-to-br from-[#0f1f35] to-[#162a45] rounded-2xl p-5 text-white">
-                <h3 className="text-sm text-gray-400 mb-4">Life Balance</h3>
+              {/* Radar Chart - Life Balance - Glass */}
+              <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10' 
+                  : 'bg-white/60 border border-white shadow-xl'
+              }`}>
+                <h3 className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <RadarChart data={(() => {
-                    // Calculate scores for each category based on habit completion
                     const categories = ['Fitness', 'Business', 'Finance', 'Health', 'Learning', 'Relationships', 'Spiritual'];
                     const myHabits = habits.filter(h => h.participant === myParticipant);
                     
                     return categories.map(cat => {
                       const catHabits = myHabits.filter(h => (h.category || 'Personal') === cat);
                       if (catHabits.length === 0) {
-                        // Assign habits to categories based on keywords
                         const keywords = {
                           'Fitness': ['workout', 'gym', 'run', 'exercise', 'walk', 'fitness'],
                           'Business': ['work', 'client', 'meeting', 'business', 'call', 'email'],
@@ -4877,9 +4887,9 @@ export default function AccountabilityTracker() {
                       return { category: cat, score: catHabits.length > 0 ? Math.round((completed / catHabits.length) * 100) : 30 + Math.random() * 40, fullMark: 100 };
                     });
                   })()}>
-                    <PolarGrid stroke="#334155" />
-                    <PolarAngleAxis dataKey="category" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} />
+                    <PolarGrid stroke={darkMode ? '#334155' : '#e2e8f0'} />
+                    <PolarAngleAxis dataKey="category" tick={{ fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 11 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: darkMode ? '#64748b' : '#94a3b8', fontSize: 9 }} />
                     <Radar name="Score" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} strokeWidth={2} />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -4887,14 +4897,18 @@ export default function AccountabilityTracker() {
 
               {/* Heatmap + Life Score */}
               <div className="space-y-4">
-                {/* GitHub-style Heatmap */}
-                <div className="bg-gradient-to-br from-[#0f1f35] to-[#162a45] rounded-2xl p-5 text-white">
+                {/* GitHub-style Heatmap - Glass */}
+                <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
+                  darkMode 
+                    ? 'bg-white/5 border border-white/10' 
+                    : 'bg-white/60 border border-white shadow-xl'
+                }`}>
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider">Heatmap</p>
-                      <h3 className="text-lg font-semibold">Activity</h3>
+                      <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Heatmap</p>
+                      <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Activity</h3>
                     </div>
-                    <span className="text-green-400 text-sm font-medium">
+                    <span className="text-emerald-500 text-sm font-medium">
                       {(() => {
                         const myHabits = habits.filter(h => h.participant === myParticipant);
                         const completed = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
@@ -4916,16 +4930,16 @@ export default function AccountabilityTracker() {
                               const dayTotal = weekHabits.length;
                               const pct = dayTotal > 0 ? (dayCompleted / dayTotal) * 100 : 0;
                               
-                              let bgColor = 'bg-gray-700/50';
-                              if (pct > 0) bgColor = 'bg-emerald-900/60';
-                              if (pct >= 40) bgColor = 'bg-emerald-700/70';
-                              if (pct >= 70) bgColor = 'bg-emerald-500/80';
-                              if (pct >= 90) bgColor = 'bg-emerald-400';
+                              let bgColor = darkMode ? 'bg-gray-700/50' : 'bg-gray-200/50';
+                              if (pct > 0) bgColor = darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200';
+                              if (pct >= 40) bgColor = darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300';
+                              if (pct >= 70) bgColor = darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400';
+                              if (pct >= 90) bgColor = 'bg-emerald-500';
                               
                               return (
                                 <div
                                   key={dayIdx}
-                                  className={`w-4 h-4 rounded-sm ${bgColor} hover:ring-1 hover:ring-white/30 cursor-pointer transition-all`}
+                                  className={`w-4 h-4 rounded-sm ${bgColor} hover:ring-2 hover:ring-blue-400/50 cursor-pointer transition-all`}
                                   title={`${day}: ${Math.round(pct)}% (${dayCompleted}/${dayTotal})`}
                                 />
                               );
@@ -4935,24 +4949,27 @@ export default function AccountabilityTracker() {
                       });
                     })()}
                   </div>
-                  <div className="flex items-center justify-end gap-1 mt-2 text-[10px] text-gray-500">
+                  <div className={`flex items-center justify-end gap-1 mt-2 text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                     <span>Less</span>
-                    <div className="w-3 h-3 rounded-sm bg-gray-700/50"></div>
-                    <div className="w-3 h-3 rounded-sm bg-emerald-900/60"></div>
-                    <div className="w-3 h-3 rounded-sm bg-emerald-700/70"></div>
-                    <div className="w-3 h-3 rounded-sm bg-emerald-500/80"></div>
-                    <div className="w-3 h-3 rounded-sm bg-emerald-400"></div>
+                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-gray-700/50' : 'bg-gray-200'}`}></div>
+                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200'}`}></div>
+                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300'}`}></div>
+                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400'}`}></div>
+                    <div className="w-3 h-3 rounded-sm bg-emerald-500"></div>
                     <span>More</span>
                   </div>
                 </div>
 
-                {/* Life Score */}
-                <div className="bg-gradient-to-br from-[#0f1f35] to-[#162a45] rounded-2xl p-5 text-white">
-                  <h3 className="text-sm text-gray-400 mb-2">Your Accountability Score</h3>
+                {/* Life Score - Glass */}
+                <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
+                  darkMode 
+                    ? 'bg-white/5 border border-white/10' 
+                    : 'bg-white/60 border border-white shadow-xl'
+                }`}>
+                  <h3 className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Your Accountability Score</h3>
                   <div className="flex items-end gap-4">
                     <div className="relative">
-                      {/* Animated score effect */}
-                      <div className="text-6xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                      <div className="text-6xl font-bold bg-gradient-to-r from-emerald-500 to-cyan-500 bg-clip-text text-transparent">
                         {(() => {
                           const myHabits = habits.filter(h => h.participant === myParticipant);
                           const completed = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
@@ -4964,7 +4981,7 @@ export default function AccountabilityTracker() {
                       </div>
                       <div className="absolute -left-2 bottom-0 w-1 h-full bg-gradient-to-t from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
                     </div>
-                    <div className="text-xs text-gray-500 pb-2">
+                    <div className={`text-xs pb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                       <p>Completion + Streaks + Challenges</p>
                     </div>
                   </div>
@@ -4972,18 +4989,21 @@ export default function AccountabilityTracker() {
               </div>
             </div>
 
-            {/* Monthly Progress Bars */}
-            <div className="bg-gradient-to-br from-[#0f1f35] to-[#162a45] rounded-2xl p-5 text-white">
+            {/* Monthly Progress Bars - Glass */}
+            <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
+              darkMode 
+                ? 'bg-white/5 border border-white/10' 
+                : 'bg-white/60 border border-white shadow-xl'
+            }`}>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wider">Your Progress</p>
-                  <h3 className="text-lg font-semibold">Monthly Trend</h3>
+                  <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Your Progress</p>
+                  <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Monthly Trend</h3>
                 </div>
               </div>
               
               <div className="flex items-end justify-around gap-2 h-48">
                 {(() => {
-                  // Get last 6 months of data
                   const months = [];
                   const now = new Date();
                   for (let i = 5; i >= 0; i--) {
@@ -5004,19 +5024,18 @@ export default function AccountabilityTracker() {
                     
                     const completed = monthHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
                     const rate = monthHabits.length > 0 ? Math.round((completed / monthHabits.length) * 100) : 0;
-                    
                     const isCurrentMonth = m.monthNum === now.getMonth() && m.year === now.getFullYear();
                     
                     return (
                       <div key={idx} className="flex flex-col items-center gap-2 flex-1">
-                        <span className="text-xs font-medium text-white">{rate}%</span>
-                        <div className="w-full max-w-[40px] bg-gray-700/50 rounded-t-lg relative" style={{ height: '140px' }}>
+                        <span className={`text-xs font-medium ${darkMode ? 'text-white' : 'text-gray-700'}`}>{rate}%</span>
+                        <div className={`w-full max-w-[40px] rounded-t-lg relative ${darkMode ? 'bg-gray-700/30' : 'bg-gray-200/50'}`} style={{ height: '140px' }}>
                           <div 
-                            className={`absolute bottom-0 left-0 right-0 rounded-t-lg transition-all duration-500 ${isCurrentMonth ? 'bg-gradient-to-t from-blue-600 to-blue-400' : 'bg-gradient-to-t from-blue-800 to-blue-600'}`}
+                            className={`absolute bottom-0 left-0 right-0 rounded-t-lg transition-all duration-500 ${isCurrentMonth ? 'bg-gradient-to-t from-blue-600 to-blue-400' : 'bg-gradient-to-t from-blue-500/70 to-blue-400/70'}`}
                             style={{ height: `${rate}%` }}
                           ></div>
                         </div>
-                        <span className={`text-xs ${isCurrentMonth ? 'text-white font-medium' : 'text-gray-500'}`}>{m.month}</span>
+                        <span className={`text-xs ${isCurrentMonth ? darkMode ? 'text-white font-medium' : 'text-blue-600 font-medium' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{m.month}</span>
                       </div>
                     );
                   });
@@ -5026,26 +5045,33 @@ export default function AccountabilityTracker() {
 
             {/* Bottom row - Streaks & Top Habits */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Current Streak */}
-              <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-2xl p-5 border border-orange-500/30">
+              {/* Current Streak - Glass */}
+              <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
+                darkMode 
+                  ? 'bg-orange-500/10 border border-orange-500/20' 
+                  : 'bg-orange-50/80 border border-orange-200/50 shadow-xl'
+              }`}>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
-                    <Flame className="w-6 h-6 text-orange-400" />
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${darkMode ? 'bg-orange-500/20' : 'bg-orange-100'}`}>
+                    <Flame className="w-6 h-6 text-orange-500" />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Current Streak</p>
-                    <p className="text-3xl font-bold text-orange-400">{calculateStreaks[myParticipant] || 0} weeks</p>
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Current Streak</p>
+                    <p className="text-3xl font-bold text-orange-500">{calculateStreaks[myParticipant] || 0} weeks</p>
                   </div>
                 </div>
-                <p className="text-sm text-gray-600">Keep your momentum going! Complete this week to extend your streak.</p>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Keep your momentum going! Complete this week to extend your streak.</p>
               </div>
 
-              {/* Top Performing Habits */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-100">
-                <h3 className="text-sm text-gray-500 mb-3">Top Performing Habits</h3>
+              {/* Top Performing Habits - Glass */}
+              <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10' 
+                  : 'bg-white/60 border border-white shadow-xl'
+              }`}>
+                <h3 className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits</h3>
                 <div className="space-y-2">
                   {(() => {
-                    // Group habits by name and calculate success rate
                     const habitStats = {};
                     habits.filter(h => h.participant === myParticipant).forEach(h => {
                       if (!habitStats[h.habit]) {
@@ -5063,16 +5089,24 @@ export default function AccountabilityTracker() {
                       .slice(0, 4)
                       .map((h, idx) => (
                         <div key={h.habit} className="flex items-center gap-3">
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-gray-100 text-gray-700' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-blue-50 text-blue-600'}`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                            idx === 0 
+                              ? 'bg-yellow-400/20 text-yellow-600' 
+                              : idx === 1 
+                                ? darkMode ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-200 text-gray-600'
+                                : idx === 2 
+                                  ? 'bg-orange-400/20 text-orange-500' 
+                                  : darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+                          }`}>
                             {idx + 1}
                           </span>
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800 truncate">{h.habit}</p>
+                            <p className={`text-sm font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</p>
                             <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-green-500 rounded-full" style={{ width: `${h.rate}%` }}></div>
+                              <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${h.rate}%` }}></div>
                               </div>
-                              <span className="text-xs font-medium text-gray-600">{h.rate}%</span>
+                              <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{h.rate}%</span>
                             </div>
                           </div>
                         </div>
