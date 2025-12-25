@@ -697,6 +697,9 @@ export default function AccountabilityTracker() {
   // Monthly view state
   const [monthlyViewMonth, setMonthlyViewMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
   
+  // Habit breakdown modal state
+  const [showHabitBreakdown, setShowHabitBreakdown] = useState(null); // 'exceeded' | 'missed' | 'completed' | 'total' | null
+  
   // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
   const [checkInText, setCheckInText] = useState('');
@@ -1526,11 +1529,12 @@ export default function AccountabilityTracker() {
       const date = new Date(d);
       const day = date.getDay();
       const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-      return new Date(date.setDate(diff)).toISOString().split('T')[0];
+      const monday = new Date(date.getFullYear(), date.getMonth(), diff);
+      return monday.toISOString().split('T')[0];
     };
     
     const today = new Date();
-    const currentMonday = getMonday(today);
+    const currentMonday = getMonday(new Date(today)); // Pass a copy
     
     // Find the earliest week (from habits or default to 8 weeks ago)
     let earliestWeek = currentMonday;
@@ -1540,7 +1544,7 @@ export default function AccountabilityTracker() {
       // Default start: 8 weeks ago
       const eightWeeksAgo = new Date(today);
       eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
-      earliestWeek = getMonday(eightWeeksAgo);
+      earliestWeek = getMonday(new Date(eightWeeksAgo));
     }
     
     // Generate all weeks from earliest through 52 weeks into future (1 year ahead)
@@ -1558,23 +1562,34 @@ export default function AccountabilityTracker() {
     return weeks;
   }, [habits]);
   
+  const [hasInitializedWeek, setHasInitializedWeek] = useState(false);
+  
   useEffect(() => {
-    if (ALL_WEEKS.length > 0 && currentWeekIndex === 0) {
+    if (ALL_WEEKS.length > 0 && !hasInitializedWeek) {
       // Find today's week and set index to it
       const today = new Date();
       const day = today.getDay();
       const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-      const thisMonday = new Date(today.setDate(diff)).toISOString().split('T')[0];
+      const mondayDate = new Date(today.getFullYear(), today.getMonth(), diff);
+      const thisMonday = mondayDate.toISOString().split('T')[0];
       
       const todayIndex = ALL_WEEKS.indexOf(thisMonday);
       if (todayIndex !== -1) {
         setCurrentWeekIndex(todayIndex);
       } else {
-        // Fallback to most recent past week
-        setCurrentWeekIndex(Math.max(0, ALL_WEEKS.length - 9)); // 8 weeks from end is roughly "now"
+        // Find the closest week that's not in the future
+        const now = new Date();
+        for (let i = ALL_WEEKS.length - 1; i >= 0; i--) {
+          const weekDate = new Date(ALL_WEEKS[i] + 'T00:00:00');
+          if (weekDate <= now) {
+            setCurrentWeekIndex(i);
+            break;
+          }
+        }
       }
+      setHasInitializedWeek(true);
     }
-  }, [ALL_WEEKS]);
+  }, [ALL_WEEKS, hasInitializedWeek]);
 
   const currentWeek = ALL_WEEKS[currentWeekIndex] || ALL_WEEKS[ALL_WEEKS.length - 1] || '';
 
@@ -1596,7 +1611,7 @@ export default function AccountabilityTracker() {
   // Get the user's assigned participant name
   const myParticipant = userProfile?.linkedParticipant || user?.displayName || '';
 
-  // Set selectedParticipant to user's participant when profile loads
+  // Set selectedParticipant to myParticipant when profile loads
   useEffect(() => {
     if (myParticipant && selectedParticipant === 'All') {
       setSelectedParticipant(myParticipant);
@@ -1617,17 +1632,25 @@ export default function AccountabilityTracker() {
   const weeklyTrendData = useMemo(() => {
     // Get weeks based on selected range
     let weeksToShow = ALL_WEEKS;
+    const today = new Date();
+    
+    // Filter to only past/current weeks
+    weeksToShow = weeksToShow.filter(w => new Date(w + 'T00:00:00') <= today);
     
     if (scorecardRange === 'week') {
-      const idx = ALL_WEEKS.indexOf(currentWeek);
-      weeksToShow = ALL_WEEKS.slice(Math.max(0, idx - 7), idx + 1);
+      const idx = weeksToShow.indexOf(currentWeek);
+      if (idx !== -1) {
+        weeksToShow = weeksToShow.slice(Math.max(0, idx - 7), idx + 1);
+      }
     } else if (scorecardRange === '4weeks') {
-      const idx = ALL_WEEKS.indexOf(currentWeek);
-      weeksToShow = ALL_WEEKS.slice(Math.max(0, idx - 7), idx + 1);
+      const idx = weeksToShow.indexOf(currentWeek);
+      if (idx !== -1) {
+        weeksToShow = weeksToShow.slice(Math.max(0, idx - 7), idx + 1);
+      }
     } else if (scorecardRange === 'quarter') {
       const d = new Date(currentWeek + 'T00:00:00');
       const quarterStart = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
-      weeksToShow = ALL_WEEKS.filter(w => new Date(w + 'T00:00:00') >= quarterStart && new Date(w + 'T00:00:00') <= d);
+      weeksToShow = weeksToShow.filter(w => new Date(w + 'T00:00:00') >= quarterStart && new Date(w + 'T00:00:00') <= d);
     }
     
     return weeksToShow.map(week => {
@@ -1665,6 +1688,23 @@ export default function AccountabilityTracker() {
   }), [getRangeHabits, allParticipants]);
 
   const currentWeekHabits = useMemo(() => habits.filter(h => h.weekStart === currentWeek), [habits, currentWeek]);
+  
+  // Ensure selectedParticipant syncs to a valid value when data changes
+  useEffect(() => {
+    if (selectedParticipant !== 'All' && currentWeekHabits.length > 0) {
+      const hasParticipant = currentWeekHabits.some(h => h.participant === selectedParticipant);
+      if (!hasParticipant) {
+        // Try to fall back to myParticipant
+        const hasMyParticipant = currentWeekHabits.some(h => h.participant === myParticipant);
+        if (hasMyParticipant) {
+          setSelectedParticipant(myParticipant);
+        } else {
+          setSelectedParticipant('All');
+        }
+      }
+    }
+  }, [currentWeekHabits, selectedParticipant, myParticipant]);
+  
   const filteredHabits = selectedParticipant === 'All' ? currentWeekHabits : currentWeekHabits.filter(h => h.participant === selectedParticipant);
 
   // Firestore operations
@@ -2527,31 +2567,43 @@ export default function AccountabilityTracker() {
                 </div>
               </div>
               
-              {/* Stats row */}
+              {/* Stats row - clickable */}
               <div className="grid grid-cols-4 gap-2">
-                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                <button 
+                  onClick={() => setShowHabitBreakdown('completed')}
+                  className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-purple-300 hover:shadow-sm transition-all"
+                >
                   <div className="flex items-center justify-between">
                     <Target className="w-4 h-4 text-purple-500" />
                     <span className="text-xs text-green-600">+{overallStats.trend}%</span>
                   </div>
                   <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.rate}%</p>
                   <p className="text-xs text-gray-500">Completion</p>
-                </div>
-                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                </button>
+                <button 
+                  onClick={() => setShowHabitBreakdown('total')}
+                  className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-blue-300 hover:shadow-sm transition-all"
+                >
                   <CheckCircle2 className="w-4 h-4 text-blue-500" />
                   <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.total}</p>
                   <p className="text-xs text-gray-500">Total</p>
-                </div>
-                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                </button>
+                <button 
+                  onClick={() => setShowHabitBreakdown('exceeded')}
+                  className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-green-300 hover:shadow-sm transition-all"
+                >
                   <Award className="w-4 h-4 text-green-500" />
                   <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.exceeded}</p>
                   <p className="text-xs text-gray-500">Exceeded</p>
-                </div>
-                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                </button>
+                <button 
+                  onClick={() => setShowHabitBreakdown('missed')}
+                  className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-red-300 hover:shadow-sm transition-all"
+                >
                   <XCircle className="w-4 h-4 text-red-500" />
                   <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.missed}</p>
                   <p className="text-xs text-gray-500">Missed</p>
-                </div>
+                </button>
               </div>
               
               {/* Chart and breakdown side by side */}
@@ -3727,13 +3779,12 @@ export default function AccountabilityTracker() {
               );
             })()}
 
-            {/* Monthly Grid - Each row is one habit entry (not grouped) */}
+            {/* Monthly Grid - Grouped by habit name */}
             <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="text-left p-2 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[140px] z-10">Habit</th>
-                    <th className="text-left p-2 font-semibold text-gray-500 w-16">Week</th>
+                    <th className="text-left p-2 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[160px] z-10">Habit</th>
                     {(() => {
                       const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
                       return Array.from({ length: daysInMonth }, (_, i) => {
@@ -3749,8 +3800,8 @@ export default function AccountabilityTracker() {
                         );
                       });
                     })()}
-                    <th className="p-1 text-center bg-blue-50 w-10">G</th>
-                    <th className="p-1 text-center bg-green-50 w-10">A</th>
+                    <th className="p-1 text-center bg-blue-50 w-12">Goal</th>
+                    <th className="p-1 text-center bg-green-50 w-12">Done</th>
                     <th className="p-1 text-center bg-purple-50 w-14">%</th>
                   </tr>
                 </thead>
@@ -3765,49 +3816,60 @@ export default function AccountabilityTracker() {
                       return weekDate.getMonth() === monthlyViewMonth.month && 
                              weekDate.getFullYear() === monthlyViewMonth.year &&
                              (!viewParticipant || h.participant === viewParticipant);
-                    }).sort((a, b) => {
-                      // Sort by participant, then by week, then by habit name
-                      if (a.participant !== b.participant) return a.participant.localeCompare(b.participant);
-                      if (a.weekStart !== b.weekStart) return a.weekStart.localeCompare(b.weekStart);
-                      return a.habit.localeCompare(b.habit);
                     });
 
-                    if (monthHabits.length === 0) {
+                    // Group by habit name (not by individual week entries)
+                    const habitGroups = {};
+                    monthHabits.forEach(h => {
+                      const key = `${h.participant}:${h.habit}`;
+                      if (!habitGroups[key]) {
+                        habitGroups[key] = { habit: h.habit, participant: h.participant, weeks: [], totalTarget: 0, totalCompleted: 0 };
+                      }
+                      habitGroups[key].weeks.push(h);
+                      habitGroups[key].totalTarget += h.target || 0;
+                      habitGroups[key].totalCompleted += h.daysCompleted?.length || 0;
+                    });
+
+                    const sortedGroups = Object.values(habitGroups).sort((a, b) => a.habit.localeCompare(b.habit));
+
+                    if (sortedGroups.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={daysInMonth + 5} className="p-8 text-center text-gray-400">
+                          <td colSpan={daysInMonth + 4} className="p-8 text-center text-gray-400">
                             No habits tracked this month
                           </td>
                         </tr>
                       );
                     }
 
-                    return monthHabits.map((h, idx) => {
-                      const weekStart = new Date(h.weekStart + 'T00:00:00');
-                      const weekEnd = new Date(weekStart);
-                      weekEnd.setDate(weekEnd.getDate() + 6);
-                      const weekLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()}`;
-                      const progressPct = h.target > 0 ? Math.round((h.daysCompleted.length / h.target) * 100) : 0;
+                    return sortedGroups.map((group, idx) => {
+                      const progressPct = group.totalTarget > 0 ? Math.round((group.totalCompleted / group.totalTarget) * 100) : 0;
                       
                       return (
-                        <tr key={h.id || idx} className="border-t border-gray-50 hover:bg-gray-50/50">
+                        <tr key={idx} className="border-t border-gray-50 hover:bg-gray-50/50">
                           <td className="p-1.5 sticky left-0 bg-white z-10">
-                            <div className="font-medium text-gray-800 truncate max-w-[130px] text-[11px]" title={h.habit}>{h.habit}</div>
+                            <div className="font-medium text-gray-800 truncate max-w-[150px] text-[11px]" title={group.habit}>{group.habit}</div>
                             {selectedParticipant === 'All' && (
-                              <div className="text-[9px] text-gray-400">{h.participant}</div>
+                              <div className="text-[9px] text-gray-400">{group.participant}</div>
                             )}
                           </td>
-                          <td className="p-1 text-[10px] text-gray-500">{weekLabel}</td>
                           {Array.from({ length: daysInMonth }, (_, dayIdx) => {
                             const dayNum = dayIdx + 1;
                             const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
                             const dayOfWeek = (dayDate.getDay() + 6) % 7; // Mon=0, Sun=6
-                            
-                            // Check if this day falls within this habit's week
-                            const isInWeek = dayDate >= weekStart && dayDate <= weekEnd;
-                            const isCompleted = isInWeek && h.daysCompleted?.includes(dayOfWeek);
                             const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
                             const isToday = dayDate.toDateString() === new Date().toDateString();
+                            
+                            // Find which week this day belongs to (if any) for this habit group
+                            const weekHabit = group.weeks.find(w => {
+                              const weekStart = new Date(w.weekStart + 'T00:00:00');
+                              const weekEnd = new Date(weekStart);
+                              weekEnd.setDate(weekEnd.getDate() + 6);
+                              return dayDate >= weekStart && dayDate <= weekEnd;
+                            });
+
+                            const isInWeek = !!weekHabit;
+                            const isCompleted = weekHabit?.daysCompleted?.includes(dayOfWeek);
 
                             return (
                               <td key={dayIdx} className={`p-0 text-center ${isWeekend && !isToday ? 'bg-gray-50/50' : ''} ${isToday ? 'bg-amber-50' : ''}`}>
@@ -3816,13 +3878,13 @@ export default function AccountabilityTracker() {
                                     {isCompleted ? '✓' : '·'}
                                   </div>
                                 ) : (
-                                  <div className="w-4 h-4 mx-auto rounded-sm bg-gray-100/50"></div>
+                                  <div className="w-4 h-4 mx-auto rounded-sm bg-gray-100/30"></div>
                                 )}
                               </td>
                             );
                           })}
-                          <td className="p-1 text-center bg-blue-50/50 font-medium text-[10px]">{h.target}</td>
-                          <td className="p-1 text-center bg-green-50/50 font-medium text-green-700 text-[10px]">{h.daysCompleted.length}</td>
+                          <td className="p-1 text-center bg-blue-50/50 font-medium text-[10px]">{group.totalTarget}</td>
+                          <td className="p-1 text-center bg-green-50/50 font-medium text-green-700 text-[10px]">{group.totalCompleted}</td>
                           <td className="p-1 bg-purple-50/50">
                             <div className="flex items-center gap-0.5">
                               <div className="flex-1 bg-gray-200 rounded-full h-1">
@@ -5243,6 +5305,88 @@ export default function AccountabilityTracker() {
                   Save Mood
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Habit Breakdown Modal */}
+        {showHabitBreakdown && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                  {showHabitBreakdown === 'exceeded' && <><Award className="w-5 h-5 text-green-500" /> Exceeded Goals</>}
+                  {showHabitBreakdown === 'missed' && <><XCircle className="w-5 h-5 text-red-500" /> Missed Goals</>}
+                  {showHabitBreakdown === 'completed' && <><CheckCircle2 className="w-5 h-5 text-blue-500" /> Completed Goals</>}
+                  {showHabitBreakdown === 'total' && <><Target className="w-5 h-5 text-purple-500" /> All Habits</>}
+                </h3>
+                <button onClick={() => setShowHabitBreakdown(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <p className="text-sm text-gray-500 mb-4">
+                {scorecardRange === 'week' ? 'This week' : scorecardRange === '4weeks' ? 'Last 4 weeks' : scorecardRange === 'quarter' ? 'This quarter' : 'All time'}
+              </p>
+              
+              <div className="overflow-y-auto flex-1 space-y-2">
+                {(() => {
+                  let habitsToShow = getRangeHabits;
+                  if (showHabitBreakdown === 'exceeded') {
+                    habitsToShow = habitsToShow.filter(h => getStatus(h) === 'Exceeded');
+                  } else if (showHabitBreakdown === 'missed') {
+                    habitsToShow = habitsToShow.filter(h => getStatus(h) === 'Missed');
+                  } else if (showHabitBreakdown === 'completed') {
+                    habitsToShow = habitsToShow.filter(h => ['Done', 'Exceeded'].includes(getStatus(h)));
+                  }
+                  
+                  // Group by habit name to show frequency
+                  const habitFrequency = {};
+                  habitsToShow.forEach(h => {
+                    if (!habitFrequency[h.habit]) {
+                      habitFrequency[h.habit] = { habit: h.habit, participant: h.participant, count: 0, totalCompleted: 0, totalTarget: 0 };
+                    }
+                    habitFrequency[h.habit].count++;
+                    habitFrequency[h.habit].totalCompleted += h.daysCompleted?.length || 0;
+                    habitFrequency[h.habit].totalTarget += h.target || 0;
+                  });
+                  
+                  const sortedHabits = Object.values(habitFrequency).sort((a, b) => b.count - a.count);
+                  
+                  if (sortedHabits.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-400">
+                        No habits in this category
+                      </div>
+                    );
+                  }
+                  
+                  return sortedHabits.map((h, idx) => {
+                    const rate = h.totalTarget > 0 ? Math.round((h.totalCompleted / h.totalTarget) * 100) : 0;
+                    return (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800 text-sm">{h.habit}</p>
+                          <p className="text-xs text-gray-500">{h.participant} · {h.count} week{h.count > 1 ? 's' : ''}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-bold text-sm ${rate >= 100 ? 'text-green-600' : rate >= 70 ? 'text-blue-600' : rate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                            {rate}%
+                          </p>
+                          <p className="text-xs text-gray-400">{h.totalCompleted}/{h.totalTarget}</p>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+              
+              <button 
+                onClick={() => setShowHabitBreakdown(null)}
+                className="w-full mt-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
