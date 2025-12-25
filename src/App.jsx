@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -619,7 +619,7 @@ export default function AccountabilityTracker() {
   const [habits, setHabits] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [activeView, setActiveView] = useState('dashboard');
-  const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
+  const [currentWeekIndex, setCurrentWeekIndex] = useState(-1); // -1 means not initialized
   const [selectedParticipant, setSelectedParticipant] = useState('All');
   const [scorecardRange, setScorecardRange] = useState('4weeks');
   const [newHabit, setNewHabit] = useState({ habit: '', participant: 'Taylor', target: 5 });
@@ -703,6 +703,9 @@ export default function AccountabilityTracker() {
   // Participant AI summaries
   const [participantSummaries, setParticipantSummaries] = useState({});
   const [summaryLoading, setSummaryLoading] = useState(false);
+  
+  // Daily view state
+  const [selectedDay, setSelectedDay] = useState(null); // 0-6 for Mon-Sun
   
   // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
@@ -1566,23 +1569,24 @@ export default function AccountabilityTracker() {
     return weeks;
   }, [habits]);
   
-  // Track if we've done initial week setup
-  const weekInitialized = useRef(false);
+  // Calculate current Monday
+  const getCurrentMonday = () => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const mondayDate = new Date(today.getFullYear(), today.getMonth(), diff);
+    return mondayDate.toISOString().split('T')[0];
+  };
   
-  // Initialize week to current week when ALL_WEEKS is ready
+  // Initialize week to current week AFTER data loads AND ALL_WEEKS is ready
   useEffect(() => {
-    if (ALL_WEEKS.length > 0 && !weekInitialized.current) {
-      // Find today's week and set index to it
-      const today = new Date();
-      const day = today.getDay();
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-      const mondayDate = new Date(today.getFullYear(), today.getMonth(), diff);
-      const thisMonday = mondayDate.toISOString().split('T')[0];
-      
+    // Only initialize once (when currentWeekIndex is -1), after data is loaded
+    if (!dataLoading && ALL_WEEKS.length > 0 && currentWeekIndex === -1) {
+      const thisMonday = getCurrentMonday();
       const todayIndex = ALL_WEEKS.indexOf(thisMonday);
+      
       if (todayIndex !== -1) {
         setCurrentWeekIndex(todayIndex);
-        weekInitialized.current = true;
       } else {
         // Find the closest week that's not in the future
         const now = new Date();
@@ -1590,15 +1594,16 @@ export default function AccountabilityTracker() {
           const weekDate = new Date(ALL_WEEKS[i] + 'T00:00:00');
           if (weekDate <= now) {
             setCurrentWeekIndex(i);
-            weekInitialized.current = true;
             break;
           }
         }
       }
     }
-  }, [ALL_WEEKS]);
+  }, [dataLoading, ALL_WEEKS, currentWeekIndex]);
 
-  const currentWeek = ALL_WEEKS[currentWeekIndex] || ALL_WEEKS[ALL_WEEKS.length - 1] || '';
+  // Use index 0 as fallback if still initializing
+  const safeWeekIndex = currentWeekIndex >= 0 ? currentWeekIndex : 0;
+  const currentWeek = ALL_WEEKS[safeWeekIndex] || ALL_WEEKS[ALL_WEEKS.length - 1] || '';
 
   // Check if a week is in the past (Sunday of that week has passed)
   const isWeekPast = useMemo(() => {
@@ -1721,6 +1726,51 @@ export default function AccountabilityTracker() {
   }), [getRangeHabits, allParticipants]);
 
   const currentWeekHabits = useMemo(() => habits.filter(h => h.weekStart === currentWeek), [habits, currentWeek]);
+
+  // Daily stats for current week (Week at a Glance)
+  const dailyStats = useMemo(() => {
+    const habitsToUse = dashboardView === 'personal' 
+      ? currentWeekHabits.filter(h => h.participant === myParticipant)
+      : currentWeekHabits;
+    
+    const weekStart = currentWeek ? new Date(currentWeek + 'T00:00:00') : new Date();
+    
+    return DAYS.map((dayName, dayIndex) => {
+      const dayDate = new Date(weekStart);
+      dayDate.setDate(dayDate.getDate() + dayIndex);
+      
+      const isToday = dayDate.toDateString() === new Date().toDateString();
+      const isPast = dayDate < new Date() && !isToday;
+      const isFuture = dayDate > new Date();
+      
+      // Count habits completed on this day
+      let completed = 0;
+      let total = 0;
+      
+      habitsToUse.forEach(h => {
+        total++;
+        if (h.daysCompleted?.includes(dayIndex)) {
+          completed++;
+        }
+      });
+      
+      const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+      
+      return {
+        dayIndex,
+        dayName,
+        shortName: dayName.slice(0, 3),
+        date: dayDate,
+        dateStr: dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        completed,
+        total,
+        rate,
+        isToday,
+        isPast,
+        isFuture
+      };
+    });
+  }, [currentWeekHabits, currentWeek, dashboardView, myParticipant]);
   
   // Ensure selectedParticipant syncs to a valid value when data changes
   useEffect(() => {
@@ -2489,8 +2539,8 @@ export default function AccountabilityTracker() {
   // Get current week's quote
   const currentQuote = quotes.length > 0 ? quotes[0] : null;
 
-  const prevWeek = () => currentWeekIndex > 0 && setCurrentWeekIndex(currentWeekIndex - 1);
-  const nextWeek = () => currentWeekIndex < ALL_WEEKS.length - 1 && setCurrentWeekIndex(currentWeekIndex + 1);
+  const prevWeek = () => safeWeekIndex > 0 && setCurrentWeekIndex(safeWeekIndex - 1);
+  const nextWeek = () => safeWeekIndex < ALL_WEEKS.length - 1 && setCurrentWeekIndex(safeWeekIndex + 1);
 
   const handleCalendarDayClick = (date) => {
     if (!date) return;
@@ -2702,6 +2752,125 @@ export default function AccountabilityTracker() {
                 )}
               </div>
               
+              {/* Week at a Glance - Daily Progress Rings */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-800 text-sm">Week at a Glance</h3>
+                  <span className="text-xs text-gray-500">{currentWeek ? formatWeekString(currentWeek) : ''}</span>
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {dailyStats.map((day) => {
+                    const ringColor = day.rate >= 80 ? '#10b981' : day.rate >= 50 ? '#f59e0b' : day.rate > 0 ? '#ef4444' : '#d1d5db';
+                    const circumference = 2 * Math.PI * 28;
+                    const strokeDashoffset = circumference - (day.rate / 100) * circumference;
+                    
+                    return (
+                      <button
+                        key={day.dayIndex}
+                        onClick={() => setSelectedDay(selectedDay === day.dayIndex ? null : day.dayIndex)}
+                        className={`flex flex-col items-center p-2 rounded-xl transition-all ${
+                          day.isToday 
+                            ? 'bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f] text-white shadow-lg scale-105' 
+                            : selectedDay === day.dayIndex 
+                              ? 'bg-blue-50 border-2 border-blue-300' 
+                              : 'hover:bg-gray-50 border border-transparent hover:border-gray-200'
+                        }`}
+                      >
+                        <span className={`text-[10px] font-medium ${day.isToday ? 'text-blue-200' : 'text-gray-400'}`}>
+                          {day.shortName}
+                        </span>
+                        <span className={`text-xs font-bold mb-1 ${day.isToday ? 'text-white' : 'text-gray-700'}`}>
+                          {day.date.getDate()}
+                        </span>
+                        
+                        {/* Circular Progress Ring */}
+                        <div className="relative w-14 h-14">
+                          <svg className="w-14 h-14 transform -rotate-90">
+                            <circle
+                              cx="28"
+                              cy="28"
+                              r="24"
+                              stroke={day.isToday ? 'rgba(255,255,255,0.2)' : '#e5e7eb'}
+                              strokeWidth="4"
+                              fill="none"
+                            />
+                            <circle
+                              cx="28"
+                              cy="28"
+                              r="24"
+                              stroke={day.isToday ? '#F5B800' : ringColor}
+                              strokeWidth="4"
+                              fill="none"
+                              strokeLinecap="round"
+                              strokeDasharray={circumference}
+                              strokeDashoffset={strokeDashoffset}
+                              className="transition-all duration-500"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className={`text-sm font-bold ${day.isToday ? 'text-white' : 'text-gray-800'}`}>
+                              {day.total > 0 ? `${day.rate}%` : '-'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <span className={`text-[10px] mt-1 ${day.isToday ? 'text-blue-200' : 'text-gray-400'}`}>
+                          {day.completed}/{day.total}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                {/* Expanded Day View */}
+                {selectedDay !== null && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-gray-800 text-sm">
+                        {dailyStats[selectedDay]?.dayName} - {dailyStats[selectedDay]?.dateStr}
+                      </h4>
+                      <button 
+                        onClick={() => setSelectedDay(null)}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {(() => {
+                        const habitsToShow = dashboardView === 'personal'
+                          ? currentWeekHabits.filter(h => h.participant === myParticipant)
+                          : currentWeekHabits;
+                        
+                        if (habitsToShow.length === 0) {
+                          return <p className="text-sm text-gray-400 text-center py-4">No habits tracked</p>;
+                        }
+                        
+                        return habitsToShow.map(h => {
+                          const isCompleted = h.daysCompleted?.includes(selectedDay);
+                          return (
+                            <div 
+                              key={h.id} 
+                              className={`flex items-center gap-3 p-2 rounded-lg ${isCompleted ? 'bg-green-50' : 'bg-gray-50'}`}
+                            >
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                {isCompleted ? <Check className="w-3 h-3" /> : <span className="text-xs">○</span>}
+                              </div>
+                              <div className="flex-1">
+                                <p className={`text-sm ${isCompleted ? 'text-green-700' : 'text-gray-600'}`}>{h.habit}</p>
+                                {dashboardView === 'team' && (
+                                  <p className="text-[10px] text-gray-400">{h.participant}</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               {/* Chart and breakdown side by side */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2 bg-white rounded-xl p-4 border border-gray-100">
@@ -2819,6 +2988,51 @@ export default function AccountabilityTracker() {
                 <button onClick={() => setActiveView('compete')} className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors">
                   View Challenges →
                 </button>
+              </div>
+              
+              {/* Today's Tasks */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                    <h3 className="font-semibold text-gray-800 text-sm">Today's Tasks</h3>
+                  </div>
+                  <button 
+                    onClick={() => setActiveView('tasks')}
+                    className="text-[10px] text-blue-600 hover:text-blue-800"
+                  >
+                    View all →
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {(() => {
+                    const myTasks = tasks.filter(t => t.participant === myParticipant && t.status !== 'Completed');
+                    const topTasks = myTasks.slice(0, 5);
+                    
+                    if (topTasks.length === 0) {
+                      return <p className="text-xs text-gray-400 text-center py-2">No pending tasks 🎉</p>;
+                    }
+                    
+                    return topTasks.map(task => (
+                      <div key={task.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        <button 
+                          onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                          className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                            task.status === 'Completed' 
+                              ? 'bg-green-500 border-green-500 text-white' 
+                              : 'border-gray-300 hover:border-green-400'
+                          }`}
+                        >
+                          {task.status === 'Completed' && <Check className="w-3 h-3" />}
+                        </button>
+                        <span className={`text-xs flex-1 truncate ${task.status === 'Completed' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                          {task.task}
+                        </span>
+                        {task.priority === 'high' && <span className="text-red-500 text-[10px]">!</span>}
+                      </div>
+                    ));
+                  })()}
+                </div>
               </div>
               
               {/* Streaks - compact */}
@@ -3764,18 +3978,33 @@ export default function AccountabilityTracker() {
                               <td className="p-1 text-center">
                                 <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
                               </td>
-                              {/* Day toggles */}
-                              {DAYS.map((d, i) => (
-                                <td key={d} className="p-0.5 text-center">
-                                  <button 
-                                    onClick={() => canEdit && toggleDay(h.id, i)} 
-                                    disabled={!canEdit}
-                                    className={`w-6 h-6 rounded text-[10px] font-medium transition-all ${h.daysCompleted.includes(i) ? 'bg-[#1E3A5F] text-white' : canEdit ? 'bg-gray-100 text-gray-400 hover:bg-gray-200' : 'bg-gray-100 text-gray-300'}`}
-                                  >
-                                    {h.daysCompleted.includes(i) ? '✓' : d[0]}
-                                  </button>
-                                </td>
-                              ))}
+                              {/* Day toggles - styled as checkboxes */}
+                              {DAYS.map((d, i) => {
+                                const isCompleted = h.daysCompleted.includes(i);
+                                const dayDate = new Date(currentWeek + 'T00:00:00');
+                                dayDate.setDate(dayDate.getDate() + i);
+                                const isToday = dayDate.toDateString() === new Date().toDateString();
+                                
+                                return (
+                                  <td key={d} className="p-0.5 text-center">
+                                    <button 
+                                      onClick={() => canEdit && toggleDay(h.id, i)} 
+                                      disabled={!canEdit}
+                                      className={`w-6 h-6 rounded border-2 transition-all flex items-center justify-center ${
+                                        isCompleted 
+                                          ? 'bg-green-500 border-green-500 text-white' 
+                                          : isToday
+                                            ? 'border-[#F5B800] bg-amber-50'
+                                            : canEdit 
+                                              ? 'border-gray-300 hover:border-green-400 bg-white' 
+                                              : 'border-gray-200 bg-gray-50'
+                                      }`}
+                                    >
+                                      {isCompleted && <Check className="w-4 h-4" />}
+                                    </button>
+                                  </td>
+                                );
+                              })}
                               {/* Progress */}
                               <td className="p-1">
                                 <div className="flex items-center gap-1">
