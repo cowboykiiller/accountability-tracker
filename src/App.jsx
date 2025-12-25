@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar } from 'recharts';
 
 // Firebase imports
@@ -414,7 +414,7 @@ const PRIORITY_CONFIG = {
 // Emoji reactions
 const REACTIONS = ['👍', '🔥', '💪', '🎉', '❤️', '👏'];
 
-const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) => {
+const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, darkMode, setDarkMode }) => {
   const desktopLabels = { 
     'dashboard': 'Dashboard', 
     'feed': 'Community Feed',
@@ -443,42 +443,89 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) =>
     { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
   ];
   
-  // Use profile photo if available, otherwise fall back to Google photo
   const displayPhoto = userProfile?.photoURL || user?.photoURL;
   const displayName = userProfile?.displayName || user?.displayName || 'User';
   
   return (
-  <div className="hidden md:flex w-56 bg-white border-r border-gray-100 min-h-screen p-4 flex-col">
+  <div className={`hidden md:flex w-56 min-h-screen p-4 flex-col backdrop-blur-xl border-r transition-colors duration-300 ${
+    darkMode 
+      ? 'bg-gray-900/80 border-white/10' 
+      : 'bg-white/80 border-gray-200/50'
+  }`}>
     <div className="flex items-center gap-2 mb-6">
       <img src={LOGO_BASE64} alt="Logo" className="w-9 h-9" />
-      <span className="text-lg font-bold text-[#1E3A5F]">Accountability</span>
+      <span className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`}>Accountability</span>
     </div>
+    
+    {/* Theme Toggle */}
+    <div className={`mb-4 p-1 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-100/80'}`}>
+      <div className="flex">
+        <button 
+          onClick={() => setDarkMode(false)}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
+            !darkMode ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          <Sun className="w-3.5 h-3.5" /> Light
+        </button>
+        <button 
+          onClick={() => setDarkMode(true)}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
+            darkMode ? 'bg-white/10 shadow-sm text-white' : 'text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          <Moon className="w-3.5 h-3.5" /> Dark
+        </button>
+      </div>
+    </div>
+    
     <nav className="flex-1 space-y-1">
       {allNavItems.map(item => (
-        <button key={item.id} onClick={() => setActiveView(item.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${activeView === item.id ? 'bg-[#F5F3E8] text-[#0F2940] font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
+        <button 
+          key={item.id} 
+          onClick={() => setActiveView(item.id)} 
+          className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all ${
+            activeView === item.id 
+              ? darkMode 
+                ? 'bg-white/10 text-white font-medium backdrop-blur-sm' 
+                : 'bg-[#1E3A5F]/10 text-[#1E3A5F] font-medium'
+              : darkMode 
+                ? 'text-gray-400 hover:bg-white/5 hover:text-gray-200' 
+                : 'text-gray-500 hover:bg-gray-100/50'
+          }`}
+        >
           <item.icon className="w-4 h-4" />{desktopLabels[item.id] || item.label}
         </button>
       ))}
     </nav>
     {user && (
-      <div className="pt-4 border-t border-gray-100">
+      <div className={`pt-4 border-t ${darkMode ? 'border-white/10' : 'border-gray-200/50'}`}>
         <button 
           onClick={() => setActiveView('profile')}
-          className={`w-full flex items-center gap-2 px-2 mb-2 p-2 rounded-lg transition-colors ${activeView === 'profile' ? 'bg-[#F5F3E8]' : 'hover:bg-gray-50'}`}
+          className={`w-full flex items-center gap-2 px-2 mb-2 p-2 rounded-xl transition-all ${
+            activeView === 'profile' 
+              ? darkMode ? 'bg-white/10' : 'bg-[#1E3A5F]/10'
+              : darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-100/50'
+          }`}
         >
           {displayPhoto ? (
-            <img src={displayPhoto} alt="" className="w-8 h-8 rounded-full object-cover" />
+            <img src={displayPhoto} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20" />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-[#EBE6D3] flex items-center justify-center">
-              <User className="w-4 h-4 text-[#162D4D]" />
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-white/10' : 'bg-[#EBE6D3]'}`}>
+              <User className={`w-4 h-4 ${darkMode ? 'text-white' : 'text-[#162D4D]'}`} />
             </div>
           )}
           <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-medium text-gray-800 truncate">{displayName}</p>
-            <p className="text-xs text-gray-400 truncate">{user.email}</p>
+            <p className={`text-sm font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{displayName}</p>
+            <p className={`text-xs truncate ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{user.email}</p>
           </div>
         </button>
-        <button onClick={onSignOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50">
+        <button 
+          onClick={onSignOut} 
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all ${
+            darkMode ? 'text-gray-400 hover:bg-white/5 hover:text-gray-200' : 'text-gray-500 hover:bg-gray-100/50'
+          }`}
+        >
           <LogOut className="w-4 h-4" />Sign Out
         </button>
       </div>
@@ -486,14 +533,22 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) =>
   </div>
 );};
 
-const MobileNav = ({ activeView, setActiveView }) => (
-  <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-1 pt-2 pb-6 z-50 shadow-lg" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+const MobileNav = ({ activeView, setActiveView, darkMode }) => (
+  <div className={`md:hidden fixed bottom-0 left-0 right-0 backdrop-blur-xl px-1 pt-2 pb-6 z-50 border-t transition-colors duration-300 ${
+    darkMode 
+      ? 'bg-gray-900/80 border-white/10' 
+      : 'bg-white/80 border-gray-200/50'
+  }`} style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
     <div className="flex justify-around items-center">
       {NAV_ITEMS.map(item => (
         <button
           key={item.id}
           onClick={() => setActiveView(item.id)}
-          className={`flex flex-col items-center py-1 px-1 rounded-lg ${activeView === item.id ? 'text-[#162D4D]' : 'text-gray-400'}`}
+          className={`flex flex-col items-center py-1 px-1 rounded-xl transition-all ${
+            activeView === item.id 
+              ? darkMode ? 'text-white' : 'text-[#1E3A5F]'
+              : darkMode ? 'text-gray-500' : 'text-gray-400'
+          }`}
         >
           <item.icon className="w-5 h-5" />
           <span className="text-[10px] mt-0.5">{item.label}</span>
@@ -632,6 +687,20 @@ export default function AccountabilityTracker() {
   const [addMode, setAddMode] = useState('single');
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  
+  // Theme state - iOS Glass Theme
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('darkMode');
+      return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+  
+  // Save dark mode preference
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
   
   // AI Coach state
   const [aiLoading, setAiLoading] = useState(false);
@@ -2598,61 +2667,103 @@ export default function AccountabilityTracker() {
     );
   }
 
+  // Glass card class helper
+  const glassCard = darkMode 
+    ? 'bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg' 
+    : 'bg-white/70 backdrop-blur-xl border border-white/50 shadow-lg';
+  
+  const glassBg = darkMode
+    ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
+    : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100';
+
   return (
-    <div className="flex min-h-screen bg-gray-50/50">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} />
+    <div className={`flex min-h-screen transition-colors duration-300 ${glassBg}`}>
+      <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} />
       <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <img src={LOGO_BASE64} alt="Logo" className="w-8 h-8" />
-            <span className="font-bold text-[#1E3A5F]">Accountability</span>
+            <span className={`font-bold ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`}>Accountability</span>
           </div>
-          <button onClick={() => setActiveView('profile')}>
-            {(userProfile?.photoURL || user?.photoURL) ? (
-              <img src={userProfile?.photoURL || user?.photoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center text-sm font-medium">
-                {user?.displayName?.[0] || '?'}
-              </div>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Mobile theme toggle */}
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-white/10 text-yellow-400' : 'bg-gray-100 text-gray-600'}`}
+            >
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <button onClick={() => setActiveView('profile')}>
+              {(userProfile?.photoURL || user?.photoURL) ? (
+                <img src={userProfile?.photoURL || user?.photoURL} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20" />
+              ) : (
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${darkMode ? 'bg-white/10 text-white' : 'bg-[#1E3A5F] text-white'}`}>
+                  {user?.displayName?.[0] || '?'}
+                </div>
+              )}
+            </button>
+          </div>
         </div>
         
         <div className="flex items-center justify-between mb-5">
           <div>
-            <p className="text-gray-400 text-xs md:text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-            <h1 className="text-lg md:text-xl font-bold text-gray-800">Hello, {userProfile?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Team'} 👋</h1>
+            <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <h1 className={`text-lg md:text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Hello, {userProfile?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Team'} 👋</h1>
           </div>
           <div className="flex items-center gap-1 md:gap-2">
             <div className="relative" ref={calendarRef}>
-              <button onClick={() => setShowCalendar(!showCalendar)} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 hover:border-[#F5B800] text-sm transition-colors">
-                <CalendarDays className="w-4 h-4 text-[#1E3A5F]" />
-                <span className="font-medium text-gray-700">{currentWeek ? formatWeekString(currentWeek) : 'Select week'}</span>
-                <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${showCalendar ? 'rotate-180' : ''}`} />
+              <button onClick={() => setShowCalendar(!showCalendar)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all backdrop-blur-sm ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10 hover:bg-white/10 text-white' 
+                  : 'bg-white/70 border border-white/50 hover:border-[#F5B800] text-gray-700'
+              }`}>
+                <CalendarDays className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-[#1E3A5F]'}`} />
+                <span className="font-medium">{currentWeek ? formatWeekString(currentWeek) : 'Select week'}</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showCalendar ? 'rotate-180' : ''} ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
               </button>
               {showCalendar && (
-                <div className="absolute top-full right-0 mt-2 bg-white rounded-xl p-4 shadow-xl border border-gray-200 z-50" style={{ minWidth: '300px' }}>
+                <div className={`absolute top-full right-0 mt-2 rounded-2xl p-4 shadow-2xl z-50 backdrop-blur-xl ${
+                  darkMode 
+                    ? 'bg-gray-800/90 border border-white/10' 
+                    : 'bg-white/90 border border-gray-200'
+                }`} style={{ minWidth: '300px' }}>
                   <div className="flex items-center justify-between mb-3">
-                    <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
-                    <span className="text-gray-800 font-semibold">{new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                    <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><ChevronRight className="w-4 h-4 text-gray-600" /></button>
+                    <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+                    <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                    <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
                   </div>
-                  <div className="grid grid-cols-7 gap-1 text-center mb-2">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} className="text-gray-400 text-xs font-medium py-1">{d}</div>)}</div>
+                  <div className="grid grid-cols-7 gap-1 text-center mb-2">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} className={`text-xs font-medium py-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{d}</div>)}</div>
                   <div className="grid grid-cols-7 gap-1">{calendarDays.map((date, i) => {
                     if (!date) return <div key={i} className="w-9 h-9" />;
                     const weekStr = getWeekStartFromDate(date);
                     const hasData = ALL_WEEKS.includes(weekStr);
                     const isCurrentWeek = weekStr === currentWeek;
                     const isMonday = date.getDay() === 1;
-                    return <button key={i} onClick={() => handleCalendarDayClick(date)} disabled={!hasData} className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${isCurrentWeek ? 'bg-[#1E3A5F] text-white shadow-sm' : hasData ? isMonday ? 'bg-[#EBE6D3] text-[#0F2940] hover:bg-[#F5B800]' : 'text-gray-700 hover:bg-gray-100' : 'text-gray-300 cursor-not-allowed'}`}>{date.getDate()}</button>;
+                    return <button key={i} onClick={() => handleCalendarDayClick(date)} disabled={!hasData} className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
+                      isCurrentWeek 
+                        ? 'bg-[#1E3A5F] text-white shadow-sm' 
+                        : hasData 
+                          ? isMonday 
+                            ? darkMode ? 'bg-white/10 text-white hover:bg-[#F5B800] hover:text-gray-900' : 'bg-[#EBE6D3] text-[#0F2940] hover:bg-[#F5B800]' 
+                            : darkMode ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
+                          : darkMode ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
+                    }`}>{date.getDate()}</button>;
                   })}</div>
-                  <div className="mt-3 pt-3 border-t border-gray-100"><p className="text-xs text-gray-400 text-center">Click any date to jump to that week</p></div>
+                  <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-white/10' : 'border-gray-100'}`}><p className={`text-xs text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Click any date to jump to that week</p></div>
                 </div>
               )}
             </div>
-            <button onClick={prevWeek} disabled={safeWeekIndex === 0} className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800] disabled:opacity-50 transition-colors"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
-            <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800] disabled:opacity-50 transition-colors"><ChevronRight className="w-4 h-4 text-gray-600" /></button>
+            <button onClick={prevWeek} disabled={safeWeekIndex === 0} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
+              darkMode 
+                ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
+            }`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+            <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
+              darkMode 
+                ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
+            }`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
           </div>
         </div>
 
@@ -2662,27 +2773,33 @@ export default function AccountabilityTracker() {
             <div className="lg:col-span-3 space-y-4">
               {/* Quote of the Week - compact */}
               {currentQuote && (
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 overflow-hidden">
+                <div className={`rounded-2xl overflow-hidden backdrop-blur-xl transition-colors duration-300 ${
+                  darkMode 
+                    ? 'bg-amber-500/10 border border-amber-500/20' 
+                    : 'bg-gradient-to-r from-amber-50/80 to-orange-50/80 border border-amber-200/50'
+                }`}>
                   <button 
                     onClick={() => setQuotesExpanded(!quotesExpanded)}
-                    className="w-full p-3 flex items-center justify-between text-left hover:bg-amber-100/30 transition-colors"
+                    className={`w-full p-3 flex items-center justify-between text-left transition-colors ${
+                      darkMode ? 'hover:bg-white/5' : 'hover:bg-amber-100/30'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                        <Quote className="w-4 h-4 text-amber-600" />
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${darkMode ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
+                        <Quote className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
                       </div>
                       <div>
-                        <span className="text-[10px] font-medium text-amber-700">Weekly Theme</span>
-                        <h3 className="text-sm font-bold text-amber-800">{currentQuote.theme || 'Weekly Wisdom'}</h3>
+                        <span className={`text-[10px] font-medium ${darkMode ? 'text-amber-400/70' : 'text-amber-700'}`}>Weekly Theme</span>
+                        <h3 className={`text-sm font-bold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>{currentQuote.theme || 'Weekly Wisdom'}</h3>
                       </div>
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-amber-600 transition-transform ${quotesExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 transition-transform ${quotesExpanded ? 'rotate-180' : ''} ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
                   </button>
                   
                   {quotesExpanded && (
-                    <div className="px-3 pb-3 border-t border-amber-200/50">
-                      <blockquote className="text-sm font-medium text-gray-800 italic mt-2">"{currentQuote.quote}"</blockquote>
-                      <p className="text-xs text-gray-600 mt-1">— {currentQuote.author}{currentQuote.authorTitle ? `, ${currentQuote.authorTitle}` : ''}</p>
+                    <div className={`px-3 pb-3 border-t ${darkMode ? 'border-amber-500/20' : 'border-amber-200/50'}`}>
+                      <blockquote className={`text-sm font-medium italic mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>"{currentQuote.quote}"</blockquote>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>— {currentQuote.author}{currentQuote.authorTitle ? `, ${currentQuote.authorTitle}` : ''}</p>
                     </div>
                   )}
                 </div>
@@ -2695,87 +2812,125 @@ export default function AccountabilityTracker() {
                     <button 
                       key={k} 
                       onClick={() => setScorecardRange(k)} 
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}
+                      className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all backdrop-blur-sm ${
+                        scorecardRange === k 
+                          ? 'bg-[#1E3A5F] text-white shadow-lg' 
+                          : darkMode 
+                            ? 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10' 
+                            : 'bg-white/70 text-gray-600 border border-white/50 hover:border-[#F5B800]'
+                      }`}
                     >
                       {v}
                     </button>
                   ))}
                 </div>
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                <div className={`flex gap-1 rounded-xl p-1 backdrop-blur-sm ${darkMode ? 'bg-white/5' : 'bg-gray-100/80'}`}>
                   <button 
                     onClick={() => setDashboardView('personal')} 
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${dashboardView === 'personal' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                      dashboardView === 'personal' 
+                        ? darkMode ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
+                        : darkMode ? 'text-gray-500' : 'text-gray-600'
+                    }`}
                   >
                     My Stats
                   </button>
                   <button 
                     onClick={() => setDashboardView('team')} 
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${dashboardView === 'team' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                      dashboardView === 'team' 
+                        ? darkMode ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
+                        : darkMode ? 'text-gray-500' : 'text-gray-600'
+                    }`}
                   >
                     Team
                   </button>
                 </div>
               </div>
               
-              {/* Stats row - clickable */}
+              {/* Stats row - clickable - Glass cards */}
               <div className="grid grid-cols-5 gap-2">
                 <button 
                   onClick={() => setShowHabitBreakdown('completed')}
-                  className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-purple-300 hover:shadow-sm transition-all"
+                  className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
+                    darkMode 
+                      ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                      : 'bg-white/70 border border-white/50 hover:border-purple-300 hover:shadow-lg'
+                  }`}
                 >
                   <div className="flex items-center justify-between">
                     <Target className="w-4 h-4 text-purple-500" />
                     {dashboardView === 'personal' && teamComparison.vsTeam !== 0 && (
-                      <span className={`text-[10px] font-medium ${teamComparison.vsTeam > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className={`text-[10px] font-medium ${teamComparison.vsTeam > 0 ? 'text-green-500' : 'text-red-500'}`}>
                         {teamComparison.vsTeam > 0 ? '+' : ''}{teamComparison.vsTeam}% vs team
                       </span>
                     )}
                   </div>
-                  <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.rate}%</p>
-                  <p className="text-xs text-gray-500">Completion</p>
+                  <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.rate}%</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Completion</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('total')}
-                  className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-blue-300 hover:shadow-sm transition-all"
+                  className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
+                    darkMode 
+                      ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                      : 'bg-white/70 border border-white/50 hover:border-blue-300 hover:shadow-lg'
+                  }`}
                 >
                   <CheckCircle2 className="w-4 h-4 text-blue-500" />
-                  <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.total}</p>
-                  <p className="text-xs text-gray-500">Total</p>
+                  <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.total}</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Total</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('exceeded')}
-                  className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-green-300 hover:shadow-sm transition-all"
+                  className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
+                    darkMode 
+                      ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                      : 'bg-white/70 border border-white/50 hover:border-green-300 hover:shadow-lg'
+                  }`}
                 >
                   <Award className="w-4 h-4 text-green-500" />
-                  <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.exceeded}</p>
-                  <p className="text-xs text-gray-500">Exceeded</p>
+                  <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.exceeded}</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Exceeded</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('missed')}
-                  className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-red-300 hover:shadow-sm transition-all"
+                  className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
+                    darkMode 
+                      ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                      : 'bg-white/70 border border-white/50 hover:border-red-300 hover:shadow-lg'
+                  }`}
                 >
                   <XCircle className="w-4 h-4 text-red-500" />
-                  <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.missed}</p>
-                  <p className="text-xs text-gray-500">Missed</p>
+                  <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.missed}</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Missed</p>
                 </button>
                 {dashboardView === 'personal' && (
-                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-3 border border-indigo-200">
-                    <Trophy className="w-4 h-4 text-indigo-500" />
-                    <p className="text-xl font-bold text-indigo-700 mt-1">#{teamComparison.rank}</p>
-                    <p className="text-xs text-indigo-600">of {teamComparison.total}</p>
+                  <div className={`rounded-2xl p-3 backdrop-blur-xl ${
+                    darkMode 
+                      ? 'bg-indigo-500/10 border border-indigo-500/20' 
+                      : 'bg-gradient-to-br from-indigo-50/80 to-purple-50/80 border border-indigo-200/50'
+                  }`}>
+                    <Trophy className={`w-4 h-4 ${darkMode ? 'text-indigo-400' : 'text-indigo-500'}`} />
+                    <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>#{teamComparison.rank}</p>
+                    <p className={`text-xs ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>of {teamComparison.total}</p>
                   </div>
                 )}
               </div>
               
-              {/* Week at a Glance - Daily Progress Rings */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              {/* Week at a Glance - Daily Progress Rings - Glass */}
+              <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10' 
+                  : 'bg-white/70 border border-white/50'
+              }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-800 text-sm">Week at a Glance</h3>
-                  <span className="text-xs text-gray-500">{currentWeek ? formatWeekString(currentWeek) : ''}</span>
+                  <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Week at a Glance</h3>
+                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{currentWeek ? formatWeekString(currentWeek) : ''}</span>
                 </div>
                 <div className="grid grid-cols-7 gap-2">
                   {dailyStats.map((day) => {
-                    const ringColor = day.rate >= 80 ? '#10b981' : day.rate >= 50 ? '#f59e0b' : day.rate > 0 ? '#ef4444' : '#d1d5db';
+                    const ringColor = day.rate >= 80 ? '#10b981' : day.rate >= 50 ? '#f59e0b' : day.rate > 0 ? '#ef4444' : darkMode ? '#374151' : '#d1d5db';
                     const circumference = 2 * Math.PI * 28;
                     const strokeDashoffset = circumference - (day.rate / 100) * circumference;
                     
@@ -2787,14 +2942,14 @@ export default function AccountabilityTracker() {
                           day.isToday 
                             ? 'bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f] text-white shadow-lg scale-105' 
                             : selectedDay === day.dayIndex 
-                              ? 'bg-blue-50 border-2 border-blue-300' 
-                              : 'hover:bg-gray-50 border border-transparent hover:border-gray-200'
+                              ? darkMode ? 'bg-blue-500/20 border-2 border-blue-400/50' : 'bg-blue-50 border-2 border-blue-300' 
+                              : darkMode ? 'hover:bg-white/5 border border-transparent hover:border-white/10' : 'hover:bg-gray-50 border border-transparent hover:border-gray-200'
                         }`}
                       >
-                        <span className={`text-[10px] font-medium ${day.isToday ? 'text-blue-200' : 'text-gray-400'}`}>
+                        <span className={`text-[10px] font-medium ${day.isToday ? 'text-blue-200' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                           {day.shortName}
                         </span>
-                        <span className={`text-xs font-bold mb-1 ${day.isToday ? 'text-white' : 'text-gray-700'}`}>
+                        <span className={`text-xs font-bold mb-1 ${day.isToday ? 'text-white' : darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                           {day.date.getDate()}
                         </span>
                         
@@ -2805,7 +2960,7 @@ export default function AccountabilityTracker() {
                               cx="28"
                               cy="28"
                               r="24"
-                              stroke={day.isToday ? 'rgba(255,255,255,0.2)' : '#e5e7eb'}
+                              stroke={day.isToday ? 'rgba(255,255,255,0.2)' : darkMode ? '#374151' : '#e5e7eb'}
                               strokeWidth="4"
                               fill="none"
                             />
@@ -2823,13 +2978,13 @@ export default function AccountabilityTracker() {
                             />
                           </svg>
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <span className={`text-sm font-bold ${day.isToday ? 'text-white' : 'text-gray-800'}`}>
+                            <span className={`text-sm font-bold ${day.isToday ? 'text-white' : darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                               {day.total > 0 ? `${day.rate}%` : '-'}
                             </span>
                           </div>
                         </div>
                         
-                        <span className={`text-[10px] mt-1 ${day.isToday ? 'text-blue-200' : 'text-gray-400'}`}>
+                        <span className={`text-[10px] mt-1 ${day.isToday ? 'text-blue-200' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                           {day.completed}/{day.total}
                         </span>
                       </button>
@@ -2839,14 +2994,14 @@ export default function AccountabilityTracker() {
                 
                 {/* Expanded Day View */}
                 {selectedDay !== null && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-white/10' : 'border-gray-100'}`}>
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-gray-800 text-sm">
+                      <h4 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                         {dailyStats[selectedDay]?.dayName} - {dailyStats[selectedDay]?.dateStr}
                       </h4>
                       <button 
                         onClick={() => setSelectedDay(null)}
-                        className="text-gray-400 hover:text-gray-600"
+                        className={`${darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -2858,7 +3013,7 @@ export default function AccountabilityTracker() {
                           : currentWeekHabits;
                         
                         if (habitsToShow.length === 0) {
-                          return <p className="text-sm text-gray-400 text-center py-4">No habits tracked</p>;
+                          return <p className={`text-sm text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No habits tracked</p>;
                         }
                         
                         return habitsToShow.map(h => {
@@ -2866,15 +3021,19 @@ export default function AccountabilityTracker() {
                           return (
                             <div 
                               key={h.id} 
-                              className={`flex items-center gap-3 p-2 rounded-lg ${isCompleted ? 'bg-green-50' : 'bg-gray-50'}`}
+                              className={`flex items-center gap-3 p-2 rounded-xl ${
+                                isCompleted 
+                                  ? darkMode ? 'bg-green-500/10' : 'bg-green-50' 
+                                  : darkMode ? 'bg-white/5' : 'bg-gray-50'
+                              }`}
                             >
-                              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isCompleted ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isCompleted ? 'bg-green-500 text-white' : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'}`}>
                                 {isCompleted ? <Check className="w-3 h-3" /> : <span className="text-xs">○</span>}
                               </div>
                               <div className="flex-1">
-                                <p className={`text-sm ${isCompleted ? 'text-green-700' : 'text-gray-600'}`}>{h.habit}</p>
+                                <p className={`text-sm ${isCompleted ? darkMode ? 'text-green-400' : 'text-green-700' : darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{h.habit}</p>
                                 {dashboardView === 'team' && (
-                                  <p className="text-[10px] text-gray-400">{h.participant}</p>
+                                  <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.participant}</p>
                                 )}
                               </div>
                             </div>
@@ -2886,38 +3045,50 @@ export default function AccountabilityTracker() {
                 )}
               </div>
               
-              {/* Chart and breakdown side by side */}
+              {/* Chart and breakdown side by side - Glass */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2 bg-white rounded-xl p-4 border border-gray-100">
-                  <h3 className="font-semibold text-gray-800 text-sm mb-2">Completion Trend ({scorecardRange === 'week' ? 'Week' : scorecardRange === '4weeks' ? '4 Weeks' : scorecardRange === 'quarter' ? 'Quarter' : 'All Time'})</h3>
+                <div className={`md:col-span-2 rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                  darkMode 
+                    ? 'bg-white/5 border border-white/10' 
+                    : 'bg-white/70 border border-white/50'
+                }`}>
+                  <h3 className={`font-semibold text-sm mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Completion Trend ({scorecardRange === 'week' ? 'Week' : scorecardRange === '4weeks' ? '4 Weeks' : scorecardRange === 'quarter' ? 'Quarter' : 'All Time'})</h3>
                   <ResponsiveContainer width="100%" height={160}>
                     <AreaChart data={weeklyTrendData}>
                       <defs>{allParticipants.map(p => <linearGradient key={p} id={`g-${p}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={PARTICIPANT_COLORS[p] || '#6366f1'} stopOpacity={0.15} /><stop offset="95%" stopColor={PARTICIPANT_COLORS[p] || '#6366f1'} stopOpacity={0} /></linearGradient>)}</defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis dataKey="week" tick={{ fill: '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontSize: 10 }} />
+                      <XAxis dataKey="week" tick={{ fill: darkMode ? '#6b7280' : '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: darkMode ? '#6b7280' : '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: 10, backgroundColor: darkMode ? '#1f2937' : '#fff', color: darkMode ? '#fff' : '#000' }} />
                       {allParticipants.map(p => <Area key={p} type="monotone" dataKey={p} stroke={PARTICIPANT_COLORS[p] || '#6366f1'} strokeWidth={2} fill={`url(#g-${p})`} />)}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="bg-white rounded-xl p-4 border border-gray-100">
-                  <h3 className="font-semibold text-gray-800 text-sm mb-2">Status</h3>
+                <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                  darkMode 
+                    ? 'bg-white/5 border border-white/10' 
+                    : 'bg-white/70 border border-white/50'
+                }`}>
+                  <h3 className={`font-semibold text-sm mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Status</h3>
                   <ResponsiveContainer width="100%" height={100}>
                     <RechartsPie><Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={25} outerRadius={40} paddingAngle={3} dataKey="value">{statusDistribution.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie></RechartsPie>
                   </ResponsiveContainer>
-                  <div className="flex flex-wrap justify-center gap-1 mt-1">{statusDistribution.slice(0,3).map(s => <span key={s.name} className="text-[10px] text-gray-500">{s.name}:{s.value}</span>)}</div>
+                  <div className="flex flex-wrap justify-center gap-1 mt-1">{statusDistribution.slice(0,3).map(s => <span key={s.name} className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{s.name}:{s.value}</span>)}</div>
                 </div>
               </div>
               
-              {/* Participant Performance - with AI summaries */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              {/* Participant Performance - with AI summaries - Glass */}
+              <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10' 
+                  : 'bg-white/70 border border-white/50'
+              }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-800 text-sm">Performance</h3>
+                  <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Performance</h3>
                   <button 
                     onClick={generateParticipantSummaries}
                     disabled={summaryLoading}
-                    className="text-[10px] text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                    className={`text-[10px] flex items-center gap-1 ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-800'}`}
                   >
                     {summaryLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                     {summaryLoading ? 'Loading...' : 'Refresh AI'}
@@ -2927,56 +3098,64 @@ export default function AccountabilityTracker() {
                   const profile = getProfileByParticipant(p.name);
                   const summary = participantSummaries[p.name];
                   return (
-                  <div key={p.name} className="p-2 bg-gray-50 rounded-lg">
+                  <div key={p.name} className={`p-2 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-50/80'}`}>
                     <div className="flex items-center gap-2 mb-1">
                       <button onClick={() => openProfileView(p.name)} className="flex items-center gap-2 hover:opacity-80">
                         {profile?.photoURL ? (
-                          <img src={profile.photoURL} alt="" className="w-6 h-6 rounded-full object-cover" />
+                          <img src={profile.photoURL} alt="" className="w-6 h-6 rounded-full object-cover ring-2 ring-white/20" />
                         ) : (
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: p.color }}>{p.name[0]}</div>
                         )}
-                        <span className="text-xs font-semibold text-gray-800">{p.name}</span>
+                        <span className={`text-xs font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{p.name}</span>
                       </button>
-                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`flex-1 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
                         <div className="h-full rounded-full transition-all" style={{ width: `${p.rate}%`, backgroundColor: p.color }} />
                       </div>
                       <div className="text-xs font-bold" style={{ color: p.color }}>{p.rate}%</div>
                     </div>
                     {summary && (
-                      <p className="text-[11px] text-gray-600 pl-8">{summary}</p>
+                      <p className={`text-[11px] pl-8 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{summary}</p>
                     )}
                   </div>
                 );})}</div>
               </div>
               
-              {/* Recent Activity */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              {/* Recent Activity - Glass */}
+              <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10' 
+                  : 'bg-white/70 border border-white/50'
+              }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-800 text-sm">Recent Activity</h3>
-                  <button onClick={() => setActiveView('feed')} className="text-xs text-[#1E3A5F] hover:underline">View all →</button>
+                  <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Recent Activity</h3>
+                  <button onClick={() => setActiveView('feed')} className={`text-xs hover:underline ${darkMode ? 'text-blue-400' : 'text-[#1E3A5F]'}`}>View all →</button>
                 </div>
                 {posts.slice(0, 2).map(post => {
                   const authorProfile = getProfileByParticipant(post.author);
                   const displayPhoto = authorProfile?.photoURL || post.authorPhoto;
                   return (
-                  <div key={post.id} className="flex gap-2 p-2 bg-gray-50 rounded-lg mb-2">
+                  <div key={post.id} className={`flex gap-2 p-2 rounded-xl mb-2 ${darkMode ? 'bg-white/5' : 'bg-gray-50/80'}`}>
                     <button onClick={() => openProfileView(post.author)}>
                       {displayPhoto ? <img src={displayPhoto} className="w-6 h-6 rounded-full object-cover hover:ring-2 hover:ring-[#F5B800]" alt="" /> : <div className="w-6 h-6 rounded-full bg-[#1E3A5F] text-white text-xs flex items-center justify-center">{post.author?.[0]}</div>}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <button onClick={() => openProfileView(post.author)} className="text-xs font-medium text-gray-800 hover:text-[#1E3A5F] hover:underline">{post.author}</button>
-                      <p className="text-xs text-gray-600 truncate">{post.content}</p>
+                      <button onClick={() => openProfileView(post.author)} className={`text-xs font-medium hover:underline ${darkMode ? 'text-white hover:text-blue-400' : 'text-gray-800 hover:text-[#1E3A5F]'}`}>{post.author}</button>
+                      <p className={`text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{post.content}</p>
                     </div>
                   </div>
                 );})}
-                {posts.length === 0 && <p className="text-xs text-gray-400 text-center py-2">No posts yet</p>}
+                {posts.length === 0 && <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No posts yet</p>}
               </div>
             </div>
             
             {/* Right sidebar - Leaderboard & Streaks */}
             <div className="space-y-4">
-              {/* Leaderboard */}
-              <div className="bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] rounded-xl p-4 text-white">
+              {/* Leaderboard - Glass dark */}
+              <div className={`rounded-2xl p-4 text-white backdrop-blur-xl ${
+                darkMode 
+                  ? 'bg-gradient-to-br from-[#1E3A5F]/80 to-[#0F2940]/80 border border-white/10' 
+                  : 'bg-gradient-to-br from-[#1E3A5F] to-[#0F2940]'
+              }`}>
                 <div className="flex items-center gap-2 mb-3">
                   <Trophy className="w-4 h-4 text-[#F5B800]" />
                   <h3 className="font-semibold text-sm">Leaderboard</h3>
@@ -2985,9 +3164,9 @@ export default function AccountabilityTracker() {
                   {leaderboard.map((p, i) => {
                     const profile = getProfileByParticipant(p.name);
                     return (
-                    <button key={p.name} onClick={() => openProfileView(p.name)} className="w-full flex items-center gap-2 hover:bg-white/10 rounded-lg p-1 -m-1 transition-colors">
+                    <button key={p.name} onClick={() => openProfileView(p.name)} className="w-full flex items-center gap-2 hover:bg-white/10 rounded-xl p-1 -m-1 transition-colors">
                       {profile?.photoURL ? (
-                        <img src={profile.photoURL} alt="" className="w-6 h-6 rounded-full object-cover" />
+                        <img src={profile.photoURL} alt="" className="w-6 h-6 rounded-full object-cover ring-2 ring-white/20" />
                       ) : (
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${i === 0 ? 'bg-[#F5B800] text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
                           {i === 0 ? '👑' : i + 1}
@@ -3000,21 +3179,25 @@ export default function AccountabilityTracker() {
                     </button>
                   );})}
                 </div>
-                <button onClick={() => setActiveView('compete')} className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors">
+                <button onClick={() => setActiveView('compete')} className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-medium transition-colors backdrop-blur-sm">
                   View Challenges →
                 </button>
               </div>
               
-              {/* Today's Tasks */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              {/* Today's Tasks - Glass */}
+              <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10' 
+                  : 'bg-white/70 border border-white/50'
+              }`}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-blue-500" />
-                    <h3 className="font-semibold text-gray-800 text-sm">Today's Tasks</h3>
+                    <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Tasks</h3>
                   </div>
                   <button 
                     onClick={() => setActiveView('tasks')}
-                    className="text-[10px] text-blue-600 hover:text-blue-800"
+                    className={`text-[10px] ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'}`}
                   >
                     View all →
                   </button>
@@ -3025,22 +3208,22 @@ export default function AccountabilityTracker() {
                     const topTasks = myTasks.slice(0, 5);
                     
                     if (topTasks.length === 0) {
-                      return <p className="text-xs text-gray-400 text-center py-2">No pending tasks 🎉</p>;
+                      return <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No pending tasks 🎉</p>;
                     }
                     
                     return topTasks.map(task => (
-                      <div key={task.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                      <div key={task.id} className={`flex items-center gap-2 p-2 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-50/80'}`}>
                         <button 
                           onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
                           className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
                             task.status === 'Completed' 
                               ? 'bg-green-500 border-green-500 text-white' 
-                              : 'border-gray-300 hover:border-green-400'
+                              : darkMode ? 'border-gray-600 hover:border-green-400' : 'border-gray-300 hover:border-green-400'
                           }`}
                         >
                           {task.status === 'Completed' && <Check className="w-3 h-3" />}
                         </button>
-                        <span className={`text-xs flex-1 truncate ${task.status === 'Completed' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                        <span className={`text-xs flex-1 truncate ${task.status === 'Completed' ? 'text-gray-500 line-through' : darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                           {task.task}
                         </span>
                         {task.priority === 'high' && <span className="text-red-500 text-[10px]">!</span>}
@@ -3050,46 +3233,58 @@ export default function AccountabilityTracker() {
                 </div>
               </div>
               
-              {/* Streaks - compact */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              {/* Streaks - compact - Glass */}
+              <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10' 
+                  : 'bg-white/70 border border-white/50'
+              }`}>
                 <div className="flex items-center gap-2 mb-3">
                   <Flame className="w-4 h-4 text-orange-500" />
-                  <h3 className="font-semibold text-gray-800 text-sm">Streaks</h3>
+                  <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Streaks</h3>
                 </div>
                 <div className="space-y-2">
                   {allParticipants.map(p => {
                     const profile = getProfileByParticipant(p);
                     return (
-                    <button key={p} onClick={() => openProfileView(p)} className="w-full flex items-center gap-2 hover:bg-gray-50 rounded-lg p-1 -m-1 transition-colors">
+                    <button key={p} onClick={() => openProfileView(p)} className={`w-full flex items-center gap-2 rounded-xl p-1 -m-1 transition-colors ${darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                       {profile?.photoURL ? (
                         <img src={profile.photoURL} alt="" className="w-5 h-5 rounded-full object-cover" />
                       ) : (
                         <span className="text-sm">🔥</span>
                       )}
-                      <span className="flex-1 text-xs text-gray-700 text-left">{p}</span>
+                      <span className={`flex-1 text-xs text-left ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{p}</span>
                       <span className="text-sm font-bold text-orange-500">{calculateStreaks[p] || 0}</span>
                     </button>
                   );})}
                 </div>
               </div>
               
-              {/* Active Challenges Preview */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              {/* Active Challenges Preview - Glass */}
+              <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10' 
+                  : 'bg-white/70 border border-white/50'
+              }`}>
                 <div className="flex items-center gap-2 mb-3">
                   <Swords className="w-4 h-4 text-purple-500" />
-                  <h3 className="font-semibold text-gray-800 text-sm">Active Challenges</h3>
+                  <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Active Challenges</h3>
                 </div>
                 {bets.filter(b => b.status === 'accepted').slice(0, 2).map(bet => (
-                  <div key={bet.id} className="p-2 bg-purple-50 rounded-lg mb-2">
-                    <p className="text-xs font-medium text-purple-800">{bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</p>
-                    <p className="text-[10px] text-purple-600">{bet.goal}</p>
-                    {bet.reward && <p className="text-[10px] text-purple-500">🎁 {bet.reward}</p>}
+                  <div key={bet.id} className={`p-2 rounded-xl mb-2 ${darkMode ? 'bg-purple-500/10' : 'bg-purple-50'}`}>
+                    <p className={`text-xs font-medium ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>{bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</p>
+                    <p className={`text-[10px] ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{bet.goal}</p>
+                    {bet.reward && <p className={`text-[10px] ${darkMode ? 'text-purple-500' : 'text-purple-500'}`}>🎁 {bet.reward}</p>}
                   </div>
                 ))}
                 {bets.filter(b => b.status === 'accepted').length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-2">No active challenges</p>
+                  <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No active challenges</p>
                 )}
-                <button onClick={() => setActiveView('compete')} className="w-full mt-2 py-1.5 bg-purple-100 hover:bg-purple-200 rounded-lg text-xs font-medium text-purple-700 transition-colors">
+                <button onClick={() => setActiveView('compete')} className={`w-full mt-2 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' 
+                    : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                }`}>
                   Create Challenge
                 </button>
               </div>
@@ -3101,12 +3296,16 @@ export default function AccountabilityTracker() {
         {activeView === 'feed' && (
           <div className="max-w-2xl mx-auto space-y-4">
             {/* Create Post */}
-            <div className="bg-white rounded-xl p-4 border border-gray-100">
+            <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+              darkMode 
+                ? 'bg-white/5 border border-white/10' 
+                : 'bg-white/70 border border-white/50'
+            }`}>
               <div className="flex gap-3">
                 {(userProfile?.photoURL || user?.photoURL) ? (
-                  <img src={userProfile?.photoURL || user?.photoURL} className="w-10 h-10 rounded-full object-cover" alt="" />
+                  <img src={userProfile?.photoURL || user?.photoURL} className="w-10 h-10 rounded-full object-cover ring-2 ring-white/20" alt="" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center font-medium">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${darkMode ? 'bg-white/10 text-white' : 'bg-[#1E3A5F] text-white'}`}>
                     {user?.displayName?.[0] || '?'}
                   </div>
                 )}
@@ -3115,7 +3314,7 @@ export default function AccountabilityTracker() {
                   <div className="flex gap-1 mb-2">
                     <button 
                       onClick={() => applyFormat('bold')}
-                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold text-gray-600"
+                      className={`px-2 py-1 rounded text-xs font-bold transition-colors ${darkMode ? 'bg-white/10 hover:bg-white/20 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}
                       title="Bold"
                     >
                       B
@@ -6004,7 +6203,7 @@ export default function AccountabilityTracker() {
           </div>
         )}
       </div>
-      <MobileNav activeView={activeView} setActiveView={setActiveView} />
+      <MobileNav activeView={activeView} setActiveView={setActiveView} darkMode={darkMode} />
     </div>
   );
 }
