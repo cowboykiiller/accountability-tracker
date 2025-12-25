@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, ListTodo, Smile, Grid3X3, Clock, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -393,6 +393,23 @@ const NAV_ITEMS = [
   { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
 ];
 
+// Task categories
+const TASK_CATEGORIES = [
+  { id: 'Work', icon: '💼', color: 'bg-blue-100 text-blue-700' },
+  { id: 'Health', icon: '🏃', color: 'bg-green-100 text-green-700' },
+  { id: 'Finance', icon: '💰', color: 'bg-yellow-100 text-yellow-700' },
+  { id: 'Learning', icon: '📚', color: 'bg-purple-100 text-purple-700' },
+  { id: 'Personal', icon: '🏠', color: 'bg-pink-100 text-pink-700' },
+  { id: 'Spiritual', icon: '🙏', color: 'bg-indigo-100 text-indigo-700' }
+];
+
+const PRIORITY_CONFIG = {
+  'High': { color: 'bg-red-500', textColor: 'text-red-600', icon: '🔴' },
+  'Medium': { color: 'bg-yellow-500', textColor: 'text-yellow-600', icon: '🟡' },
+  'Low': { color: 'bg-blue-500', textColor: 'text-blue-600', icon: '🔵' },
+  'Optional': { color: 'bg-gray-400', textColor: 'text-gray-500', icon: '⚪' }
+};
+
 // Emoji reactions
 const REACTIONS = ['👍', '🔥', '💪', '🎉', '❤️', '👏'];
 
@@ -402,6 +419,8 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) =>
     'feed': 'Community Feed',
     'compete': 'Compete',
     'tracker': 'Habit Tracker', 
+    'monthly': 'Monthly View',
+    'tasks': 'Task List',
     'scorecard': 'Scorecard', 
     'add': 'Add Habit', 
     'quotes': 'Quotes', 
@@ -413,6 +432,8 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) =>
     { id: 'feed', icon: Users, label: 'Feed' },
     { id: 'compete', icon: Trophy, label: 'Compete' },
     { id: 'tracker', icon: Calendar, label: 'Track' },
+    { id: 'monthly', icon: Grid3X3, label: 'Monthly' },
+    { id: 'tasks', icon: ListTodo, label: 'Tasks' },
     { id: 'scorecard', icon: BarChart3, label: 'Score' },
     { id: 'add', icon: Plus, label: 'Add' },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
@@ -662,6 +683,20 @@ export default function AccountabilityTracker() {
   const [weekSuggestLoading, setWeekSuggestLoading] = useState(false);
   const [editingPastWeek, setEditingPastWeek] = useState(false); // Allow editing locked past weeks;
   
+  // Tasks state
+  const [tasks, setTasks] = useState([]);
+  const [newTask, setNewTask] = useState({ task: '', dueDate: '', priority: 'Medium', category: 'Work' });
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [taskFilter, setTaskFilter] = useState('all'); // all, today, overdue, completed
+  
+  // Mood tracking state  
+  const [moodData, setMoodData] = useState([]); // {date, mood: 1-10, motivation: 1-10, notes}
+  const [showMoodModal, setShowMoodModal] = useState(false);
+  const [todayMood, setTodayMood] = useState({ mood: 5, motivation: 5, notes: '' });
+  
+  // Monthly view state
+  const [monthlyViewMonth, setMonthlyViewMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  
   // Weekly Check-ins state (legacy - now part of feed)
   const [checkIns, setCheckIns] = useState([]);
   const [checkInText, setCheckInText] = useState('');
@@ -838,6 +873,42 @@ export default function AccountabilityTracker() {
       }
     }, (error) => {
       console.error('Profiles error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Listen for tasks
+  useEffect(() => {
+    if (!user) return;
+    
+    const q = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const tasksData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setTasks(tasksData);
+    }, (error) => {
+      console.error('Tasks error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Listen for mood data
+  useEffect(() => {
+    if (!user) return;
+    
+    const q = query(collection(db, 'moods'), orderBy('date', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const moodsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setMoodData(moodsData);
+    }, (error) => {
+      console.error('Mood error:', error);
     });
 
     return () => unsubscribe();
@@ -1674,6 +1745,67 @@ export default function AccountabilityTracker() {
     await setDoc(doc(db, 'habits', habit1.id), { ...habit1, order: order2 });
     await setDoc(doc(db, 'habits', habit2.id), { ...habit2, order: order1 });
   };
+
+  // Task management functions
+  const addTask = async () => {
+    if (!newTask.task.trim()) return;
+    
+    const taskDoc = {
+      id: `task_${Date.now()}`,
+      task: newTask.task,
+      dueDate: newTask.dueDate || new Date().toISOString().split('T')[0],
+      priority: newTask.priority,
+      category: newTask.category,
+      status: 'Not Started',
+      createdAt: new Date().toISOString(),
+      createdBy: user?.uid,
+      participant: userProfile?.linkedParticipant || user?.displayName
+    };
+    
+    await setDoc(doc(db, 'tasks', taskDoc.id), taskDoc);
+    setNewTask({ task: '', dueDate: '', priority: 'Medium', category: 'Work' });
+    setShowAddTask(false);
+  };
+
+  const updateTaskStatus = async (taskId, newStatus) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    await setDoc(doc(db, 'tasks', taskId), {
+      ...task,
+      status: newStatus,
+      completedAt: newStatus === 'Completed' ? new Date().toISOString() : null
+    });
+  };
+
+  const deleteTask = async (taskId) => {
+    await deleteDoc(doc(db, 'tasks', taskId));
+  };
+
+  // Mood tracking functions
+  const saveMood = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const moodDoc = {
+      id: `mood_${today}_${user?.uid}`,
+      date: today,
+      mood: todayMood.mood,
+      motivation: todayMood.motivation,
+      notes: todayMood.notes,
+      participant: userProfile?.linkedParticipant || user?.displayName,
+      userId: user?.uid,
+      createdAt: new Date().toISOString()
+    };
+    
+    await setDoc(doc(db, 'moods', moodDoc.id), moodDoc);
+    setShowMoodModal(false);
+    setTodayMood({ mood: 5, motivation: 5, notes: '' });
+  };
+
+  // Get today's mood entry
+  const todaysMoodEntry = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return moodData.find(m => m.date === today && m.userId === user?.uid);
+  }, [moodData, user]);
 
   // Auto-suggest habits based on past 4 weeks
   const suggestWeeklyHabits = async () => {
@@ -3460,6 +3592,445 @@ export default function AccountabilityTracker() {
           </div>
         )}
 
+        {/* Monthly Habit Grid View */}
+        {activeView === 'monthly' && (
+          <div className="space-y-4">
+            {/* Month Navigation */}
+            <div className="flex items-center justify-between">
+              <button 
+                onClick={() => setMonthlyViewMonth(prev => {
+                  const d = new Date(prev.year, prev.month - 1, 1);
+                  return { year: d.getFullYear(), month: d.getMonth() };
+                })}
+                className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800]"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <h2 className="text-xl font-bold text-gray-800">
+                {new Date(monthlyViewMonth.year, monthlyViewMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </h2>
+              <button 
+                onClick={() => setMonthlyViewMonth(prev => {
+                  const d = new Date(prev.year, prev.month + 1, 1);
+                  return { year: d.getFullYear(), month: d.getMonth() };
+                })}
+                className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800]"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Stats Summary */}
+            {(() => {
+              const monthHabits = habits.filter(h => {
+                const weekDate = new Date(h.weekStart + 'T00:00:00');
+                return weekDate.getMonth() === monthlyViewMonth.month && weekDate.getFullYear() === monthlyViewMonth.year;
+              });
+              const myMonthHabits = monthHabits.filter(h => h.participant === myParticipant);
+              const totalCompleted = myMonthHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+              const totalTarget = myMonthHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+              const progressPct = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
+              
+              return (
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                    <p className="text-2xl font-bold text-[#1E3A5F]">{myMonthHabits.length}</p>
+                    <p className="text-xs text-gray-500">Habits</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                    <p className="text-2xl font-bold text-green-600">{totalCompleted}</p>
+                    <p className="text-xs text-gray-500">Completed</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                      <div className="bg-green-500 h-2 rounded-full" style={{ width: `${progressPct}%` }}></div>
+                    </div>
+                    <p className="text-xs text-gray-500">{progressPct}% Progress</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                    <p className="text-2xl font-bold text-purple-600">{totalTarget}</p>
+                    <p className="text-xs text-gray-500">Target Days</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Participant Filter */}
+            <div className="flex gap-2 flex-wrap">
+              {['All', ...allParticipants].map(p => (
+                <button 
+                  key={p} 
+                  onClick={() => setSelectedParticipant(p)} 
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedParticipant === p ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200'}`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            {/* Monthly Grid */}
+            <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left p-3 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[200px]">My Habits</th>
+                    {(() => {
+                      const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                      return Array.from({ length: daysInMonth }, (_, i) => {
+                        const d = new Date(monthlyViewMonth.year, monthlyViewMonth.month, i + 1);
+                        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })[0];
+                        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                        return (
+                          <th key={i} className={`p-1 text-center min-w-[28px] ${isWeekend ? 'bg-gray-100' : ''}`}>
+                            <div className="text-[10px] text-gray-400">{dayName}</div>
+                            <div className="text-xs font-medium">{i + 1}</div>
+                          </th>
+                        );
+                      });
+                    })()}
+                    <th className="p-2 text-center bg-blue-50 min-w-[60px]">Goal</th>
+                    <th className="p-2 text-center bg-green-50 min-w-[60px]">Actual</th>
+                    <th className="p-2 text-center bg-purple-50 min-w-[100px]">Progress</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    // Get unique habits for selected participant in this month
+                    const monthHabits = habits.filter(h => {
+                      const weekDate = new Date(h.weekStart + 'T00:00:00');
+                      return weekDate.getMonth() === monthlyViewMonth.month && 
+                             weekDate.getFullYear() === monthlyViewMonth.year &&
+                             (selectedParticipant === 'All' || h.participant === selectedParticipant);
+                    });
+                    
+                    // Group by habit name
+                    const habitGroups = {};
+                    monthHabits.forEach(h => {
+                      if (!habitGroups[h.habit]) {
+                        habitGroups[h.habit] = { habit: h.habit, participant: h.participant, weeks: [], totalTarget: 0, totalCompleted: 0 };
+                      }
+                      habitGroups[h.habit].weeks.push(h);
+                      habitGroups[h.habit].totalTarget += h.target || 0;
+                      habitGroups[h.habit].totalCompleted += h.daysCompleted?.length || 0;
+                    });
+
+                    const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+
+                    return Object.values(habitGroups).map((group, idx) => {
+                      const progressPct = group.totalTarget > 0 ? Math.round((group.totalCompleted / group.totalTarget) * 100) : 0;
+                      
+                      return (
+                        <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50">
+                          <td className="p-2 sticky left-0 bg-white">
+                            <div className="font-medium text-gray-800 truncate max-w-[180px]">{group.habit}</div>
+                            <div className="text-[10px] text-gray-400">{group.participant}</div>
+                          </td>
+                          {Array.from({ length: daysInMonth }, (_, dayIdx) => {
+                            const dayNum = dayIdx + 1;
+                            const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
+                            const dayOfWeek = (dayDate.getDay() + 6) % 7; // Mon=0, Sun=6
+                            
+                            // Find which week this day belongs to
+                            const weekHabit = group.weeks.find(w => {
+                              const weekStart = new Date(w.weekStart + 'T00:00:00');
+                              const weekEnd = new Date(weekStart);
+                              weekEnd.setDate(weekEnd.getDate() + 6);
+                              return dayDate >= weekStart && dayDate <= weekEnd;
+                            });
+
+                            const isCompleted = weekHabit?.daysCompleted?.includes(dayOfWeek);
+                            const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+
+                            return (
+                              <td key={dayIdx} className={`p-0.5 text-center ${isWeekend ? 'bg-gray-50' : ''}`}>
+                                <div className={`w-5 h-5 mx-auto rounded-sm flex items-center justify-center ${isCompleted ? 'bg-[#1E3A5F]' : weekHabit ? 'bg-gray-200' : 'bg-gray-100'}`}>
+                                  {isCompleted && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                </div>
+                              </td>
+                            );
+                          })}
+                          <td className="p-2 text-center bg-blue-50 font-medium">{group.totalTarget}</td>
+                          <td className="p-2 text-center bg-green-50 font-medium text-green-700">{group.totalCompleted}</td>
+                          <td className="p-2 bg-purple-50">
+                            <div className="flex items-center gap-1">
+                              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className={`h-2 rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 75 ? 'bg-blue-500' : progressPct >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                  style={{ width: `${Math.min(progressPct, 100)}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs font-medium w-8">{progressPct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Daily Progress Row */}
+            <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <h3 className="font-semibold text-gray-800 mb-3">Daily Completion Rate</h3>
+              <div className="flex gap-1 overflow-x-auto pb-2">
+                {(() => {
+                  const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                  const monthHabits = habits.filter(h => {
+                    const weekDate = new Date(h.weekStart + 'T00:00:00');
+                    return weekDate.getMonth() === monthlyViewMonth.month && 
+                           weekDate.getFullYear() === monthlyViewMonth.year &&
+                           (selectedParticipant === 'All' || h.participant === selectedParticipant);
+                  });
+
+                  return Array.from({ length: daysInMonth }, (_, dayIdx) => {
+                    const dayNum = dayIdx + 1;
+                    const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
+                    const dayOfWeek = (dayDate.getDay() + 6) % 7;
+                    
+                    let completed = 0, total = 0;
+                    monthHabits.forEach(h => {
+                      const weekStart = new Date(h.weekStart + 'T00:00:00');
+                      const weekEnd = new Date(weekStart);
+                      weekEnd.setDate(weekEnd.getDate() + 6);
+                      if (dayDate >= weekStart && dayDate <= weekEnd) {
+                        total++;
+                        if (h.daysCompleted?.includes(dayOfWeek)) completed++;
+                      }
+                    });
+
+                    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                    const isToday = dayDate.toDateString() === new Date().toDateString();
+
+                    return (
+                      <div key={dayIdx} className={`flex flex-col items-center min-w-[28px] ${isToday ? 'bg-amber-100 rounded-lg p-1' : ''}`}>
+                        <span className={`text-[10px] ${pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'} font-medium`}>
+                          {total > 0 ? `${pct}%` : '-'}
+                        </span>
+                        <span className="text-[10px] text-gray-400">{dayNum}</span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Mood Tracker */}
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                  <Smile className="w-5 h-5 text-purple-500" />
+                  Mood & Motivation
+                </h3>
+                <button 
+                  onClick={() => setShowMoodModal(true)}
+                  className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600"
+                >
+                  {todaysMoodEntry ? 'Update Today' : 'Log Today'}
+                </button>
+              </div>
+              <div className="flex gap-1 overflow-x-auto pb-2">
+                {(() => {
+                  const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                  return Array.from({ length: daysInMonth }, (_, dayIdx) => {
+                    const dayNum = dayIdx + 1;
+                    const dateStr = `${monthlyViewMonth.year}-${String(monthlyViewMonth.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                    const moodEntry = moodData.find(m => m.date === dateStr);
+                    const isToday = dateStr === new Date().toISOString().split('T')[0];
+
+                    return (
+                      <div key={dayIdx} className={`flex flex-col items-center min-w-[28px] ${isToday ? 'bg-purple-100 rounded-lg p-1' : ''}`}>
+                        <span className="text-[10px] text-purple-600 font-medium">{moodEntry?.mood || '-'}</span>
+                        <span className="text-[10px] text-pink-600 font-medium">{moodEntry?.motivation || '-'}</span>
+                        <span className="text-[10px] text-gray-400">{dayNum}</span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+              <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-purple-500 rounded"></span> Mood</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-pink-500 rounded"></span> Motivation</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tasks View */}
+        {activeView === 'tasks' && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Task List</h2>
+                <p className="text-sm text-gray-500">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              </div>
+              <button 
+                onClick={() => setShowAddTask(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]"
+              >
+                <Plus className="w-4 h-4" />
+                Add Task
+              </button>
+            </div>
+
+            {/* Stats Cards */}
+            {(() => {
+              const myTasks = tasks.filter(t => t.participant === myParticipant);
+              const today = new Date().toISOString().split('T')[0];
+              const todayTasks = myTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
+              const overdueTasks = myTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
+              const completedTasks = myTasks.filter(t => t.status === 'Completed');
+              
+              return (
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Clock className="w-4 h-4 text-blue-500" />
+                      <span className="text-xs text-blue-600 font-medium">Today</span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-700">{todayTasks.length}</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-gray-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ListTodo className="w-4 h-4 text-gray-500" />
+                      <span className="text-xs text-gray-600 font-medium">Total</span>
+                    </div>
+                    <p className="text-2xl font-bold text-gray-700">{myTasks.length}</p>
+                  </div>
+                  <div className="bg-red-50 rounded-xl p-3 border border-red-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-xs text-red-600 font-medium">Overdue</span>
+                    </div>
+                    <p className="text-2xl font-bold text-red-700">{overdueTasks.length}</p>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-3 border border-green-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <span className="text-xs text-green-600 font-medium">Done</span>
+                    </div>
+                    <p className="text-2xl font-bold text-green-700">{completedTasks.length}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Filter Tabs */}
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { id: 'all', label: 'All Tasks' },
+                { id: 'today', label: 'Due Today' },
+                { id: 'overdue', label: 'Overdue' },
+                { id: 'completed', label: 'Completed' }
+              ].map(filter => (
+                <button 
+                  key={filter.id}
+                  onClick={() => setTaskFilter(filter.id)} 
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${taskFilter === filter.id ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200'}`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Task List */}
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="w-10 p-3"></th>
+                    <th className="text-left p-3 font-semibold text-gray-700">Task</th>
+                    <th className="text-left p-3 font-semibold text-gray-700 w-28">Due Date</th>
+                    <th className="text-left p-3 font-semibold text-gray-700 w-24">Priority</th>
+                    <th className="text-left p-3 font-semibold text-gray-700 w-28">Status</th>
+                    <th className="text-left p-3 font-semibold text-gray-700 w-28">Category</th>
+                    <th className="w-10 p-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    let filteredTasks = tasks.filter(t => t.participant === myParticipant);
+                    
+                    if (taskFilter === 'today') {
+                      filteredTasks = filteredTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
+                    } else if (taskFilter === 'overdue') {
+                      filteredTasks = filteredTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
+                    } else if (taskFilter === 'completed') {
+                      filteredTasks = filteredTasks.filter(t => t.status === 'Completed');
+                    }
+
+                    if (filteredTasks.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan="7" className="p-8 text-center text-gray-400">
+                            No tasks found. Add your first task!
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return filteredTasks.map(task => {
+                      const isOverdue = task.dueDate < today && task.status !== 'Completed';
+                      const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG['Medium'];
+                      const categoryCfg = TASK_CATEGORIES.find(c => c.id === task.category) || TASK_CATEGORIES[0];
+
+                      return (
+                        <tr key={task.id} className={`border-b border-gray-100 hover:bg-gray-50 ${task.status === 'Completed' ? 'opacity-60' : ''}`}>
+                          <td className="p-3">
+                            <button 
+                              onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                              className="w-5 h-5 rounded border-2 border-gray-300 flex items-center justify-center hover:border-green-500"
+                            >
+                              {task.status === 'Completed' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                            </button>
+                          </td>
+                          <td className={`p-3 ${task.status === 'Completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                            {task.task}
+                          </td>
+                          <td className={`p-3 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                            {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </td>
+                          <td className="p-3">
+                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${priorityCfg.textColor}`}>
+                              {priorityCfg.icon} {task.priority}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <select 
+                              value={task.status}
+                              onChange={(e) => updateTaskStatus(task.id, e.target.value)}
+                              className={`text-xs px-2 py-1 rounded border ${task.status === 'Completed' ? 'bg-green-100 text-green-700' : task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}
+                            >
+                              <option value="Not Started">Not Started</option>
+                              <option value="In Progress">In Progress</option>
+                              <option value="Completed">Completed</option>
+                            </select>
+                          </td>
+                          <td className="p-3">
+                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded ${categoryCfg.color}`}>
+                              {categoryCfg.icon} {task.category}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <button 
+                              onClick={() => deleteTask(task.id)}
+                              className="text-gray-400 hover:text-red-500"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {activeView === 'scorecard' && (
           <div className="space-y-4">
             <div className="flex gap-2 flex-wrap">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}>{v}</button>)}</div>
@@ -4418,6 +4989,158 @@ export default function AccountabilityTracker() {
                     Challenge {viewingProfile.participantName}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Task Modal */}
+        {showAddTask && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <ListTodo className="w-5 h-5 text-[#1E3A5F]" />
+                Add New Task
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Task</label>
+                  <input
+                    type="text"
+                    value={newTask.task}
+                    onChange={(e) => setNewTask({ ...newTask, task: e.target.value })}
+                    placeholder="What needs to be done?"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-gray-600 block mb-1">Due Date</label>
+                    <input
+                      type="date"
+                      value={newTask.dueDate}
+                      onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-600 block mb-1">Priority</label>
+                    <select
+                      value={newTask.priority}
+                      onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="High">🔴 High</option>
+                      <option value="Medium">🟡 Medium</option>
+                      <option value="Low">🔵 Low</option>
+                      <option value="Optional">⚪ Optional</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Category</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {TASK_CATEGORIES.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setNewTask({ ...newTask, category: cat.id })}
+                        className={`p-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${newTask.category === cat.id ? cat.color + ' ring-2 ring-offset-1' : 'bg-gray-50 text-gray-600'}`}
+                      >
+                        {cat.icon} {cat.id}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={() => { setShowAddTask(false); setNewTask({ task: '', dueDate: '', priority: 'Medium', category: 'Work' }); }}
+                  className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={addTask}
+                  disabled={!newTask.task.trim()}
+                  className="flex-1 py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] disabled:opacity-50"
+                >
+                  Add Task
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mood Modal */}
+        {showMoodModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Smile className="w-5 h-5 text-purple-500" />
+                Log Today's Mood
+              </h3>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="text-sm text-gray-600 block mb-2">How's your mood today? ({todayMood.mood}/10)</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={todayMood.mood}
+                    onChange={(e) => setTodayMood({ ...todayMood, mood: parseInt(e.target.value) })}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>😢 Low</span>
+                    <span>😊 Great</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-600 block mb-2">Motivation level? ({todayMood.motivation}/10)</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={todayMood.motivation}
+                    onChange={(e) => setTodayMood({ ...todayMood, motivation: parseInt(e.target.value) })}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>💤 Low</span>
+                    <span>🔥 High</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Notes (optional)</label>
+                  <textarea
+                    value={todayMood.notes}
+                    onChange={(e) => setTodayMood({ ...todayMood, notes: e.target.value })}
+                    placeholder="How are you feeling? Any wins or challenges today?"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm h-20 resize-none"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={() => { setShowMoodModal(false); setTodayMood({ mood: 5, motivation: 5, notes: '' }); }}
+                  className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={saveMood}
+                  className="flex-1 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:opacity-90"
+                >
+                  Save Mood
+                </button>
               </div>
             </div>
           </div>
