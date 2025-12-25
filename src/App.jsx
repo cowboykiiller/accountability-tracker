@@ -4917,30 +4917,75 @@ export default function AccountabilityTracker() {
                     </span>
                   </div>
                   
-                  {/* Heatmap Grid - Last 12 weeks */}
+                  {/* Heatmap Grid - Last 12 weeks with data */}
                   <div className="flex gap-1 overflow-x-auto pb-2">
                     {(() => {
-                      const weeks = ALL_WEEKS.slice(-12);
+                      // Get weeks that have habit data for this user, up to current week
+                      const today = new Date();
+                      const currentMonday = new Date(today);
+                      currentMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+                      const currentWeekStr = currentMonday.toISOString().split('T')[0];
+                      
+                      // Filter to weeks with data, up to and including current week
+                      const weeksWithData = ALL_WEEKS.filter(week => {
+                        if (week > currentWeekStr) return false; // Skip future weeks
+                        const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
+                        return weekHabits.length > 0;
+                      });
+                      
+                      // Take last 12 weeks that have data
+                      const weeks = weeksWithData.slice(-12);
+                      
+                      // If no data, show placeholder
+                      if (weeks.length === 0) {
+                        return (
+                          <div className={`flex-1 flex items-center justify-center py-8 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                            No habit data yet. Start tracking to see your activity!
+                          </div>
+                        );
+                      }
+                      
                       return weeks.map((week, weekIdx) => {
+                        const weekDate = new Date(week + 'T00:00:00');
+                        const isCurrentWeek = week === currentWeekStr;
+                        
                         return (
                           <div key={week} className="flex flex-col gap-1">
+                            {/* Week label on first and last */}
+                            {(weekIdx === 0 || weekIdx === weeks.length - 1) && (
+                              <div className={`text-[8px] text-center mb-0.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </div>
+                            )}
+                            {(weekIdx !== 0 && weekIdx !== weeks.length - 1) && (
+                              <div className="h-3"></div>
+                            )}
                             {DAYS.map((day, dayIdx) => {
                               const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
                               const dayCompleted = weekHabits.filter(h => h.daysCompleted?.includes(dayIdx)).length;
                               const dayTotal = weekHabits.length;
                               const pct = dayTotal > 0 ? (dayCompleted / dayTotal) * 100 : 0;
                               
+                              // Check if this day is in the future
+                              const dayDate = new Date(weekDate);
+                              dayDate.setDate(dayDate.getDate() + dayIdx);
+                              const isFuture = dayDate > today;
+                              
                               let bgColor = darkMode ? 'bg-gray-700/50' : 'bg-gray-200/50';
-                              if (pct > 0) bgColor = darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200';
-                              if (pct >= 40) bgColor = darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300';
-                              if (pct >= 70) bgColor = darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400';
-                              if (pct >= 90) bgColor = 'bg-emerald-500';
+                              if (isFuture) {
+                                bgColor = darkMode ? 'bg-gray-800/30' : 'bg-gray-100/50';
+                              } else if (pct > 0) {
+                                bgColor = darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200';
+                              }
+                              if (!isFuture && pct >= 40) bgColor = darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300';
+                              if (!isFuture && pct >= 70) bgColor = darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400';
+                              if (!isFuture && pct >= 90) bgColor = 'bg-emerald-500';
                               
                               return (
                                 <div
                                   key={dayIdx}
-                                  className={`w-4 h-4 rounded-sm ${bgColor} hover:ring-2 hover:ring-blue-400/50 cursor-pointer transition-all`}
-                                  title={`${day}: ${Math.round(pct)}% (${dayCompleted}/${dayTotal})`}
+                                  className={`w-5 h-5 rounded-sm ${bgColor} ${isCurrentWeek ? 'ring-1 ring-blue-400/30' : ''} hover:ring-2 hover:ring-blue-400/50 cursor-pointer transition-all`}
+                                  title={isFuture ? `${day}: Future` : `${day}: ${Math.round(pct)}% (${dayCompleted}/${dayTotal})`}
                                 />
                               );
                             })}
@@ -4949,14 +4994,21 @@ export default function AccountabilityTracker() {
                       });
                     })()}
                   </div>
-                  <div className={`flex items-center justify-end gap-1 mt-2 text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                    <span>Less</span>
-                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-gray-700/50' : 'bg-gray-200'}`}></div>
-                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200'}`}></div>
-                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300'}`}></div>
-                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400'}`}></div>
-                    <div className="w-3 h-3 rounded-sm bg-emerald-500"></div>
-                    <span>More</span>
+                  <div className={`flex items-center justify-between mt-3 text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <div className="flex items-center gap-1">
+                      {DAYS.map((d, i) => (
+                        <span key={i} className="w-5 text-center">{d[0]}</span>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span>Less</span>
+                      <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-gray-700/50' : 'bg-gray-200'}`}></div>
+                      <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200'}`}></div>
+                      <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300'}`}></div>
+                      <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400'}`}></div>
+                      <div className="w-3 h-3 rounded-sm bg-emerald-500"></div>
+                      <span>More</span>
+                    </div>
                   </div>
                 </div>
 
