@@ -1578,32 +1578,44 @@ export default function AccountabilityTracker() {
     return mondayDate.toISOString().split('T')[0];
   };
   
-  // Initialize week to current week AFTER data loads AND ALL_WEEKS is ready
-  useEffect(() => {
-    // Only initialize once (when currentWeekIndex is -1), after data is loaded
-    if (!dataLoading && ALL_WEEKS.length > 0 && currentWeekIndex === -1) {
-      const thisMonday = getCurrentMonday();
-      const todayIndex = ALL_WEEKS.indexOf(thisMonday);
-      
-      if (todayIndex !== -1) {
-        setCurrentWeekIndex(todayIndex);
-      } else {
-        // Find the closest week that's not in the future
-        const now = new Date();
-        for (let i = ALL_WEEKS.length - 1; i >= 0; i--) {
-          const weekDate = new Date(ALL_WEEKS[i] + 'T00:00:00');
-          if (weekDate <= now) {
-            setCurrentWeekIndex(i);
-            break;
-          }
-        }
-      }
+  // Get the correct initial week index
+  const getInitialWeekIndex = (weeks) => {
+    if (weeks.length === 0) return 0;
+    const thisMonday = getCurrentMonday();
+    const todayIndex = weeks.indexOf(thisMonday);
+    if (todayIndex !== -1) return todayIndex;
+    
+    // Find the closest week that's not in the future
+    const now = new Date();
+    for (let i = weeks.length - 1; i >= 0; i--) {
+      const weekDate = new Date(weeks[i] + 'T00:00:00');
+      if (weekDate <= now) return i;
     }
-  }, [dataLoading, ALL_WEEKS, currentWeekIndex]);
+    return weeks.length - 1;
+  };
+  
+  // Initialize to current week once data loads
+  const [hasInitialized, setHasInitialized] = useState(false);
+  
+  useEffect(() => {
+    if (!dataLoading && ALL_WEEKS.length > 0 && !hasInitialized) {
+      const correctIndex = getInitialWeekIndex(ALL_WEEKS);
+      console.log('Initializing week to:', ALL_WEEKS[correctIndex], 'index:', correctIndex);
+      setCurrentWeekIndex(correctIndex);
+      setHasInitialized(true);
+    }
+  }, [dataLoading, ALL_WEEKS, hasInitialized]);
 
-  // Use index 0 as fallback if still initializing
-  const safeWeekIndex = currentWeekIndex >= 0 ? currentWeekIndex : 0;
-  const currentWeek = ALL_WEEKS[safeWeekIndex] || ALL_WEEKS[ALL_WEEKS.length - 1] || '';
+  // Use calculated index or find current week as fallback
+  const safeWeekIndex = useMemo(() => {
+    if (currentWeekIndex >= 0 && currentWeekIndex < ALL_WEEKS.length) {
+      return currentWeekIndex;
+    }
+    // Fallback: find current week
+    return getInitialWeekIndex(ALL_WEEKS);
+  }, [currentWeekIndex, ALL_WEEKS]);
+  
+  const currentWeek = ALL_WEEKS[safeWeekIndex] || '';
 
   // Check if a week is in the past (Sunday of that week has passed)
   const isWeekPast = useMemo(() => {
@@ -2636,8 +2648,8 @@ export default function AccountabilityTracker() {
                 </div>
               )}
             </div>
-            <button onClick={prevWeek} disabled={currentWeekIndex === 0} className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800] disabled:opacity-50 transition-colors"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
-            <button onClick={nextWeek} disabled={currentWeekIndex === ALL_WEEKS.length - 1} className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800] disabled:opacity-50 transition-colors"><ChevronRight className="w-4 h-4 text-gray-600" /></button>
+            <button onClick={prevWeek} disabled={safeWeekIndex === 0} className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800] disabled:opacity-50 transition-colors"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
+            <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800] disabled:opacity-50 transition-colors"><ChevronRight className="w-4 h-4 text-gray-600" /></button>
           </div>
         </div>
 
