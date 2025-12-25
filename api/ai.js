@@ -160,6 +160,31 @@ IMPORTANT: Format each as a bullet point:
 Keep habit names short (under 8 words). Consider reducing days for struggling habits.`;
       break;
 
+    case 'participant-summary':
+      const { stats } = req.body;
+      
+      // Generate a short, punchy summary based on stats
+      let summaryText = '';
+      if (stats.rate >= 90) {
+        if (stats.exceeded > 0) {
+          summaryText = "🔥 On fire! Exceeding goals consistently";
+        } else {
+          summaryText = "⭐ Crushing it with excellent consistency";
+        }
+      } else if (stats.rate >= 75) {
+        summaryText = "📈 Strong momentum, staying focused";
+      } else if (stats.rate >= 60) {
+        summaryText = "💪 Solid progress, building momentum";
+      } else if (stats.rate >= 40) {
+        summaryText = "🎯 Working on it, room to grow";
+      } else if (stats.rate > 0) {
+        summaryText = "🌱 Getting started, finding rhythm";
+      } else {
+        summaryText = "⏸️ Taking a break this period";
+      }
+      
+      return res.status(200).json({ message: summaryText });
+
     case 'follow-up':
       systemPrompt = `You are a helpful accountability coach continuing a conversation. Be conversational, helpful, and concise. If suggesting habits, format them as bullet points with "• Habit - X days".`;
       
