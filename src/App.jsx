@@ -1672,14 +1672,40 @@ export default function AccountabilityTracker() {
     return habits;
   }, [habits, currentWeek, scorecardRange, ALL_WEEKS]);
 
-  const statusDistribution = useMemo(() => Object.keys(STATUS_CONFIG).map(s => ({ name: s, value: getRangeHabits.filter(h => getStatus(h) === s).length, color: STATUS_CONFIG[s].color })).filter(d => d.value > 0), [getRangeHabits]);
+  // My habits in the selected range
+  const myRangeHabits = useMemo(() => getRangeHabits.filter(h => h.participant === myParticipant), [getRangeHabits, myParticipant]);
+
+  // Dashboard view mode state
+  const [dashboardView, setDashboardView] = useState('personal'); // 'personal' or 'team'
+
+  const statusDistribution = useMemo(() => {
+    const habitsToUse = dashboardView === 'personal' ? myRangeHabits : getRangeHabits;
+    return Object.keys(STATUS_CONFIG).map(s => ({ name: s, value: habitsToUse.filter(h => getStatus(h) === s).length, color: STATUS_CONFIG[s].color })).filter(d => d.value > 0);
+  }, [getRangeHabits, myRangeHabits, dashboardView]);
 
   const overallStats = useMemo(() => {
-    const total = getRangeHabits.length, completed = getRangeHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-    const exceeded = getRangeHabits.filter(h => getStatus(h) === 'Exceeded').length, missed = getRangeHabits.filter(h => getStatus(h) === 'Missed').length;
+    const habitsToUse = dashboardView === 'personal' ? myRangeHabits : getRangeHabits;
+    const total = habitsToUse.length, completed = habitsToUse.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+    const exceeded = habitsToUse.filter(h => getStatus(h) === 'Exceeded').length, missed = habitsToUse.filter(h => getStatus(h) === 'Missed').length;
     const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
     return { total, completed, exceeded, missed, rate, trend: 5 };
-  }, [getRangeHabits]);
+  }, [getRangeHabits, myRangeHabits, dashboardView]);
+
+  // Team comparison - calculate your rank
+  const teamComparison = useMemo(() => {
+    const participantRates = allParticipants.map(p => {
+      const pH = getRangeHabits.filter(h => h.participant === p);
+      const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+      return { name: p, rate: pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0 };
+    }).sort((a, b) => b.rate - a.rate);
+    
+    const myRank = participantRates.findIndex(p => p.name === myParticipant) + 1;
+    const teamAvg = participantRates.length > 0 ? Math.round(participantRates.reduce((sum, p) => sum + p.rate, 0) / participantRates.length) : 0;
+    const myRate = participantRates.find(p => p.name === myParticipant)?.rate || 0;
+    const vsTeam = myRate - teamAvg;
+    
+    return { rank: myRank, total: participantRates.length, teamAvg, myRate, vsTeam };
+  }, [getRangeHabits, allParticipants, myParticipant]);
 
   const participantData = useMemo(() => allParticipants.map(p => {
     const pH = getRangeHabits.filter(h => h.participant === p);
@@ -2495,65 +2521,36 @@ export default function AccountabilityTracker() {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             {/* Main content - left 3 columns */}
             <div className="lg:col-span-3 space-y-4">
-              {/* Quote of the Week - fully collapsible */}
+              {/* Quote of the Week - compact */}
               {currentQuote && (
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 overflow-hidden">
-                  {/* Collapsible Header - Always visible */}
                   <button 
                     onClick={() => setQuotesExpanded(!quotesExpanded)}
-                    className="w-full p-4 flex items-center justify-between text-left hover:bg-amber-100/30 transition-colors"
+                    className="w-full p-3 flex items-center justify-between text-left hover:bg-amber-100/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                        <Quote className="w-5 h-5 text-amber-600" />
+                      <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <Quote className="w-4 h-4 text-amber-600" />
                       </div>
                       <div>
-                        <span className="text-xs font-medium text-amber-700">Weekly Theme</span>
-                        <h3 className="text-lg font-bold text-amber-800">{currentQuote.theme || 'Weekly Wisdom'}</h3>
+                        <span className="text-[10px] font-medium text-amber-700">Weekly Theme</span>
+                        <h3 className="text-sm font-bold text-amber-800">{currentQuote.theme || 'Weekly Wisdom'}</h3>
                       </div>
                     </div>
-                    <ChevronDown className={`w-5 h-5 text-amber-600 transition-transform ${quotesExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-amber-600 transition-transform ${quotesExpanded ? 'rotate-180' : ''}`} />
                   </button>
                   
-                  {/* Expanded Content */}
                   {quotesExpanded && (
-                    <div className="px-4 pb-4 border-t border-amber-200/50">
-                      <blockquote className="text-sm md:text-base font-medium text-gray-800 italic mt-3">"{currentQuote.quote}"</blockquote>
+                    <div className="px-3 pb-3 border-t border-amber-200/50">
+                      <blockquote className="text-sm font-medium text-gray-800 italic mt-2">"{currentQuote.quote}"</blockquote>
                       <p className="text-xs text-gray-600 mt-1">— {currentQuote.author}{currentQuote.authorTitle ? `, ${currentQuote.authorTitle}` : ''}</p>
-                      
-                      {/* Previous Themes */}
-                      {quotes.length > 1 && (
-                        <div className="mt-4 pt-3 border-t border-amber-200/50">
-                          <p className="text-xs font-medium text-amber-700 mb-2">Previous Themes</p>
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {quotes.slice(1, 6).map((q) => (
-                              <button
-                                key={q.id}
-                                onClick={(e) => { e.stopPropagation(); setActiveView('quotes'); }}
-                                className="w-full text-left p-2 rounded-lg hover:bg-amber-100/50 transition-colors flex items-center justify-between"
-                              >
-                                <span className="text-sm font-medium text-gray-700">{q.theme || 'Weekly Wisdom'}</span>
-                                <span className="text-[10px] text-gray-400">
-                                  {new Date(q.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setActiveView('quotes'); }}
-                            className="w-full mt-2 text-xs text-amber-600 hover:text-amber-800 font-medium"
-                          >
-                            View All Quotes →
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
               )}
               
-              {/* Timeframe Selector */}
-              <div className="flex items-center justify-between">
+              {/* Timeframe Selector + Personal/Team Toggle */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex gap-2 flex-wrap">
                   {Object.entries(rangeLabels).map(([k, v]) => (
                     <button 
@@ -2565,17 +2562,35 @@ export default function AccountabilityTracker() {
                     </button>
                   ))}
                 </div>
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                  <button 
+                    onClick={() => setDashboardView('personal')} 
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${dashboardView === 'personal' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                  >
+                    My Stats
+                  </button>
+                  <button 
+                    onClick={() => setDashboardView('team')} 
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${dashboardView === 'team' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                  >
+                    Team
+                  </button>
+                </div>
               </div>
               
               {/* Stats row - clickable */}
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 <button 
                   onClick={() => setShowHabitBreakdown('completed')}
                   className="bg-white rounded-xl p-3 border border-gray-100 text-left hover:border-purple-300 hover:shadow-sm transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <Target className="w-4 h-4 text-purple-500" />
-                    <span className="text-xs text-green-600">+{overallStats.trend}%</span>
+                    {dashboardView === 'personal' && teamComparison.vsTeam !== 0 && (
+                      <span className={`text-[10px] font-medium ${teamComparison.vsTeam > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {teamComparison.vsTeam > 0 ? '+' : ''}{teamComparison.vsTeam}% vs team
+                      </span>
+                    )}
                   </div>
                   <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.rate}%</p>
                   <p className="text-xs text-gray-500">Completion</p>
@@ -2604,6 +2619,13 @@ export default function AccountabilityTracker() {
                   <p className="text-xl font-bold text-gray-800 mt-1">{overallStats.missed}</p>
                   <p className="text-xs text-gray-500">Missed</p>
                 </button>
+                {dashboardView === 'personal' && (
+                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-3 border border-indigo-200">
+                    <Trophy className="w-4 h-4 text-indigo-500" />
+                    <p className="text-xl font-bold text-indigo-700 mt-1">#{teamComparison.rank}</p>
+                    <p className="text-xs text-indigo-600">of {teamComparison.total}</p>
+                  </div>
+                )}
               </div>
               
               {/* Chart and breakdown side by side */}
@@ -3900,54 +3922,52 @@ export default function AccountabilityTracker() {
                       );
                     });
                   })()}
+                  {/* Daily Completion Rate Row */}
+                  <tr className="bg-amber-50/50 border-t-2 border-amber-200">
+                    <td className="p-1.5 sticky left-0 bg-amber-50/50 z-10 font-semibold text-gray-700 text-[11px]">Daily Rate</td>
+                    {(() => {
+                      const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                      const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                      const monthHabits = habits.filter(h => {
+                        const weekDate = new Date(h.weekStart + 'T00:00:00');
+                        return weekDate.getMonth() === monthlyViewMonth.month && 
+                               weekDate.getFullYear() === monthlyViewMonth.year &&
+                               (!viewParticipant || h.participant === viewParticipant);
+                      });
+
+                      return Array.from({ length: daysInMonth }, (_, dayIdx) => {
+                        const dayNum = dayIdx + 1;
+                        const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
+                        const dayOfWeek = (dayDate.getDay() + 6) % 7;
+                        const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+                        const isToday = dayDate.toDateString() === new Date().toDateString();
+                        
+                        let completed = 0, total = 0;
+                        monthHabits.forEach(h => {
+                          const weekStart = new Date(h.weekStart + 'T00:00:00');
+                          const weekEnd = new Date(weekStart);
+                          weekEnd.setDate(weekEnd.getDate() + 6);
+                          if (dayDate >= weekStart && dayDate <= weekEnd) {
+                            total++;
+                            if (h.daysCompleted?.includes(dayOfWeek)) completed++;
+                          }
+                        });
+
+                        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+                        return (
+                          <td key={dayIdx} className={`p-0 text-center ${isWeekend && !isToday ? 'bg-gray-50/50' : ''} ${isToday ? 'bg-amber-200' : ''}`}>
+                            <span className={`text-[9px] font-bold ${total === 0 ? 'text-gray-300' : pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                              {total > 0 ? `${pct}%` : '-'}
+                            </span>
+                          </td>
+                        );
+                      });
+                    })()}
+                    <td colSpan="3" className="p-1 text-center text-[9px] text-gray-500 bg-amber-50/50">Avg</td>
+                  </tr>
                 </tbody>
               </table>
-            </div>
-
-            {/* Daily Progress Row */}
-            <div className="bg-white rounded-xl p-3 border border-gray-100">
-              <h3 className="font-semibold text-gray-800 mb-2 text-sm">Daily Completion Rate</h3>
-              <div className="flex gap-0.5 overflow-x-auto pb-1">
-                {(() => {
-                  const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                  const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
-                  const monthHabits = habits.filter(h => {
-                    const weekDate = new Date(h.weekStart + 'T00:00:00');
-                    return weekDate.getMonth() === monthlyViewMonth.month && 
-                           weekDate.getFullYear() === monthlyViewMonth.year &&
-                           (!viewParticipant || h.participant === viewParticipant);
-                  });
-
-                  return Array.from({ length: daysInMonth }, (_, dayIdx) => {
-                    const dayNum = dayIdx + 1;
-                    const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
-                    const dayOfWeek = (dayDate.getDay() + 6) % 7;
-                    
-                    let completed = 0, total = 0;
-                    monthHabits.forEach(h => {
-                      const weekStart = new Date(h.weekStart + 'T00:00:00');
-                      const weekEnd = new Date(weekStart);
-                      weekEnd.setDate(weekEnd.getDate() + 6);
-                      if (dayDate >= weekStart && dayDate <= weekEnd) {
-                        total++;
-                        if (h.daysCompleted?.includes(dayOfWeek)) completed++;
-                      }
-                    });
-
-                    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-                    const isToday = dayDate.toDateString() === new Date().toDateString();
-
-                    return (
-                      <div key={dayIdx} className={`flex flex-col items-center min-w-[22px] ${isToday ? 'bg-amber-100 rounded p-0.5' : ''}`}>
-                        <span className={`text-[9px] ${total === 0 ? 'text-gray-300' : pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'} font-medium`}>
-                          {total > 0 ? `${pct}%` : '-'}
-                        </span>
-                        <span className="text-[9px] text-gray-400">{dayNum}</span>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
             </div>
 
             {/* Mood Tracker */}
@@ -3964,24 +3984,27 @@ export default function AccountabilityTracker() {
                   {todaysMoodEntry ? 'Update' : 'Log Today'}
                 </button>
               </div>
-              <div className="flex gap-0.5 overflow-x-auto pb-1">
-                {(() => {
-                  const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
-                  return Array.from({ length: daysInMonth }, (_, dayIdx) => {
-                    const dayNum = dayIdx + 1;
-                    const dateStr = `${monthlyViewMonth.year}-${String(monthlyViewMonth.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                    const moodEntry = moodData.find(m => m.date === dateStr && (selectedParticipant === 'All' || m.participant === selectedParticipant));
-                    const isToday = dateStr === new Date().toISOString().split('T')[0];
+              {/* Mood/Motivation as aligned grid */}
+              <div className="overflow-x-auto">
+                <div className="inline-flex gap-0">
+                  {(() => {
+                    const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                    return Array.from({ length: daysInMonth }, (_, dayIdx) => {
+                      const dayNum = dayIdx + 1;
+                      const dateStr = `${monthlyViewMonth.year}-${String(monthlyViewMonth.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                      const moodEntry = moodData.find(m => m.date === dateStr && (selectedParticipant === 'All' || m.participant === selectedParticipant));
+                      const isToday = dateStr === new Date().toISOString().split('T')[0];
 
-                    return (
-                      <div key={dayIdx} className={`flex flex-col items-center min-w-[22px] ${isToday ? 'bg-purple-100 rounded p-0.5' : ''}`}>
-                        <span className="text-[9px] text-purple-600 font-medium">{moodEntry?.mood || '-'}</span>
-                        <span className="text-[9px] text-pink-600 font-medium">{moodEntry?.motivation || '-'}</span>
-                        <span className="text-[9px] text-gray-400">{dayNum}</span>
-                      </div>
-                    );
-                  });
-                })()}
+                      return (
+                        <div key={dayIdx} className={`flex flex-col items-center w-[22px] ${isToday ? 'bg-purple-200 rounded' : ''}`}>
+                          <span className="text-[9px] text-purple-600 font-medium">{moodEntry?.mood || '-'}</span>
+                          <span className="text-[9px] text-pink-600 font-medium">{moodEntry?.motivation || '-'}</span>
+                          <span className="text-[8px] text-gray-400">{dayNum}</span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
               <div className="flex gap-3 mt-1 text-[10px] text-gray-500">
                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-purple-500 rounded"></span> Mood</span>
@@ -5326,12 +5349,13 @@ export default function AccountabilityTracker() {
               </div>
               
               <p className="text-sm text-gray-500 mb-4">
+                {dashboardView === 'personal' ? 'Your habits · ' : 'Team · '}
                 {scorecardRange === 'week' ? 'This week' : scorecardRange === '4weeks' ? 'Last 4 weeks' : scorecardRange === 'quarter' ? 'This quarter' : 'All time'}
               </p>
               
               <div className="overflow-y-auto flex-1 space-y-2">
                 {(() => {
-                  let habitsToShow = getRangeHabits;
+                  let habitsToShow = dashboardView === 'personal' ? myRangeHabits : getRangeHabits;
                   if (showHabitBreakdown === 'exceeded') {
                     habitsToShow = habitsToShow.filter(h => getStatus(h) === 'Exceeded');
                   } else if (showHabitBreakdown === 'missed') {
