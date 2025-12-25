@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, ListTodo, Smile, Grid3X3, Clock, AlertCircle, CheckSquare, Square } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
 
 // Firebase imports
@@ -432,8 +432,8 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) =>
     { id: 'feed', icon: Users, label: 'Feed' },
     { id: 'compete', icon: Trophy, label: 'Compete' },
     { id: 'tracker', icon: Calendar, label: 'Track' },
-    { id: 'monthly', icon: Grid3X3, label: 'Monthly' },
-    { id: 'tasks', icon: ListTodo, label: 'Tasks' },
+    { id: 'monthly', icon: CalendarDays, label: 'Monthly' },
+    { id: 'tasks', icon: Target, label: 'Tasks' },
     { id: 'scorecard', icon: BarChart3, label: 'Score' },
     { id: 'add', icon: Plus, label: 'Add' },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
@@ -3819,7 +3819,7 @@ export default function AccountabilityTracker() {
             <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                  <Smile className="w-5 h-5 text-purple-500" />
+                  <Heart className="w-5 h-5 text-purple-500" />
                   Mood & Motivation
                 </h3>
                 <button 
@@ -3886,21 +3886,21 @@ export default function AccountabilityTracker() {
                 <div className="grid grid-cols-4 gap-3">
                   <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
                     <div className="flex items-center gap-2 mb-1">
-                      <Clock className="w-4 h-4 text-blue-500" />
+                      <Calendar className="w-4 h-4 text-blue-500" />
                       <span className="text-xs text-blue-600 font-medium">Today</span>
                     </div>
                     <p className="text-2xl font-bold text-blue-700">{todayTasks.length}</p>
                   </div>
                   <div className="bg-white rounded-xl p-3 border border-gray-200">
                     <div className="flex items-center gap-2 mb-1">
-                      <ListTodo className="w-4 h-4 text-gray-500" />
+                      <Target className="w-4 h-4 text-gray-500" />
                       <span className="text-xs text-gray-600 font-medium">Total</span>
                     </div>
                     <p className="text-2xl font-bold text-gray-700">{myTasks.length}</p>
                   </div>
                   <div className="bg-red-50 rounded-xl p-3 border border-red-200">
                     <div className="flex items-center gap-2 mb-1">
-                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <XCircle className="w-4 h-4 text-red-500" />
                       <span className="text-xs text-red-600 font-medium">Overdue</span>
                     </div>
                     <p className="text-2xl font-bold text-red-700">{overdueTasks.length}</p>
@@ -4999,7 +4999,7 @@ export default function AccountabilityTracker() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-md">
               <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <ListTodo className="w-5 h-5 text-[#1E3A5F]" />
+                <Target className="w-5 h-5 text-[#1E3A5F]" />
                 Add New Task
               </h3>
               
@@ -5080,7 +5080,7 @@ export default function AccountabilityTracker() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-md">
               <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Smile className="w-5 h-5 text-purple-500" />
+                <Heart className="w-5 h-5 text-purple-500" />
                 Log Today's Mood
               </h3>
               
