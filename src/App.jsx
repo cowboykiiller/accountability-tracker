@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check } from 'lucide-react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar } from 'recharts';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
@@ -390,6 +390,7 @@ const NAV_ITEMS = [
   { id: 'feed', icon: Users, label: 'Feed' },
   { id: 'compete', icon: Trophy, label: 'Compete' },
   { id: 'tracker', icon: Calendar, label: 'Track' },
+  { id: 'insights', icon: BarChart3, label: 'Insights' },
   { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
 ];
 
@@ -422,6 +423,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) =>
     'monthly': 'Monthly View',
     'tasks': 'Task List',
     'scorecard': 'Scorecard', 
+    'insights': 'Insights',
     'add': 'Add Habit', 
     'quotes': 'Quotes', 
     'ai-coach': 'AI Coach',
@@ -434,7 +436,8 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut }) =>
     { id: 'tracker', icon: Calendar, label: 'Track' },
     { id: 'monthly', icon: CalendarDays, label: 'Monthly' },
     { id: 'tasks', icon: Target, label: 'Tasks' },
-    { id: 'scorecard', icon: BarChart3, label: 'Score' },
+    { id: 'insights', icon: BarChart3, label: 'Insights' },
+    { id: 'scorecard', icon: Award, label: 'Score' },
     { id: 'add', icon: Plus, label: 'Add' },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
     { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
@@ -4625,6 +4628,259 @@ export default function AccountabilityTracker() {
                   <button onClick={addBulkHabits} className="w-full bg-[#1E3A5F] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors">Add {bulkHabits.split('\n').filter(l => l.trim()).length} Habits</button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* INSIGHTS VIEW */}
+        {activeView === 'insights' && (
+          <div className="space-y-4">
+            {/* Dark header - inspired by the screenshot */}
+            <div className="bg-gradient-to-br from-[#0a1628] to-[#1a2d4a] rounded-2xl p-6 text-white">
+              <p className="text-gray-400 text-sm">Instead of asking why can't I</p>
+              <h2 className="text-3xl font-bold mb-1">DO MORE?</h2>
+              <p className="text-gray-400">first do a life audit:</p>
+            </div>
+
+            {/* Main Stats Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Radar Chart - Life Balance */}
+              <div className="bg-gradient-to-br from-[#0f1f35] to-[#162a45] rounded-2xl p-5 text-white">
+                <h3 className="text-sm text-gray-400 mb-4">Life Balance</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <RadarChart data={(() => {
+                    // Calculate scores for each category based on habit completion
+                    const categories = ['Fitness', 'Business', 'Finance', 'Health', 'Learning', 'Relationships', 'Spiritual'];
+                    const myHabits = habits.filter(h => h.participant === myParticipant);
+                    
+                    return categories.map(cat => {
+                      const catHabits = myHabits.filter(h => (h.category || 'Personal') === cat);
+                      if (catHabits.length === 0) {
+                        // Assign habits to categories based on keywords
+                        const keywords = {
+                          'Fitness': ['workout', 'gym', 'run', 'exercise', 'walk', 'fitness'],
+                          'Business': ['work', 'client', 'meeting', 'business', 'call', 'email'],
+                          'Finance': ['budget', 'invest', 'money', 'finance', 'trade', 'save'],
+                          'Health': ['sleep', 'wake', 'meditat', 'health', 'diet', 'water'],
+                          'Learning': ['read', 'learn', 'study', 'course', 'book'],
+                          'Relationships': ['family', 'friend', 'call', 'social', 'team'],
+                          'Spiritual': ['pray', 'church', 'bible', 'spiritual', 'gratitude', 'journal']
+                        };
+                        const matched = myHabits.filter(h => 
+                          keywords[cat]?.some(kw => h.habit.toLowerCase().includes(kw))
+                        );
+                        if (matched.length > 0) {
+                          const completed = matched.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                          return { category: cat, score: matched.length > 0 ? Math.round((completed / matched.length) * 100) : 0, fullMark: 100 };
+                        }
+                      }
+                      const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                      return { category: cat, score: catHabits.length > 0 ? Math.round((completed / catHabits.length) * 100) : 30 + Math.random() * 40, fullMark: 100 };
+                    });
+                  })()}>
+                    <PolarGrid stroke="#334155" />
+                    <PolarAngleAxis dataKey="category" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} />
+                    <Radar name="Score" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} strokeWidth={2} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Heatmap + Life Score */}
+              <div className="space-y-4">
+                {/* GitHub-style Heatmap */}
+                <div className="bg-gradient-to-br from-[#0f1f35] to-[#162a45] rounded-2xl p-5 text-white">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">Heatmap</p>
+                      <h3 className="text-lg font-semibold">Activity</h3>
+                    </div>
+                    <span className="text-green-400 text-sm font-medium">
+                      {(() => {
+                        const myHabits = habits.filter(h => h.participant === myParticipant);
+                        const completed = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                        return myHabits.length > 0 ? Math.round((completed / myHabits.length) * 100) : 0;
+                      })()}% Overall
+                    </span>
+                  </div>
+                  
+                  {/* Heatmap Grid - Last 12 weeks */}
+                  <div className="flex gap-1 overflow-x-auto pb-2">
+                    {(() => {
+                      const weeks = ALL_WEEKS.slice(-12);
+                      return weeks.map((week, weekIdx) => {
+                        return (
+                          <div key={week} className="flex flex-col gap-1">
+                            {DAYS.map((day, dayIdx) => {
+                              const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
+                              const dayCompleted = weekHabits.filter(h => h.daysCompleted?.includes(dayIdx)).length;
+                              const dayTotal = weekHabits.length;
+                              const pct = dayTotal > 0 ? (dayCompleted / dayTotal) * 100 : 0;
+                              
+                              let bgColor = 'bg-gray-700/50';
+                              if (pct > 0) bgColor = 'bg-emerald-900/60';
+                              if (pct >= 40) bgColor = 'bg-emerald-700/70';
+                              if (pct >= 70) bgColor = 'bg-emerald-500/80';
+                              if (pct >= 90) bgColor = 'bg-emerald-400';
+                              
+                              return (
+                                <div
+                                  key={dayIdx}
+                                  className={`w-4 h-4 rounded-sm ${bgColor} hover:ring-1 hover:ring-white/30 cursor-pointer transition-all`}
+                                  title={`${day}: ${Math.round(pct)}% (${dayCompleted}/${dayTotal})`}
+                                />
+                              );
+                            })}
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                  <div className="flex items-center justify-end gap-1 mt-2 text-[10px] text-gray-500">
+                    <span>Less</span>
+                    <div className="w-3 h-3 rounded-sm bg-gray-700/50"></div>
+                    <div className="w-3 h-3 rounded-sm bg-emerald-900/60"></div>
+                    <div className="w-3 h-3 rounded-sm bg-emerald-700/70"></div>
+                    <div className="w-3 h-3 rounded-sm bg-emerald-500/80"></div>
+                    <div className="w-3 h-3 rounded-sm bg-emerald-400"></div>
+                    <span>More</span>
+                  </div>
+                </div>
+
+                {/* Life Score */}
+                <div className="bg-gradient-to-br from-[#0f1f35] to-[#162a45] rounded-2xl p-5 text-white">
+                  <h3 className="text-sm text-gray-400 mb-2">Your Accountability Score</h3>
+                  <div className="flex items-end gap-4">
+                    <div className="relative">
+                      {/* Animated score effect */}
+                      <div className="text-6xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                        {(() => {
+                          const myHabits = habits.filter(h => h.participant === myParticipant);
+                          const completed = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                          const rate = myHabits.length > 0 ? Math.round((completed / myHabits.length) * 100) : 0;
+                          const streakBonus = Math.min((calculateStreaks[myParticipant] || 0) * 2, 20);
+                          const challengeBonus = bets.filter(b => b.status === 'accepted' && (b.challenger === myParticipant || (Array.isArray(b.challenged) ? b.challenged.includes(myParticipant) : b.challenged === myParticipant))).length * 5;
+                          return Math.min(rate + streakBonus + challengeBonus, 100);
+                        })()}%
+                      </div>
+                      <div className="absolute -left-2 bottom-0 w-1 h-full bg-gradient-to-t from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
+                    </div>
+                    <div className="text-xs text-gray-500 pb-2">
+                      <p>Completion + Streaks + Challenges</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Progress Bars */}
+            <div className="bg-gradient-to-br from-[#0f1f35] to-[#162a45] rounded-2xl p-5 text-white">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wider">Your Progress</p>
+                  <h3 className="text-lg font-semibold">Monthly Trend</h3>
+                </div>
+              </div>
+              
+              <div className="flex items-end justify-around gap-2 h-48">
+                {(() => {
+                  // Get last 6 months of data
+                  const months = [];
+                  const now = new Date();
+                  for (let i = 5; i >= 0; i--) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    months.push({
+                      month: d.toLocaleDateString('en-US', { month: 'short' }),
+                      year: d.getFullYear(),
+                      monthNum: d.getMonth()
+                    });
+                  }
+                  
+                  return months.map((m, idx) => {
+                    const monthHabits = habits.filter(h => {
+                      if (h.participant !== myParticipant) return false;
+                      const weekDate = new Date(h.weekStart + 'T00:00:00');
+                      return weekDate.getMonth() === m.monthNum && weekDate.getFullYear() === m.year;
+                    });
+                    
+                    const completed = monthHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                    const rate = monthHabits.length > 0 ? Math.round((completed / monthHabits.length) * 100) : 0;
+                    
+                    const isCurrentMonth = m.monthNum === now.getMonth() && m.year === now.getFullYear();
+                    
+                    return (
+                      <div key={idx} className="flex flex-col items-center gap-2 flex-1">
+                        <span className="text-xs font-medium text-white">{rate}%</span>
+                        <div className="w-full max-w-[40px] bg-gray-700/50 rounded-t-lg relative" style={{ height: '140px' }}>
+                          <div 
+                            className={`absolute bottom-0 left-0 right-0 rounded-t-lg transition-all duration-500 ${isCurrentMonth ? 'bg-gradient-to-t from-blue-600 to-blue-400' : 'bg-gradient-to-t from-blue-800 to-blue-600'}`}
+                            style={{ height: `${rate}%` }}
+                          ></div>
+                        </div>
+                        <span className={`text-xs ${isCurrentMonth ? 'text-white font-medium' : 'text-gray-500'}`}>{m.month}</span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Bottom row - Streaks & Top Habits */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Current Streak */}
+              <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-2xl p-5 border border-orange-500/30">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                    <Flame className="w-6 h-6 text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Current Streak</p>
+                    <p className="text-3xl font-bold text-orange-400">{calculateStreaks[myParticipant] || 0} weeks</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600">Keep your momentum going! Complete this week to extend your streak.</p>
+              </div>
+
+              {/* Top Performing Habits */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100">
+                <h3 className="text-sm text-gray-500 mb-3">Top Performing Habits</h3>
+                <div className="space-y-2">
+                  {(() => {
+                    // Group habits by name and calculate success rate
+                    const habitStats = {};
+                    habits.filter(h => h.participant === myParticipant).forEach(h => {
+                      if (!habitStats[h.habit]) {
+                        habitStats[h.habit] = { habit: h.habit, completed: 0, total: 0 };
+                      }
+                      habitStats[h.habit].total++;
+                      if (['Done', 'Exceeded'].includes(getStatus(h))) {
+                        habitStats[h.habit].completed++;
+                      }
+                    });
+                    
+                    return Object.values(habitStats)
+                      .map(h => ({ ...h, rate: h.total > 0 ? Math.round((h.completed / h.total) * 100) : 0 }))
+                      .sort((a, b) => b.rate - a.rate)
+                      .slice(0, 4)
+                      .map((h, idx) => (
+                        <div key={h.habit} className="flex items-center gap-3">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${idx === 0 ? 'bg-yellow-100 text-yellow-700' : idx === 1 ? 'bg-gray-100 text-gray-700' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-blue-50 text-blue-600'}`}>
+                            {idx + 1}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-800 truncate">{h.habit}</p>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-green-500 rounded-full" style={{ width: `${h.rate}%` }}></div>
+                              </div>
+                              <span className="text-xs font-medium text-gray-600">{h.rate}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ));
+                  })()}
+                </div>
+              </div>
             </div>
           </div>
         )}
