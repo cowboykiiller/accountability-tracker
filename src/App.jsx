@@ -1707,6 +1707,12 @@ export default function AccountabilityTracker() {
       current.setDate(current.getDate() + 7);
     }
     
+    // Ensure current week is always included
+    if (!weeks.includes(currentMonday)) {
+      weeks.push(currentMonday);
+      weeks.sort();
+    }
+    
     return weeks;
   }, [habits]);
   
@@ -1719,20 +1725,34 @@ export default function AccountabilityTracker() {
     return mondayDate.toISOString().split('T')[0];
   };
   
-  // Get the correct initial week index
+  // Get the correct initial week index - always prefer current week
   const getInitialWeekIndex = (weeks) => {
     if (weeks.length === 0) return 0;
-    const thisMonday = getCurrentMonday();
-    const todayIndex = weeks.indexOf(thisMonday);
-    if (todayIndex !== -1) return todayIndex;
     
-    // Find the closest week that's not in the future
-    const now = new Date();
-    for (let i = weeks.length - 1; i >= 0; i--) {
-      const weekDate = new Date(weeks[i] + 'T00:00:00');
-      if (weekDate <= now) return i;
+    // Get this week's Monday
+    const thisMonday = getCurrentMonday();
+    
+    // First, try to find exact match for current week
+    const todayIndex = weeks.indexOf(thisMonday);
+    if (todayIndex !== -1) {
+      return todayIndex;
     }
-    return weeks.length - 1;
+    
+    // If current week not found, find the closest week to today
+    const today = new Date();
+    let closestIndex = 0;
+    let closestDiff = Infinity;
+    
+    for (let i = 0; i < weeks.length; i++) {
+      const weekDate = new Date(weeks[i] + 'T00:00:00');
+      const diff = Math.abs(today.getTime() - weekDate.getTime());
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closestIndex = i;
+      }
+    }
+    
+    return closestIndex;
   };
   
   // Initialize to current week once data loads
@@ -1741,6 +1761,8 @@ export default function AccountabilityTracker() {
   useEffect(() => {
     if (!dataLoading && ALL_WEEKS.length > 0 && !hasInitialized) {
       const correctIndex = getInitialWeekIndex(ALL_WEEKS);
+      const currentMon = getCurrentMonday();
+      console.log('Current Monday:', currentMon, 'Available weeks:', ALL_WEEKS.slice(-5));
       console.log('Initializing week to:', ALL_WEEKS[correctIndex], 'index:', correctIndex);
       setCurrentWeekIndex(correctIndex);
       setHasInitialized(true);
@@ -2694,6 +2716,14 @@ export default function AccountabilityTracker() {
 
   const prevWeek = () => safeWeekIndex > 0 && setCurrentWeekIndex(safeWeekIndex - 1);
   const nextWeek = () => safeWeekIndex < ALL_WEEKS.length - 1 && setCurrentWeekIndex(safeWeekIndex + 1);
+  const goToCurrentWeek = () => {
+    const currentMon = getCurrentMonday();
+    const idx = ALL_WEEKS.indexOf(currentMon);
+    if (idx !== -1) {
+      setCurrentWeekIndex(idx);
+    }
+  };
+  const isCurrentWeekSelected = currentWeek === getCurrentMonday();
 
   const handleCalendarDayClick = (date) => {
     if (!date) return;
@@ -2787,6 +2817,18 @@ export default function AccountabilityTracker() {
             </div>
             {/* Desktop week controls */}
             <div className="hidden md:flex items-center gap-2">
+              {!isCurrentWeekSelected && (
+                <button 
+                  onClick={goToCurrentWeek}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                    darkMode 
+                      ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
+                >
+                  Today
+                </button>
+              )}
               <div className="relative" ref={calendarRef}>
                 <button onClick={() => setShowCalendar(!showCalendar)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all backdrop-blur-sm ${
                   darkMode 
@@ -2813,10 +2855,10 @@ export default function AccountabilityTracker() {
                       if (!date) return <div key={i} className="w-9 h-9" />;
                       const weekStr = getWeekStartFromDate(date);
                       const hasData = ALL_WEEKS.includes(weekStr);
-                      const isCurrentWeek = weekStr === currentWeek;
+                      const isThisCurrentWeek = weekStr === currentWeek;
                       const isMonday = date.getDay() === 1;
                       return <button key={i} onClick={() => handleCalendarDayClick(date)} disabled={!hasData} className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
-                        isCurrentWeek 
+                        isThisCurrentWeek 
                           ? 'bg-[#1E3A5F] text-white shadow-sm' 
                           : hasData 
                             ? isMonday 
@@ -2843,7 +2885,7 @@ export default function AccountabilityTracker() {
           </div>
           
           {/* Mobile Week Selector - Simplified */}
-          <div className="md:hidden flex items-center justify-between gap-2">
+          <div className="md:hidden flex items-center gap-2">
             <button onClick={prevWeek} disabled={safeWeekIndex === 0} className={`p-2.5 rounded-xl transition-all disabled:opacity-30 ${
               darkMode 
                 ? 'bg-white/10 active:bg-white/20' 
@@ -2853,17 +2895,29 @@ export default function AccountabilityTracker() {
             </button>
             <button 
               onClick={() => setShowCalendar(!showCalendar)} 
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition-all ${
                 darkMode 
                   ? 'bg-white/10 active:bg-white/20' 
                   : 'bg-white/80 active:bg-white'
               }`}
             >
               <CalendarDays className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-[#1E3A5F]'}`} />
-              <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <span className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 {currentWeek ? formatWeekString(currentWeek) : 'Select week'}
               </span>
             </button>
+            {!isCurrentWeekSelected && (
+              <button 
+                onClick={goToCurrentWeek}
+                className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  darkMode 
+                    ? 'bg-blue-500/20 text-blue-400 active:bg-blue-500/30' 
+                    : 'bg-blue-500 text-white active:bg-blue-600'
+                }`}
+              >
+                Today
+              </button>
+            )}
             <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className={`p-2.5 rounded-xl transition-all disabled:opacity-30 ${
               darkMode 
                 ? 'bg-white/10 active:bg-white/20' 
