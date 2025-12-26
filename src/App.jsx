@@ -3199,133 +3199,242 @@ export default function AccountabilityTracker() {
                 )}
               </div>
               
-              {/* Week at a Glance - Daily Progress Rings - Glass - Mobile Optimized */}
+              {/* Week at a Glance - Redesigned for Weekly Goals */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
                   ? 'bg-white/5 border border-white/10' 
                   : 'bg-white/70 border border-white/50'
               }`}>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-4">
                   <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Week at a Glance</h3>
                   <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{currentWeek ? formatWeekString(currentWeek) : ''}</span>
                 </div>
                 
-                {/* Mobile: Horizontal scroll, Desktop: Grid */}
-                <div className="flex md:grid md:grid-cols-7 gap-2 overflow-x-auto pb-2 md:pb-0 -mx-2 px-2 md:mx-0 md:px-0 snap-x snap-mandatory md:snap-none">
-                  {dailyStats.map((day) => {
-                    const ringColor = day.rate >= 80 ? '#10b981' : day.rate >= 50 ? '#f59e0b' : day.rate > 0 ? '#ef4444' : darkMode ? '#374151' : '#d1d5db';
-                    const circumference = 2 * Math.PI * 22;
-                    const strokeDashoffset = circumference - (day.rate / 100) * circumference;
-                    
-                    return (
-                      <button
-                        key={day.dayIndex}
-                        onClick={() => setSelectedDay(selectedDay === day.dayIndex ? null : day.dayIndex)}
-                        className={`flex-shrink-0 snap-center flex flex-col items-center p-2 md:p-2 rounded-xl transition-all min-w-[60px] md:min-w-0 ${
-                          day.isToday 
-                            ? 'bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f] text-white shadow-lg scale-105' 
-                            : selectedDay === day.dayIndex 
-                              ? darkMode ? 'bg-blue-500/20 border-2 border-blue-400/50' : 'bg-blue-50 border-2 border-blue-300' 
-                              : darkMode ? 'active:bg-white/10 border border-transparent' : 'active:bg-gray-100 border border-transparent'
-                        }`}
-                      >
-                        <span className={`text-[10px] font-medium ${day.isToday ? 'text-blue-200' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                          {day.shortName}
-                        </span>
-                        <span className={`text-xs font-bold mb-1 ${day.isToday ? 'text-white' : darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {day.date.getDate()}
-                        </span>
-                        
-                        {/* Circular Progress Ring - Smaller on mobile */}
-                        <div className="relative w-11 h-11 md:w-14 md:h-14">
-                          <svg className="w-11 h-11 md:w-14 md:h-14 transform -rotate-90" viewBox="0 0 56 56">
+                {(() => {
+                  // Calculate weekly stats
+                  const habitsToShow = dashboardView === 'personal'
+                    ? currentWeekHabits.filter(h => h.participant === myParticipant)
+                    : currentWeekHabits;
+                  
+                  const dailyHabits = habitsToShow.filter(h => h.habitType !== 'percentage');
+                  const percentageHabits = habitsToShow.filter(h => h.habitType === 'percentage');
+                  
+                  // Calculate completion for daily habits
+                  const totalTarget = dailyHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                  const totalCompleted = dailyHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                  const weeklyPct = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
+                  
+                  // Status counts
+                  const statusCounts = { done: 0, onTrack: 0, atRisk: 0, missed: 0, pending: 0 };
+                  habitsToShow.forEach(h => {
+                    const st = getStatus(h);
+                    if (st === 'Done' || st === 'Exceeded') statusCounts.done++;
+                    else if (st === 'On Track') statusCounts.onTrack++;
+                    else if (st === 'At Risk') statusCounts.atRisk++;
+                    else if (st === 'Pending') statusCounts.pending++;
+                    else statusCounts.missed++;
+                  });
+                  
+                  // Calculate days left in week
+                  const today = new Date();
+                  const weekStart = new Date(currentWeek + 'T00:00:00');
+                  const weekEnd = new Date(weekStart);
+                  weekEnd.setDate(weekEnd.getDate() + 6);
+                  const daysLeft = Math.max(0, Math.ceil((weekEnd - today) / (1000 * 60 * 60 * 24)));
+                  const dayOfWeek = Math.min(6, Math.floor((today - weekStart) / (1000 * 60 * 60 * 24)));
+                  const isCurrentWeek = today >= weekStart && today <= weekEnd;
+                  
+                  // Progress ring calculations
+                  const circumference = 2 * Math.PI * 45;
+                  const strokeDashoffset = circumference - (weeklyPct / 100) * circumference;
+                  const ringColor = weeklyPct >= 80 ? '#10b981' : weeklyPct >= 50 ? '#f59e0b' : weeklyPct > 0 ? '#ef4444' : darkMode ? '#374151' : '#d1d5db';
+                  
+                  return (
+                    <div className="flex flex-col md:flex-row gap-4">
+                      {/* Left: Big Progress Ring */}
+                      <div className="flex flex-col items-center justify-center md:w-1/3">
+                        <div className="relative w-32 h-32">
+                          <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
+                            {/* Background ring */}
                             <circle
-                              cx="28"
-                              cy="28"
-                              r="22"
-                              stroke={day.isToday ? 'rgba(255,255,255,0.2)' : darkMode ? '#374151' : '#e5e7eb'}
-                              strokeWidth="4"
+                              cx="60"
+                              cy="60"
+                              r="45"
+                              stroke={darkMode ? '#374151' : '#e5e7eb'}
+                              strokeWidth="8"
                               fill="none"
                             />
+                            {/* Progress ring */}
                             <circle
-                              cx="28"
-                              cy="28"
-                              r="22"
-                              stroke={day.isToday ? '#F5B800' : ringColor}
-                              strokeWidth="4"
+                              cx="60"
+                              cy="60"
+                              r="45"
+                              stroke={ringColor}
+                              strokeWidth="8"
                               fill="none"
                               strokeLinecap="round"
                               strokeDasharray={circumference}
                               strokeDashoffset={strokeDashoffset}
-                              className="transition-all duration-500"
+                              className="transition-all duration-700"
                             />
+                            {/* Day markers */}
+                            {[0,1,2,3,4,5,6].map(d => {
+                              const angle = (d / 7) * 360 - 90;
+                              const rad = (angle * Math.PI) / 180;
+                              const x = 60 + 54 * Math.cos(rad);
+                              const y = 60 + 54 * Math.sin(rad);
+                              const isPast = d <= dayOfWeek && isCurrentWeek;
+                              return (
+                                <circle
+                                  key={d}
+                                  cx={x}
+                                  cy={y}
+                                  r="3"
+                                  fill={isPast ? (darkMode ? '#6b7280' : '#9ca3af') : (darkMode ? '#374151' : '#e5e7eb')}
+                                />
+                              );
+                            })}
                           </svg>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span className={`text-xs md:text-sm font-bold ${day.isToday ? 'text-white' : darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                              {day.total > 0 ? `${day.rate}%` : '-'}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{weeklyPct}%</span>
+                            <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              {totalCompleted}/{totalTarget}
                             </span>
                           </div>
                         </div>
-                        
-                        <span className={`text-[10px] mt-1 ${day.isToday ? 'text-blue-200' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                          {day.completed}/{day.total}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                {/* Expanded Day View */}
-                {selectedDay !== null && (
-                  <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-white/10' : 'border-gray-200/50'}`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        {dailyStats[selectedDay]?.dayName} - {dailyStats[selectedDay]?.dateStr}
-                      </h4>
-                      <button 
-                        onClick={() => setSelectedDay(null)}
-                        className={`p-1 rounded-lg ${darkMode ? 'text-gray-500 active:bg-white/10' : 'text-gray-400 active:bg-gray-100'}`}
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {(() => {
-                        const habitsToShow = dashboardView === 'personal'
-                          ? currentWeekHabits.filter(h => h.participant === myParticipant)
-                          : currentWeekHabits;
-                        
-                        if (habitsToShow.length === 0) {
-                          return <p className={`text-sm text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No habits tracked</p>;
-                        }
-                        
-                        return habitsToShow.map(h => {
-                          const isCompleted = h.daysCompleted?.includes(selectedDay);
-                          return (
-                            <div 
-                              key={h.id} 
-                              className={`flex items-center gap-3 p-3 rounded-xl ${
-                                isCompleted 
-                                  ? darkMode ? 'bg-green-500/10' : 'bg-green-50' 
-                                  : darkMode ? 'bg-white/5' : 'bg-gray-50'
-                              }`}
-                            >
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${isCompleted ? 'bg-green-500 text-white' : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'}`}>
-                                {isCompleted ? <Check className="w-4 h-4" /> : <span className="text-xs">○</span>}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm ${isCompleted ? darkMode ? 'text-green-400' : 'text-green-700' : darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{h.habit}</p>
-                                {dashboardView === 'team' && (
-                                  <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.participant}</p>
-                                )}
-                              </div>
+                        {isCurrentWeek && (
+                          <div className={`mt-2 text-center text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {daysLeft === 0 ? '🏁 Last day!' : daysLeft === 1 ? '⏰ 1 day left' : `📅 ${daysLeft} days left`}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Right: Stats & Habit List */}
+                      <div className="flex-1 space-y-3">
+                        {/* Status Pills */}
+                        <div className="flex flex-wrap gap-2">
+                          {statusCounts.done > 0 && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
+                              <div className="w-2 h-2 rounded-full bg-green-500" />
+                              <span className={`text-xs font-medium ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                                {statusCounts.done} Done
+                              </span>
                             </div>
-                          );
-                        });
-                      })()}
+                          )}
+                          {statusCounts.onTrack > 0 && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20">
+                              <div className="w-2 h-2 rounded-full bg-blue-500" />
+                              <span className={`text-xs font-medium ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                                {statusCounts.onTrack} On Track
+                              </span>
+                            </div>
+                          )}
+                          {statusCounts.atRisk > 0 && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                              <div className="w-2 h-2 rounded-full bg-amber-500" />
+                              <span className={`text-xs font-medium ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>
+                                {statusCounts.atRisk} At Risk
+                              </span>
+                            </div>
+                          )}
+                          {statusCounts.missed > 0 && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
+                              <div className="w-2 h-2 rounded-full bg-red-500" />
+                              <span className={`text-xs font-medium ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                                {statusCounts.missed} Missed
+                              </span>
+                            </div>
+                          )}
+                          {statusCounts.pending > 0 && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-500/10 border border-gray-500/20">
+                              <div className="w-2 h-2 rounded-full bg-gray-500" />
+                              <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {statusCounts.pending} Pending
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Compact Habit List */}
+                        <div className={`rounded-xl p-2 max-h-36 overflow-y-auto ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                          {habitsToShow.length === 0 ? (
+                            <p className={`text-xs text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No habits this week</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {habitsToShow.map(h => {
+                                const st = getStatus(h);
+                                const cfg = STATUS_CONFIG[st];
+                                const isPercentage = h.habitType === 'percentage';
+                                const instances = h.instances || [];
+                                const successCount = instances.filter(i => i.success).length;
+                                const currentPct = instances.length > 0 ? Math.round((successCount / instances.length) * 100) : null;
+                                const completed = h.daysCompleted?.length || 0;
+                                
+                                return (
+                                  <div key={h.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${
+                                    st === 'Done' || st === 'Exceeded' 
+                                      ? darkMode ? 'bg-green-500/10' : 'bg-green-50'
+                                      : 'bg-transparent'
+                                  }`}>
+                                    {/* Status indicator */}
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                      st === 'Done' || st === 'Exceeded' ? 'bg-green-500 text-white' :
+                                      st === 'On Track' ? 'bg-blue-500 text-white' :
+                                      st === 'At Risk' ? 'bg-amber-500 text-white' :
+                                      st === 'Missed' ? 'bg-red-500 text-white' :
+                                      darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-300 text-gray-500'
+                                    }`}>
+                                      {(st === 'Done' || st === 'Exceeded') ? (
+                                        <Check className="w-3 h-3" />
+                                      ) : isPercentage ? (
+                                        <span className="text-[8px] font-bold">%</span>
+                                      ) : (
+                                        <span className="text-[8px] font-bold">{completed}</span>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Habit name */}
+                                    <span className={`text-xs flex-1 truncate ${
+                                      st === 'Done' || st === 'Exceeded' 
+                                        ? darkMode ? 'text-green-400' : 'text-green-700'
+                                        : darkMode ? 'text-gray-300' : 'text-gray-700'
+                                    }`}>
+                                      {h.habit}
+                                    </span>
+                                    
+                                    {/* Progress indicator */}
+                                    <span className={`text-[10px] font-medium ${
+                                      st === 'Done' || st === 'Exceeded' ? 'text-green-500' :
+                                      st === 'On Track' ? 'text-blue-500' :
+                                      st === 'At Risk' ? 'text-amber-500' :
+                                      st === 'Missed' ? 'text-red-500' :
+                                      darkMode ? 'text-gray-500' : 'text-gray-400'
+                                    }`}>
+                                      {isPercentage 
+                                        ? (currentPct !== null ? `${currentPct}%` : '—') 
+                                        : `${completed}/${h.target}`
+                                      }
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Motivational message based on progress */}
+                        <div className={`text-xs text-center py-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {weeklyPct >= 100 ? '🎉 Perfect week! Keep it up!' :
+                           weeklyPct >= 80 ? '🔥 Crushing it! Almost there!' :
+                           weeklyPct >= 60 ? '💪 Good progress! Push through!' :
+                           weeklyPct >= 40 ? '📈 Building momentum...' :
+                           weeklyPct > 0 ? '🌱 Every step counts!' :
+                           '✨ Ready to start your week?'}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
               
               {/* Chart and breakdown side by side - Glass */}
