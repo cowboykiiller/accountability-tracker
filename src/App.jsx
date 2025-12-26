@@ -31,12 +31,12 @@ const googleProvider = new GoogleAuthProvider();
 const PARTICIPANTS = ['Taylor', 'Brandon', 'John'];
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const STATUS_CONFIG = {
-  'Exceeded': { color: '#10b981', bgColor: 'bg-emerald-100', textColor: 'text-emerald-700' },
-  'Done': { color: '#22c55e', bgColor: 'bg-green-100', textColor: 'text-green-700' },
-  'On Track': { color: '#3b82f6', bgColor: 'bg-blue-100', textColor: 'text-blue-700' },
-  'At Risk': { color: '#f59e0b', bgColor: 'bg-amber-100', textColor: 'text-amber-700' },
-  'Missed': { color: '#ef4444', bgColor: 'bg-red-100', textColor: 'text-red-700' },
-  'Pending': { color: '#6b7280', bgColor: 'bg-gray-100', textColor: 'text-gray-600' }
+  'Exceeded': { color: '#10b981', bgColor: 'bg-emerald-100', textColor: 'text-emerald-700', darkBg: 'bg-emerald-500/20', darkText: 'text-emerald-400' },
+  'Done': { color: '#22c55e', bgColor: 'bg-green-100', textColor: 'text-green-700', darkBg: 'bg-green-500/20', darkText: 'text-green-400' },
+  'On Track': { color: '#3b82f6', bgColor: 'bg-blue-100', textColor: 'text-blue-700', darkBg: 'bg-blue-500/20', darkText: 'text-blue-400' },
+  'At Risk': { color: '#f59e0b', bgColor: 'bg-amber-100', textColor: 'text-amber-700', darkBg: 'bg-amber-500/20', darkText: 'text-amber-400' },
+  'Missed': { color: '#ef4444', bgColor: 'bg-red-100', textColor: 'text-red-700', darkBg: 'bg-red-500/20', darkText: 'text-red-400' },
+  'Pending': { color: '#6b7280', bgColor: 'bg-gray-100', textColor: 'text-gray-600', darkBg: 'bg-gray-500/20', darkText: 'text-gray-400' }
 };
 const PARTICIPANT_COLORS = { 'Taylor': '#8b5cf6', 'Brandon': '#06b6d4', 'John': '#f97316' };
 
@@ -469,12 +469,12 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
   return (
   <div className={`hidden md:flex w-56 min-h-screen p-4 flex-col backdrop-blur-xl border-r transition-colors duration-300 ${
     darkMode 
-      ? 'bg-gray-900/80 border-white/10' 
+      ? 'bg-[#0d1321]/90 border-white/5' 
       : 'bg-white/80 border-gray-200/50'
   }`}>
     <div className="flex items-center gap-2 mb-6">
       <img src={LOGO_BASE64} alt="Logo" className="w-9 h-9" />
-      <span className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`}>Accountability</span>
+      <span className={`text-lg font-bold ${darkMode ? 'text-gray-100' : 'text-[#1E3A5F]'}`}>Accountability</span>
     </div>
     
     {/* Theme Toggle */}
@@ -483,7 +483,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
         <button 
           onClick={() => setDarkMode(false)}
           className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
-            !darkMode ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400 hover:text-gray-300'
+            !darkMode ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-300'
           }`}
         >
           <Sun className="w-3.5 h-3.5" /> Light
@@ -491,7 +491,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
         <button 
           onClick={() => setDarkMode(true)}
           className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
-            darkMode ? 'bg-white/10 shadow-sm text-white' : 'text-gray-400 hover:text-gray-600'
+            darkMode ? 'bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] shadow-lg text-white' : 'text-gray-400 hover:text-gray-600'
           }`}
         >
           <Moon className="w-3.5 h-3.5" /> Dark
@@ -507,7 +507,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all ${
             activeView === item.id 
               ? darkMode 
-                ? 'bg-white/10 text-white font-medium backdrop-blur-sm' 
+                ? 'bg-gradient-to-r from-[#1E3A5F]/80 to-[#2d4a6f]/60 text-white font-medium shadow-lg shadow-blue-500/10 border border-white/10' 
                 : 'bg-[#1E3A5F]/10 text-[#1E3A5F] font-medium'
               : darkMode 
                 ? 'text-gray-400 hover:bg-white/5 hover:text-gray-200' 
@@ -519,31 +519,31 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
       ))}
     </nav>
     {user && (
-      <div className={`pt-4 border-t ${darkMode ? 'border-white/10' : 'border-gray-200/50'}`}>
+      <div className={`pt-4 border-t ${darkMode ? 'border-white/5' : 'border-gray-200/50'}`}>
         <button 
           onClick={() => setActiveView('profile')}
           className={`w-full flex items-center gap-2 px-2 mb-2 p-2 rounded-xl transition-all ${
             activeView === 'profile' 
-              ? darkMode ? 'bg-white/10' : 'bg-[#1E3A5F]/10'
+              ? darkMode ? 'bg-white/10 border border-white/10' : 'bg-[#1E3A5F]/10'
               : darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-100/50'
           }`}
         >
           {displayPhoto ? (
-            <img src={displayPhoto} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20" />
+            <img src={displayPhoto} alt="" className={`w-8 h-8 rounded-full object-cover ring-2 ${darkMode ? 'ring-[#1E3A5F]' : 'ring-white/20'}`} />
           ) : (
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-white/10' : 'bg-[#EBE6D3]'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f]' : 'bg-[#EBE6D3]'}`}>
               <User className={`w-4 h-4 ${darkMode ? 'text-white' : 'text-[#162D4D]'}`} />
             </div>
           )}
           <div className="flex-1 min-w-0 text-left">
-            <p className={`text-sm font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{displayName}</p>
+            <p className={`text-sm font-medium truncate ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>{displayName}</p>
             <p className={`text-xs truncate ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{user.email}</p>
           </div>
         </button>
         <button 
           onClick={onSignOut} 
           className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all ${
-            darkMode ? 'text-gray-400 hover:bg-white/5 hover:text-gray-200' : 'text-gray-500 hover:bg-gray-100/50'
+            darkMode ? 'text-gray-500 hover:bg-red-500/10 hover:text-red-400' : 'text-gray-500 hover:bg-gray-100/50'
           }`}
         >
           <LogOut className="w-4 h-4" />Sign Out
@@ -585,7 +585,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
         >
           <div className={`absolute bottom-20 left-3 right-3 rounded-2xl p-2 backdrop-blur-xl shadow-2xl ${
             darkMode 
-              ? 'bg-gray-800/95 border border-white/10' 
+              ? 'bg-[#1a2332]/98 border border-white/10 shadow-black/50' 
               : 'bg-white/95 border border-gray-200'
           }`}>
             <div className="grid grid-cols-4 gap-1">
@@ -603,8 +603,8 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
                   }}
                   className={`flex flex-col items-center py-3 px-2 rounded-xl transition-all ${
                     activeView === item.id 
-                      ? darkMode ? 'bg-white/10 text-white' : 'bg-[#1E3A5F]/10 text-[#1E3A5F]'
-                      : darkMode ? 'text-gray-400 active:bg-white/5' : 'text-gray-500 active:bg-gray-100'
+                      ? darkMode ? 'bg-[#1E3A5F]/50 text-[#F5B800] border border-[#F5B800]/30' : 'bg-[#1E3A5F]/10 text-[#1E3A5F]'
+                      : darkMode ? 'text-gray-400 active:bg-white/5 active:text-gray-200' : 'text-gray-500 active:bg-gray-100'
                   }`}
                 >
                   <item.icon className="w-5 h-5 mb-1" />
@@ -619,7 +619,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
       {/* Bottom nav bar */}
       <div className={`md:hidden fixed bottom-0 left-0 right-0 backdrop-blur-xl px-2 pt-2 z-50 border-t transition-colors duration-300 ${
         darkMode 
-          ? 'bg-gray-900/90 border-white/10' 
+          ? 'bg-[#0d1321]/95 border-white/5' 
           : 'bg-white/90 border-gray-200/50'
       }`} style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         <div className="flex justify-around items-center">
@@ -636,8 +636,8 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
               }}
               className={`flex flex-col items-center py-2 px-3 rounded-xl transition-all ${
                 (item.id === 'more' && showMoreMenu) || (item.id !== 'more' && activeView === item.id)
-                  ? darkMode ? 'text-white bg-white/10' : 'text-[#1E3A5F] bg-[#1E3A5F]/10'
-                  : darkMode ? 'text-gray-500 active:text-white' : 'text-gray-400 active:text-[#1E3A5F]'
+                  ? darkMode ? 'text-[#F5B800] bg-[#F5B800]/10' : 'text-[#1E3A5F] bg-[#1E3A5F]/10'
+                  : darkMode ? 'text-gray-500 active:text-gray-300' : 'text-gray-400 active:text-[#1E3A5F]'
               }`}
             >
               <item.icon className="w-6 h-6" />
@@ -2833,13 +2833,13 @@ export default function AccountabilityTracker() {
     : 'bg-white/60 backdrop-blur-xl border border-white shadow-xl';
   
   const glassBg = darkMode
-    ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'
+    ? 'bg-gradient-to-br from-[#0a0f1a] via-[#111827] to-[#0d1321]'
     : 'bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100';
 
   return (
     <div className={`flex min-h-screen transition-all duration-500 ${glassBg}`} style={{
       backgroundImage: darkMode 
-        ? 'radial-gradient(ellipse at top right, rgba(59, 130, 246, 0.15), transparent 50%), radial-gradient(ellipse at bottom left, rgba(168, 85, 247, 0.1), transparent 50%)'
+        ? 'radial-gradient(ellipse at top right, rgba(56, 189, 248, 0.08), transparent 50%), radial-gradient(ellipse at bottom left, rgba(139, 92, 246, 0.08), transparent 50%), radial-gradient(circle at 50% 50%, rgba(30, 58, 95, 0.3), transparent 70%)'
         : 'radial-gradient(ellipse at top right, rgba(59, 130, 246, 0.2), transparent 50%), radial-gradient(ellipse at bottom left, rgba(236, 72, 153, 0.15), transparent 50%)'
     }}>
       <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} onAddHabit={() => setShowAddHabitModal(true)} />
@@ -2853,15 +2853,15 @@ export default function AccountabilityTracker() {
           <div className="flex items-center gap-1.5">
             <button 
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-white/10 text-yellow-400' : 'bg-white/70 text-gray-600'}`}
+              className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-[#F5B800]/20 text-[#F5B800]' : 'bg-white/70 text-gray-600'}`}
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <button onClick={() => setActiveView('profile')}>
               {(userProfile?.photoURL || user?.photoURL) ? (
-                <img src={userProfile?.photoURL || user?.photoURL} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20" />
+                <img src={userProfile?.photoURL || user?.photoURL} alt="" className={`w-8 h-8 rounded-full object-cover ring-2 ${darkMode ? 'ring-[#1E3A5F]' : 'ring-white/20'}`} />
               ) : (
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${darkMode ? 'bg-white/10 text-white' : 'bg-[#1E3A5F] text-white'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${darkMode ? 'bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f] text-white' : 'bg-[#1E3A5F] text-white'}`}>
                   {user?.displayName?.[0] || '?'}
                 </div>
               )}
@@ -2874,7 +2874,7 @@ export default function AccountabilityTracker() {
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
-              <h1 className={`text-lg md:text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Hello, {userProfile?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Team'} 👋</h1>
+              <h1 className={`text-lg md:text-xl font-bold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Hello, {userProfile?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Team'} 👋</h1>
             </div>
             {/* Desktop week controls */}
             <div className="hidden md:flex items-center gap-2">
@@ -2893,7 +2893,7 @@ export default function AccountabilityTracker() {
               <div className="relative" ref={calendarRef}>
                 <button onClick={() => setShowCalendar(!showCalendar)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all backdrop-blur-sm ${
                   darkMode 
-                    ? 'bg-white/5 border border-white/10 hover:bg-white/10 text-white' 
+                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 hover:bg-white/10 text-white' 
                     : 'bg-white/70 border border-white/50 hover:border-[#F5B800] text-gray-700'
                 }`}>
                   <CalendarDays className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-[#1E3A5F]'}`} />
@@ -2903,12 +2903,12 @@ export default function AccountabilityTracker() {
                 {showCalendar && (
                   <div className={`absolute top-full right-0 mt-2 rounded-2xl p-4 shadow-2xl z-50 backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-gray-800/90 border border-white/10' 
+                      ? 'bg-[#1a2332]/98 border border-white/10 shadow-black/50' 
                       : 'bg-white/90 border border-gray-200'
                   }`} style={{ minWidth: '300px' }}>
                     <div className="flex items-center justify-between mb-3">
                       <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
-                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                      <span className={`font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>{new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
                       <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 text-center mb-2">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} className={`text-xs font-medium py-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{d}</div>)}</div>
@@ -2920,10 +2920,10 @@ export default function AccountabilityTracker() {
                       const isMonday = date.getDay() === 1;
                       return <button key={i} onClick={() => handleCalendarDayClick(date)} disabled={!hasData} className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
                         isThisCurrentWeek 
-                          ? 'bg-[#1E3A5F] text-white shadow-sm' 
+                          ? 'bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] text-white shadow-lg' 
                           : hasData 
                             ? isMonday 
-                              ? darkMode ? 'bg-white/10 text-white hover:bg-[#F5B800] hover:text-gray-900' : 'bg-[#EBE6D3] text-[#0F2940] hover:bg-[#F5B800]' 
+                              ? darkMode ? 'bg-[#1E3A5F]/50 text-[#F5B800] hover:bg-[#F5B800] hover:text-gray-900' : 'bg-[#EBE6D3] text-[#0F2940] hover:bg-[#F5B800]' 
                               : darkMode ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
                             : darkMode ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
                       }`}>{date.getDate()}</button>;
@@ -2934,12 +2934,12 @@ export default function AccountabilityTracker() {
               </div>
               <button onClick={prevWeek} disabled={safeWeekIndex === 0} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 hover:bg-white/10' 
                   : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
               }`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
               <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 hover:bg-white/10' 
                   : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
               }`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
             </div>
@@ -3131,7 +3131,7 @@ export default function AccountabilityTracker() {
                   onClick={() => setShowHabitBreakdown('completed')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-white/5 border border-white/10 active:bg-white/10' 
+                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' 
                       : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
@@ -3150,7 +3150,7 @@ export default function AccountabilityTracker() {
                   onClick={() => setShowHabitBreakdown('total')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-white/5 border border-white/10 active:bg-white/10' 
+                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' 
                       : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
@@ -3162,7 +3162,7 @@ export default function AccountabilityTracker() {
                   onClick={() => setShowHabitBreakdown('exceeded')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-white/5 border border-white/10 active:bg-white/10' 
+                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' 
                       : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
@@ -3174,7 +3174,7 @@ export default function AccountabilityTracker() {
                   onClick={() => setShowHabitBreakdown('missed')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-white/5 border border-white/10 active:bg-white/10' 
+                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' 
                       : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
@@ -3202,7 +3202,7 @@ export default function AccountabilityTracker() {
               {/* Week at a Glance - Redesigned for Weekly Goals */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center justify-between mb-4">
@@ -3441,7 +3441,7 @@ export default function AccountabilityTracker() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className={`md:col-span-2 rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                   darkMode 
-                    ? 'bg-white/5 border border-white/10' 
+                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                     : 'bg-white/70 border border-white/50'
                 }`}>
                   <h3 className={`font-semibold text-sm mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Completion Trend ({scorecardRange === 'week' ? 'Week' : scorecardRange === '4weeks' ? '4 Weeks' : scorecardRange === 'quarter' ? 'Quarter' : 'All Time'})</h3>
@@ -3451,14 +3451,14 @@ export default function AccountabilityTracker() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="week" tick={{ fill: darkMode ? '#6b7280' : '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: darkMode ? '#6b7280' : '#9ca3af', fontSize: 9 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: 10, backgroundColor: darkMode ? '#1f2937' : '#fff', color: darkMode ? '#fff' : '#000' }} />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid rgba(255,255,255,0.1)' : 'none', boxShadow: darkMode ? '0 8px 32px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.15)', fontSize: 10, backgroundColor: darkMode ? '#1a2332' : '#fff', color: darkMode ? '#e5e7eb' : '#000' }} />
                       {allParticipants.map(p => <Area key={p} type="monotone" dataKey={p} stroke={PARTICIPANT_COLORS[p] || '#6366f1'} strokeWidth={2} fill={`url(#g-${p})`} />)}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
                 <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                   darkMode 
-                    ? 'bg-white/5 border border-white/10' 
+                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                     : 'bg-white/70 border border-white/50'
                 }`}>
                   <h3 className={`font-semibold text-sm mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Status</h3>
@@ -3472,7 +3472,7 @@ export default function AccountabilityTracker() {
               {/* Participant Performance - with AI summaries - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center justify-between mb-3">
@@ -3515,7 +3515,7 @@ export default function AccountabilityTracker() {
               {/* Recent Activity - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center justify-between mb-3">
@@ -3579,7 +3579,7 @@ export default function AccountabilityTracker() {
               {/* Today's Tasks - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center justify-between mb-3">
@@ -3628,7 +3628,7 @@ export default function AccountabilityTracker() {
               {/* Streaks - compact - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center gap-2 mb-3">
@@ -3655,7 +3655,7 @@ export default function AccountabilityTracker() {
               {/* Active Challenges Preview - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center gap-2 mb-3">
@@ -3690,7 +3690,7 @@ export default function AccountabilityTracker() {
             {/* Create Post */}
             <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
               darkMode 
-                ? 'bg-white/5 border border-white/10' 
+                ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                 : 'bg-white/70 border border-white/50'
             }`}>
               <div className="flex gap-3">
@@ -4378,7 +4378,7 @@ export default function AccountabilityTracker() {
             
             {/* No habits - Show AI suggestions */}
             {currentWeekHabits.length === 0 ? (
-              <div className={`rounded-xl p-6 ${darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-100'}`}>
+              <div className={`rounded-xl p-6 ${darkMode ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' : 'bg-white border border-gray-100'}`}>
                 <div className="text-center mb-6">
                   <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-white/10' : 'bg-[#F5F3E8]'}`}>
                     <Calendar className={`w-8 h-8 ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`} />
@@ -4446,7 +4446,7 @@ export default function AccountabilityTracker() {
                   <div className={`flex items-center justify-between p-3 rounded-xl mb-2 ${
                     editingPastWeek 
                       ? darkMode ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
-                      : darkMode ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'
+                      : darkMode ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' : 'bg-gray-50 border border-gray-200'
                   }`}>
                     <div className="flex items-center gap-2">
                       {editingPastWeek ? (
@@ -4536,11 +4536,11 @@ export default function AccountabilityTracker() {
                 
                 {/* Compact Habit Table - Desktop */}
                 <div className={`hidden md:block rounded-xl border overflow-hidden ${
-                  darkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'
+                  darkMode ? 'bg-[#1a2332]/60 border-white/5' : 'bg-white border-gray-100'
                 }`}>
                   <table className="w-full">
                     <thead>
-                      <tr className={`border-b ${darkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100'}`}>
+                      <tr className={`border-b ${darkMode ? 'bg-[#0d1321]/50 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
                         <th className="text-left p-2 pl-3 text-xs font-semibold text-gray-500 w-8"></th>
                         <th className={`text-left p-2 text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Habit</th>
                         <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'} w-12`}>Status</th>
@@ -4639,7 +4639,7 @@ export default function AccountabilityTracker() {
                               </td>
                               {/* Status badge */}
                               <td className="p-1 text-center">
-                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${darkMode ? cfg.darkBg : cfg.bgColor} ${darkMode ? cfg.darkText : cfg.textColor}`}>{st}</span>
                               </td>
                               {/* Day toggles OR Percentage instances */}
                               {isPercentage ? (
@@ -4820,7 +4820,7 @@ export default function AccountabilityTracker() {
                           key={h.id} 
                           className={`rounded-xl p-3 transition-colors ${
                             darkMode 
-                              ? `bg-white/5 border border-white/10 ${!isMyHabit ? 'opacity-50' : ''}` 
+                              ? `bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 ${!isMyHabit ? 'opacity-50' : ''}` 
                               : `bg-white border border-gray-100 ${!isMyHabit ? 'opacity-60' : ''}`
                           }`}
                         >
@@ -4835,7 +4835,7 @@ export default function AccountabilityTracker() {
                                 <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.participant}</span>
                               )}
                             </div>
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${cfg.bgColor} ${cfg.textColor}`}>
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${darkMode ? cfg.darkBg : cfg.bgColor} ${darkMode ? cfg.darkText : cfg.textColor}`}>
                               {st}
                             </span>
                           </div>
@@ -4928,7 +4928,7 @@ export default function AccountabilityTracker() {
                                         : isToday
                                           ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
                                           : darkMode 
-                                            ? canEdit ? 'bg-white/5 border border-white/10 active:bg-white/10' : 'bg-white/5 border border-white/5'
+                                            ? canEdit ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' : 'bg-white/5 border border-white/5'
                                             : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
                                     }`}
                                   >
@@ -5545,26 +5545,26 @@ export default function AccountabilityTracker() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
             <div 
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              className={`absolute inset-0 backdrop-blur-md ${darkMode ? 'bg-black/70' : 'bg-black/50'}`}
               onClick={() => setShowAddHabitModal(false)}
             />
             {/* Modal */}
             <div className={`relative w-full max-w-md rounded-2xl p-5 shadow-2xl ${
               darkMode 
-                ? 'bg-gray-900 border border-white/10' 
+                ? 'bg-gradient-to-br from-[#1a2332] to-[#0d1321] border border-white/10 shadow-black/50' 
                 : 'bg-white'
             }`}>
               {/* Close button */}
               <button 
                 onClick={() => setShowAddHabitModal(false)}
                 className={`absolute top-4 right-4 p-1 rounded-lg transition-colors ${
-                  darkMode ? 'text-gray-400 hover:bg-white/10' : 'text-gray-400 hover:bg-gray-100'
+                  darkMode ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200' : 'text-gray-400 hover:bg-gray-100'
                 }`}
               >
                 <X className="w-5 h-5" />
               </button>
               
-              <h2 className={`font-bold text-lg mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <h2 className={`font-bold text-lg mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
                 Add Habits for {currentWeek ? formatWeekString(currentWeek) : 'this week'}
               </h2>
               
@@ -5576,8 +5576,8 @@ export default function AccountabilityTracker() {
                     onClick={() => setAddMode(m)} 
                     className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       addMode === m 
-                        ? 'bg-[#1E3A5F] text-white' 
-                        : darkMode ? 'text-gray-400' : 'text-gray-600'
+                        ? darkMode ? 'bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] text-white shadow-lg' : 'bg-[#1E3A5F] text-white' 
+                        : darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600'
                     }`}
                   >
                     {m === 'single' ? 'Single Habit' : 'Bulk Add'}
@@ -5593,7 +5593,7 @@ export default function AccountabilityTracker() {
                     onChange={(e) => setNewHabit({ ...newHabit, habit: e.target.value })} 
                     className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                       darkMode 
-                        ? 'bg-white/5 border border-white/10 text-white placeholder-gray-500' 
+                        ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
                         : 'bg-gray-50 border border-gray-200 text-gray-800'
                     }`} 
                     placeholder="What habit do you want to track?" 
@@ -5641,7 +5641,7 @@ export default function AccountabilityTracker() {
                           onChange={(e) => setNewHabit({ ...newHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })} 
                           className={`w-full rounded-xl px-3 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                             darkMode 
-                              ? 'bg-white/5 border border-white/10 text-white' 
+                              ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white' 
                               : 'bg-gray-50 border border-gray-200 text-gray-800'
                           }`}
                         />
@@ -5653,7 +5653,7 @@ export default function AccountabilityTracker() {
                         onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} 
                         className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                           darkMode 
-                            ? 'bg-white/5 border border-white/10 text-white' 
+                            ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white' 
                             : 'bg-gray-50 border border-gray-200 text-gray-800'
                         }`}
                       >
@@ -5684,7 +5684,7 @@ export default function AccountabilityTracker() {
                     onChange={(e) => setBulkHabits(e.target.value)} 
                     className={`w-full rounded-xl px-4 py-3 text-sm h-32 focus:outline-none focus:ring-2 focus:ring-[#F5B800] resize-none ${
                       darkMode 
-                        ? 'bg-white/5 border border-white/10 text-white placeholder-gray-500' 
+                        ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
                         : 'bg-gray-50 border border-gray-200 text-gray-800'
                     }`} 
                     placeholder="Enter one habit per line...&#10;Example:&#10;Exercise 30 minutes&#10;Read for 20 minutes&#10;Meditate"
@@ -5697,7 +5697,7 @@ export default function AccountabilityTracker() {
                       onChange={(e) => setBulkTarget(e.target.value)} 
                       className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                         darkMode 
-                          ? 'bg-white/5 border border-white/10 text-white' 
+                          ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white' 
                           : 'bg-gray-50 border border-gray-200 text-gray-800'
                       }`}
                     >
@@ -5725,7 +5725,7 @@ export default function AccountabilityTracker() {
               {/* Radar Chart - Life Balance - Glass */}
               <div className={`rounded-2xl p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                   : 'bg-white/60 border border-white shadow-xl'
               }`}>
                 <h3 className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance</h3>
@@ -5771,7 +5771,7 @@ export default function AccountabilityTracker() {
                 {/* GitHub-style Heatmap - Glass */}
                 <div className={`rounded-2xl p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
                   darkMode 
-                    ? 'bg-white/5 border border-white/10' 
+                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                     : 'bg-white/60 border border-white shadow-xl'
                 }`}>
                   <div className="flex items-center justify-between mb-3">
@@ -5905,7 +5905,7 @@ export default function AccountabilityTracker() {
                 {/* Life Score - Glass */}
                 <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
                   darkMode 
-                    ? 'bg-white/5 border border-white/10' 
+                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                     : 'bg-white/60 border border-white shadow-xl'
                 }`}>
                   <h3 className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Your Accountability Score</h3>
@@ -5934,7 +5934,7 @@ export default function AccountabilityTracker() {
             {/* Monthly Progress Bars - Glass */}
             <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
               darkMode 
-                ? 'bg-white/5 border border-white/10' 
+                ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                 : 'bg-white/60 border border-white shadow-xl'
             }`}>
               <div className="flex items-center justify-between mb-4">
@@ -6008,7 +6008,7 @@ export default function AccountabilityTracker() {
               {/* Top Performing Habits - Glass */}
               <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
                 darkMode 
-                  ? 'bg-white/5 border border-white/10' 
+                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
                   : 'bg-white/60 border border-white shadow-xl'
               }`}>
                 <h3 className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits</h3>
