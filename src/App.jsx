@@ -35,7 +35,8 @@ const STATUS_CONFIG = {
   'Done': { color: '#22c55e', bgColor: 'bg-green-100', textColor: 'text-green-700' },
   'On Track': { color: '#3b82f6', bgColor: 'bg-blue-100', textColor: 'text-blue-700' },
   'At Risk': { color: '#f59e0b', bgColor: 'bg-amber-100', textColor: 'text-amber-700' },
-  'Missed': { color: '#ef4444', bgColor: 'bg-red-100', textColor: 'text-red-700' }
+  'Missed': { color: '#ef4444', bgColor: 'bg-red-100', textColor: 'text-red-700' },
+  'Pending': { color: '#6b7280', bgColor: 'bg-gray-100', textColor: 'text-gray-600' }
 };
 const PARTICIPANT_COLORS = { 'Taylor': '#8b5cf6', 'Brandon': '#06b6d4', 'John': '#f97316' };
 
@@ -375,7 +376,23 @@ const initialData = [
 
 // Helper functions
 const formatWeekString = (weekStr) => new Date(weekStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-const getStatus = (h) => { const c = h.daysCompleted.length, t = h.target; return c > t ? 'Exceeded' : c >= t ? 'Done' : c >= t * 0.75 ? 'On Track' : c >= t * 0.5 ? 'At Risk' : 'Missed'; };
+const getStatus = (h) => { 
+  // Handle percentage-based habits
+  if (h.habitType === 'percentage') {
+    const value = h.percentageValue;
+    const target = h.target;
+    if (value === null || value === undefined) return 'Pending';
+    if (value > target) return 'Exceeded';
+    if (value >= target) return 'Done';
+    if (value >= target * 0.75) return 'On Track';
+    if (value >= target * 0.5) return 'At Risk';
+    return 'Missed';
+  }
+  // Handle daily habits (default)
+  const c = (h.daysCompleted || []).length;
+  const t = h.target; 
+  return c > t ? 'Exceeded' : c >= t ? 'Done' : c >= t * 0.75 ? 'On Track' : c >= t * 0.5 ? 'At Risk' : 'Missed'; 
+};
 const getWeekStartFromDate = (date) => {
   const d = new Date(date);
   const day = d.getDay();
@@ -438,7 +455,6 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
     { id: 'tasks', icon: Target, label: 'Tasks' },
     { id: 'insights', icon: BarChart3, label: 'Insights' },
     { id: 'scorecard', icon: Award, label: 'Score' },
-    { id: 'add', icon: Plus, label: 'Add', isAction: true },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
     { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
   ];
@@ -550,7 +566,6 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
     { id: 'monthly', icon: CalendarDays, label: 'Monthly' },
     { id: 'tasks', icon: Target, label: 'Tasks' },
     { id: 'scorecard', icon: Award, label: 'Scorecard' },
-    { id: 'add', icon: Plus, label: 'Add Habit', isAction: true },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
     { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' },
     { id: 'profile', icon: User, label: 'Profile' }
@@ -753,7 +768,7 @@ export default function AccountabilityTracker() {
   const [selectedWeek, setSelectedWeek] = useState(null); // Store week string, not index
   const [selectedParticipant, setSelectedParticipant] = useState('All');
   const [scorecardRange, setScorecardRange] = useState('4weeks');
-  const [newHabit, setNewHabit] = useState({ habit: '', participant: 'Taylor', target: 5 });
+  const [newHabit, setNewHabit] = useState({ habit: '', participant: 'Taylor', target: 5, habitType: 'daily' }); // habitType: 'daily' or 'percentage'
   const [bulkHabits, setBulkHabits] = useState('');
   const [bulkParticipant, setBulkParticipant] = useState('Taylor');
   const [bulkTarget, setBulkTarget] = useState(5);
@@ -1955,24 +1970,43 @@ export default function AccountabilityTracker() {
     const habit = habits.find(h => h.id === id);
     if (!habit) return;
     
-    const newDaysCompleted = habit.daysCompleted.includes(idx)
+    const newDaysCompleted = (habit.daysCompleted || []).includes(idx)
       ? habit.daysCompleted.filter(d => d !== idx)
-      : [...habit.daysCompleted, idx].sort((a, b) => a - b);
+      : [...(habit.daysCompleted || []), idx].sort((a, b) => a - b);
     
     await setDoc(doc(db, 'habits', id), { ...habit, daysCompleted: newDaysCompleted });
+  };
+
+  // Update percentage value for percentage-type habits
+  const updatePercentageValue = async (id, value) => {
+    const habit = habits.find(h => h.id === id);
+    if (!habit) return;
+    
+    const numValue = value === '' ? null : Math.min(100, Math.max(0, parseInt(value) || 0));
+    await setDoc(doc(db, 'habits', id), { ...habit, percentageValue: numValue });
   };
 
   const addHabit = async () => {
     if (!newHabit.habit) return;
     const id = `habit_${Date.now()}`;
-    await setDoc(doc(db, 'habits', id), {
+    const habitData = {
       id,
-      ...newHabit,
+      habit: newHabit.habit,
+      participant: newHabit.participant,
       weekStart: currentWeek,
-      daysCompleted: [],
+      habitType: newHabit.habitType || 'daily',
       target: parseInt(newHabit.target)
-    });
-    setNewHabit({ habit: '', participant: 'Taylor', target: 5 });
+    };
+    
+    // Add type-specific fields
+    if (newHabit.habitType === 'percentage') {
+      habitData.percentageValue = null; // Will be set when user enters value
+    } else {
+      habitData.daysCompleted = [];
+    }
+    
+    await setDoc(doc(db, 'habits', id), habitData);
+    setNewHabit({ habit: '', participant: 'Taylor', target: 5, habitType: 'daily' });
     setActiveView('tracker');
   };
 
@@ -1987,6 +2021,7 @@ export default function AccountabilityTracker() {
         habit: line.trim(),
         participant: bulkParticipant,
         weekStart: currentWeek,
+        habitType: 'daily', // Bulk add defaults to daily
         daysCompleted: [],
         target: parseInt(bulkTarget)
       });
@@ -4392,7 +4427,10 @@ export default function AccountabilityTracker() {
                           const isMyHabit = h.participant === myParticipant;
                           const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
                           const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
-                          const progressPct = h.target > 0 ? Math.round((h.daysCompleted.length / h.target) * 100) : 0;
+                          const isPercentage = h.habitType === 'percentage';
+                          const progressPct = isPercentage 
+                            ? (h.percentageValue !== null ? Math.round((h.percentageValue / h.target) * 100) : 0)
+                            : (h.target > 0 ? Math.round(((h.daysCompleted || []).length / h.target) * 100) : 0);
                           
                           if (isEditing && canEdit) {
                             return (
@@ -4407,13 +4445,27 @@ export default function AccountabilityTracker() {
                                         darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200 focus:border-[#F5B800]'
                                       }`}
                                     />
-                                    <select
-                                      value={editingHabit.target}
-                                      onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                                      className={`border rounded px-2 py-1 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'}`}
-                                    >
-                                      {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}d</option>)}
-                                    </select>
+                                    {isPercentage ? (
+                                      <div className="flex items-center gap-1">
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max="100"
+                                          value={editingHabit.target}
+                                          onChange={(e) => setEditingHabit({ ...editingHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })}
+                                          className={`w-16 border rounded px-2 py-1 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'}`}
+                                        />
+                                        <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>%</span>
+                                      </div>
+                                    ) : (
+                                      <select
+                                        value={editingHabit.target}
+                                        onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
+                                        className={`border rounded px-2 py-1 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'}`}
+                                      >
+                                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}d</option>)}
+                                      </select>
+                                    )}
                                     <button onClick={updateHabit} className="px-3 py-1 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600">Save</button>
                                     <button onClick={() => setEditingHabit(null)} className={`px-3 py-1 rounded text-sm ${darkMode ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
                                   </div>
@@ -4440,6 +4492,7 @@ export default function AccountabilityTracker() {
                               {/* Habit name */}
                               <td className="p-2">
                                 <div className="flex items-center gap-2">
+                                  {isPercentage && <span className="text-xs">📊</span>}
                                   <span className={`text-sm font-medium truncate max-w-[200px] ${darkMode ? 'text-white' : 'text-gray-800'}`} title={h.habit}>{h.habit}</span>
                                   {selectedParticipant === 'All' && (
                                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'text-gray-500 bg-white/10' : 'text-gray-400 bg-gray-100'}`}>{h.participant}</span>
@@ -4450,40 +4503,64 @@ export default function AccountabilityTracker() {
                               <td className="p-1 text-center">
                                 <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
                               </td>
-                              {/* Day toggles - styled as checkboxes */}
-                              {DAYS.map((d, i) => {
-                                const isCompleted = h.daysCompleted.includes(i);
-                                const dayDate = new Date(currentWeek + 'T00:00:00');
-                                dayDate.setDate(dayDate.getDate() + i);
-                                const isToday = dayDate.toDateString() === new Date().toDateString();
-                                
-                                return (
-                                  <td key={d} className="p-0.5 text-center">
-                                    <button 
-                                      onClick={() => canEdit && toggleDay(h.id, i)} 
+                              {/* Day toggles OR Percentage input */}
+                              {isPercentage ? (
+                                <td colSpan="7" className="p-1 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      value={h.percentageValue ?? ''}
+                                      onChange={(e) => canEdit && updatePercentageValue(h.id, e.target.value)}
                                       disabled={!canEdit}
-                                      className={`w-6 h-6 rounded border-2 transition-all flex items-center justify-center ${
-                                        isCompleted 
-                                          ? 'bg-green-500 border-green-500 text-white' 
-                                          : isToday
-                                            ? 'border-[#F5B800] bg-amber-50'
-                                            : canEdit 
-                                              ? darkMode ? 'border-gray-600 hover:border-green-400 bg-white/5' : 'border-gray-300 hover:border-green-400 bg-white'
-                                              : darkMode ? 'border-gray-700 bg-white/5' : 'border-gray-200 bg-gray-50'
-                                      }`}
-                                    >
-                                      {isCompleted && <Check className="w-4 h-4" />}
-                                    </button>
-                                  </td>
-                                );
-                              })}
+                                      placeholder="—"
+                                      className={`w-16 text-center border rounded px-2 py-1 text-sm ${
+                                        darkMode 
+                                          ? 'bg-white/5 border-white/20 text-white placeholder-gray-600' 
+                                          : 'bg-white border-gray-200 placeholder-gray-300'
+                                      } ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    />
+                                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>% of {h.target}%</span>
+                                  </div>
+                                </td>
+                              ) : (
+                                DAYS.map((d, i) => {
+                                  const isCompleted = (h.daysCompleted || []).includes(i);
+                                  const dayDate = new Date(currentWeek + 'T00:00:00');
+                                  dayDate.setDate(dayDate.getDate() + i);
+                                  const isToday = dayDate.toDateString() === new Date().toDateString();
+                                  
+                                  return (
+                                    <td key={d} className="p-0.5 text-center">
+                                      <button 
+                                        onClick={() => canEdit && toggleDay(h.id, i)} 
+                                        disabled={!canEdit}
+                                        className={`w-6 h-6 rounded border-2 transition-all flex items-center justify-center ${
+                                          isCompleted 
+                                            ? 'bg-green-500 border-green-500 text-white' 
+                                            : isToday
+                                              ? 'border-[#F5B800] bg-amber-50'
+                                              : canEdit 
+                                                ? darkMode ? 'border-gray-600 hover:border-green-400 bg-white/5' : 'border-gray-300 hover:border-green-400 bg-white'
+                                                : darkMode ? 'border-gray-700 bg-white/5' : 'border-gray-200 bg-gray-50'
+                                        }`}
+                                      >
+                                        {isCompleted && <Check className="w-4 h-4" />}
+                                      </button>
+                                    </td>
+                                  );
+                                })
+                              )}
                               {/* Progress */}
                               <td className="p-1">
                                 <div className="flex items-center gap-1">
                                   <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
                                     <div className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(progressPct, 100)}%` }}></div>
                                   </div>
-                                  <span className={`text-[10px] w-6 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{h.daysCompleted.length}/{h.target}</span>
+                                  <span className={`text-[10px] w-8 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                    {isPercentage ? `${h.percentageValue ?? '—'}%` : `${(h.daysCompleted || []).length}/${h.target}`}
+                                  </span>
                                 </div>
                               </td>
                               {/* Actions */}
@@ -4519,7 +4596,10 @@ export default function AccountabilityTracker() {
                       const isMyHabit = h.participant === myParticipant;
                       const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
                       const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
-                      const progressPct = h.target > 0 ? Math.round((h.daysCompleted.length / h.target) * 100) : 0;
+                      const isPercentage = h.habitType === 'percentage';
+                      const progressPct = isPercentage 
+                        ? (h.percentageValue !== null ? Math.round((h.percentageValue / h.target) * 100) : 0)
+                        : (h.target > 0 ? Math.round(((h.daysCompleted || []).length / h.target) * 100) : 0);
                       
                       if (isEditing && canEdit) {
                         return (
@@ -4531,13 +4611,27 @@ export default function AccountabilityTracker() {
                               className={`w-full rounded-lg px-3 py-2 text-sm mb-2 ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border focus:outline-none`}
                             />
                             <div className="flex items-center gap-2">
-                              <select
-                                value={editingHabit.target}
-                                onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                                className={`rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border`}
-                              >
-                                {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days/week</option>)}
-                              </select>
+                              {isPercentage ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="100"
+                                    value={editingHabit.target}
+                                    onChange={(e) => setEditingHabit({ ...editingHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })}
+                                    className={`w-16 rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border`}
+                                  />
+                                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>%</span>
+                                </div>
+                              ) : (
+                                <select
+                                  value={editingHabit.target}
+                                  onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
+                                  className={`rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border`}
+                                >
+                                  {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days/week</option>)}
+                                </select>
+                              )}
                               <button onClick={updateHabit} className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium">Save</button>
                               <button onClick={() => setEditingHabit(null)} className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
                             </div>
@@ -4557,7 +4651,10 @@ export default function AccountabilityTracker() {
                           {/* Header row: Habit name + Status */}
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</p>
+                              <div className="flex items-center gap-1">
+                                {isPercentage && <span className="text-xs">📊</span>}
+                                <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</p>
+                              </div>
                               {selectedParticipant === 'All' && (
                                 <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.participant}</span>
                               )}
@@ -4567,45 +4664,66 @@ export default function AccountabilityTracker() {
                             </span>
                           </div>
                           
-                          {/* Days row - all 7 days visible */}
-                          <div className="flex items-center justify-between gap-1 mb-2">
-                            {DAYS.map((d, i) => {
-                              const isCompleted = h.daysCompleted.includes(i);
-                              const dayDate = new Date(currentWeek + 'T00:00:00');
-                              dayDate.setDate(dayDate.getDate() + i);
-                              const isToday = dayDate.toDateString() === new Date().toDateString();
-                              
-                              return (
-                                <button
-                                  key={d}
-                                  onClick={() => canEdit && toggleDay(h.id, i)}
-                                  disabled={!canEdit}
-                                  className={`flex-1 flex flex-col items-center py-1.5 rounded-lg transition-all ${
-                                    isCompleted 
-                                      ? 'bg-green-500 text-white' 
-                                      : isToday
-                                        ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
-                                        : darkMode 
-                                          ? canEdit ? 'bg-white/5 border border-white/10 active:bg-white/10' : 'bg-white/5 border border-white/5'
-                                          : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
-                                  }`}
-                                >
-                                  <span className={`text-[10px] font-medium ${
-                                    isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-500' : 'text-gray-400'
-                                  }`}>
-                                    {d[0]}
-                                  </span>
-                                  {isCompleted ? (
-                                    <Check className="w-4 h-4" />
-                                  ) : (
-                                    <div className={`w-4 h-4 rounded-full border-2 ${
-                                      isToday ? 'border-amber-400' : darkMode ? 'border-gray-600' : 'border-gray-300'
-                                    }`} />
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
+                          {/* Days row OR Percentage input */}
+                          {isPercentage ? (
+                            <div className={`flex items-center justify-center gap-2 py-3 mb-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Achieved:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={h.percentageValue ?? ''}
+                                onChange={(e) => canEdit && updatePercentageValue(h.id, e.target.value)}
+                                disabled={!canEdit}
+                                placeholder="—"
+                                className={`w-20 text-center border rounded-lg px-2 py-1.5 text-sm font-medium ${
+                                  darkMode 
+                                    ? 'bg-white/10 border-white/20 text-white placeholder-gray-600' 
+                                    : 'bg-white border-gray-200 placeholder-gray-300'
+                                } ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              />
+                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>% / {h.target}% target</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-1 mb-2">
+                              {DAYS.map((d, i) => {
+                                const isCompleted = (h.daysCompleted || []).includes(i);
+                                const dayDate = new Date(currentWeek + 'T00:00:00');
+                                dayDate.setDate(dayDate.getDate() + i);
+                                const isToday = dayDate.toDateString() === new Date().toDateString();
+                                
+                                return (
+                                  <button
+                                    key={d}
+                                    onClick={() => canEdit && toggleDay(h.id, i)}
+                                    disabled={!canEdit}
+                                    className={`flex-1 flex flex-col items-center py-1.5 rounded-lg transition-all ${
+                                      isCompleted 
+                                        ? 'bg-green-500 text-white' 
+                                        : isToday
+                                          ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
+                                          : darkMode 
+                                            ? canEdit ? 'bg-white/5 border border-white/10 active:bg-white/10' : 'bg-white/5 border border-white/5'
+                                            : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
+                                    }`}
+                                  >
+                                    <span className={`text-[10px] font-medium ${
+                                      isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-500' : 'text-gray-400'
+                                    }`}>
+                                      {d[0]}
+                                    </span>
+                                    {isCompleted ? (
+                                      <Check className="w-4 h-4" />
+                                    ) : (
+                                      <div className={`w-4 h-4 rounded-full border-2 ${
+                                        isToday ? 'border-amber-400' : darkMode ? 'border-gray-600' : 'border-gray-300'
+                                      }`} />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                           
                           {/* Footer: Progress + Actions */}
                           <div className="flex items-center justify-between">
@@ -4616,7 +4734,9 @@ export default function AccountabilityTracker() {
                                   style={{ width: `${Math.min(progressPct, 100)}%` }}
                                 />
                               </div>
-                              <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.daysCompleted.length}/{h.target}</span>
+                              <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {isPercentage ? `${h.percentageValue ?? '—'}%` : `${(h.daysCompleted || []).length}/${h.target}`}
+                              </span>
                             </div>
                             {canEdit && (
                               <div className="flex gap-1">
@@ -5254,6 +5374,34 @@ export default function AccountabilityTracker() {
                     placeholder="What habit do you want to track?" 
                     autoFocus
                   />
+                  
+                  {/* Habit Type Toggle */}
+                  <div>
+                    <label className={`text-xs font-medium mb-1.5 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Tracking Type</label>
+                    <div className={`flex gap-2 p-1 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                      <button 
+                        onClick={() => setNewHabit({ ...newHabit, habitType: 'daily', target: 5 })}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          newHabit.habitType === 'daily' 
+                            ? 'bg-[#1E3A5F] text-white' 
+                            : darkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}
+                      >
+                        📅 Days/Week
+                      </button>
+                      <button 
+                        onClick={() => setNewHabit({ ...newHabit, habitType: 'percentage', target: 50 })}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          newHabit.habitType === 'percentage' 
+                            ? 'bg-[#1E3A5F] text-white' 
+                            : darkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}
+                      >
+                        📊 Percentage
+                      </button>
+                    </div>
+                  </div>
+                  
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Participant</label>
@@ -5270,20 +5418,48 @@ export default function AccountabilityTracker() {
                       </select>
                     </div>
                     <div>
-                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target</label>
-                      <select 
-                        value={newHabit.target} 
-                        onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} 
-                        className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
-                          darkMode 
-                            ? 'bg-white/5 border border-white/10 text-white' 
-                            : 'bg-gray-50 border border-gray-200 text-gray-800'
-                        }`}
-                      >
-                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n === 1 ? 'day' : 'days'}/week</option>)}
-                      </select>
+                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {newHabit.habitType === 'percentage' ? 'Target %' : 'Target'}
+                      </label>
+                      {newHabit.habitType === 'percentage' ? (
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="100"
+                            value={newHabit.target} 
+                            onChange={(e) => setNewHabit({ ...newHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })} 
+                            className={`w-full rounded-xl px-3 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                              darkMode 
+                                ? 'bg-white/5 border border-white/10 text-white' 
+                                : 'bg-gray-50 border border-gray-200 text-gray-800'
+                            }`}
+                          />
+                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>%</span>
+                        </div>
+                      ) : (
+                        <select 
+                          value={newHabit.target} 
+                          onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} 
+                          className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                            darkMode 
+                              ? 'bg-white/5 border border-white/10 text-white' 
+                              : 'bg-gray-50 border border-gray-200 text-gray-800'
+                          }`}
+                        >
+                          {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n === 1 ? 'day' : 'days'}/week</option>)}
+                        </select>
+                      )}
                     </div>
                   </div>
+                  
+                  {/* Example hint for percentage */}
+                  {newHabit.habitType === 'percentage' && (
+                    <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      💡 Example: "Don't cut trades" with 50% target means achieving at least 50% success rate
+                    </p>
+                  )}
+                  
                   <button 
                     onClick={() => { addHabit(); setShowAddHabitModal(false); }} 
                     disabled={!newHabit.habit.trim()}
