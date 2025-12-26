@@ -1987,12 +1987,12 @@ export default function AccountabilityTracker() {
   };
 
   const addHabit = async () => {
-    if (!newHabit.habit) return;
+    if (!newHabit.habit || !myParticipant) return;
     const id = `habit_${Date.now()}`;
     const habitData = {
       id,
       habit: newHabit.habit,
-      participant: newHabit.participant,
+      participant: myParticipant, // Always use current user's participant name
       weekStart: currentWeek,
       habitType: newHabit.habitType || 'daily',
       target: parseInt(newHabit.target)
@@ -2006,11 +2006,12 @@ export default function AccountabilityTracker() {
     }
     
     await setDoc(doc(db, 'habits', id), habitData);
-    setNewHabit({ habit: '', participant: 'Taylor', target: 5, habitType: 'daily' });
+    setNewHabit({ habit: '', participant: myParticipant, target: 5, habitType: 'daily' });
     setActiveView('tracker');
   };
 
   const addBulkHabits = async () => {
+    if (!myParticipant) return;
     const lines = bulkHabits.split('\n').filter(l => l.trim());
     if (!lines.length) return;
     
@@ -2019,7 +2020,7 @@ export default function AccountabilityTracker() {
       await setDoc(doc(db, 'habits', id), {
         id,
         habit: line.trim(),
-        participant: bulkParticipant,
+        participant: myParticipant, // Always use current user's participant name
         weekStart: currentWeek,
         habitType: 'daily', // Bulk add defaults to daily
         daysCompleted: [],
@@ -4282,7 +4283,7 @@ export default function AccountabilityTracker() {
                         <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${habit.added ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
                           <div className="flex-1">
                             <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>{habit.habit}</p>
-                            <p className="text-xs text-gray-500">{habit.target} days/week</p>
+                            <p className="text-xs text-gray-500">{habit.target} times</p>
                           </div>
                           {habit.added ? (
                             <span className="flex items-center gap-1 text-green-600 text-sm">
@@ -4629,7 +4630,7 @@ export default function AccountabilityTracker() {
                                   onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
                                   className={`rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border`}
                                 >
-                                  {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days/week</option>)}
+                                  {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} times</option>)}
                                 </select>
                               )}
                               <button onClick={updateHabit} className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium">Save</button>
@@ -5387,7 +5388,7 @@ export default function AccountabilityTracker() {
                             : darkMode ? 'text-gray-400' : 'text-gray-600'
                         }`}
                       >
-                        📅 Days/Week
+                        📅 Daily/Weekly
                       </button>
                       <button 
                         onClick={() => setNewHabit({ ...newHabit, habitType: 'percentage', target: 50 })}
@@ -5402,55 +5403,39 @@ export default function AccountabilityTracker() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Participant</label>
+                  <div>
+                    <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {newHabit.habitType === 'percentage' ? 'Target %' : 'Target'}
+                    </label>
+                    {newHabit.habitType === 'percentage' ? (
+                      <div className="relative">
+                        <input 
+                          type="number" 
+                          min="1" 
+                          max="100"
+                          value={newHabit.target} 
+                          onChange={(e) => setNewHabit({ ...newHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })} 
+                          className={`w-full rounded-xl px-3 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                            darkMode 
+                              ? 'bg-white/5 border border-white/10 text-white' 
+                              : 'bg-gray-50 border border-gray-200 text-gray-800'
+                          }`}
+                        />
+                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>%</span>
+                      </div>
+                    ) : (
                       <select 
-                        value={newHabit.participant} 
-                        onChange={(e) => setNewHabit({ ...newHabit, participant: e.target.value })} 
+                        value={newHabit.target} 
+                        onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} 
                         className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                           darkMode 
                             ? 'bg-white/5 border border-white/10 text-white' 
                             : 'bg-gray-50 border border-gray-200 text-gray-800'
                         }`}
                       >
-                        {allParticipants.map(p => <option key={p} value={p}>{p}</option>)}
+                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n === 1 ? 'time' : 'times'}</option>)}
                       </select>
-                    </div>
-                    <div>
-                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {newHabit.habitType === 'percentage' ? 'Target %' : 'Target'}
-                      </label>
-                      {newHabit.habitType === 'percentage' ? (
-                        <div className="relative">
-                          <input 
-                            type="number" 
-                            min="1" 
-                            max="100"
-                            value={newHabit.target} 
-                            onChange={(e) => setNewHabit({ ...newHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })} 
-                            className={`w-full rounded-xl px-3 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
-                              darkMode 
-                                ? 'bg-white/5 border border-white/10 text-white' 
-                                : 'bg-gray-50 border border-gray-200 text-gray-800'
-                            }`}
-                          />
-                          <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>%</span>
-                        </div>
-                      ) : (
-                        <select 
-                          value={newHabit.target} 
-                          onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} 
-                          className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
-                            darkMode 
-                              ? 'bg-white/5 border border-white/10 text-white' 
-                              : 'bg-gray-50 border border-gray-200 text-gray-800'
-                          }`}
-                        >
-                          {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n === 1 ? 'day' : 'days'}/week</option>)}
-                        </select>
-                      )}
-                    </div>
+                    )}
                   </div>
                   
                   {/* Example hint for percentage */}
@@ -5481,35 +5466,19 @@ export default function AccountabilityTracker() {
                     placeholder="Enter one habit per line...&#10;Example:&#10;Exercise 30 minutes&#10;Read for 20 minutes&#10;Meditate"
                     autoFocus
                   />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Participant</label>
-                      <select 
-                        value={bulkParticipant} 
-                        onChange={(e) => setBulkParticipant(e.target.value)} 
-                        className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
-                          darkMode 
-                            ? 'bg-white/5 border border-white/10 text-white' 
-                            : 'bg-gray-50 border border-gray-200 text-gray-800'
-                        }`}
-                      >
-                        {allParticipants.map(p => <option key={p} value={p}>{p}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target (all)</label>
-                      <select 
-                        value={bulkTarget} 
-                        onChange={(e) => setBulkTarget(e.target.value)} 
-                        className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
-                          darkMode 
-                            ? 'bg-white/5 border border-white/10 text-white' 
-                            : 'bg-gray-50 border border-gray-200 text-gray-800'
-                        }`}
-                      >
-                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n === 1 ? 'day' : 'days'}/week</option>)}
-                      </select>
-                    </div>
+                  <div>
+                    <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target (for all habits)</label>
+                    <select 
+                      value={bulkTarget} 
+                      onChange={(e) => setBulkTarget(e.target.value)} 
+                      className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                        darkMode 
+                          ? 'bg-white/5 border border-white/10 text-white' 
+                          : 'bg-gray-50 border border-gray-200 text-gray-800'
+                      }`}
+                    >
+                      {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n === 1 ? 'time' : 'times'}</option>)}
+                    </select>
                   </div>
                   <button 
                     onClick={() => { addBulkHabits(); setShowAddHabitModal(false); }} 
@@ -6027,7 +5996,7 @@ export default function AccountabilityTracker() {
                                 <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>
                                   {habit.habit}
                                 </p>
-                                <p className="text-xs text-gray-500">{habit.target} days/week</p>
+                                <p className="text-xs text-gray-500">{habit.target} times</p>
                               </div>
                               {habit.added ? (
                                 <span className="flex items-center gap-1 text-green-600 text-sm">
@@ -6233,7 +6202,7 @@ export default function AccountabilityTracker() {
                                       <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>
                                         {habit.habit}
                                       </p>
-                                      <p className="text-xs text-gray-500">{habit.target} days/week</p>
+                                      <p className="text-xs text-gray-500">{habit.target} times</p>
                                     </div>
                                     {habit.added ? (
                                       <span className="flex items-center gap-1 text-green-600 text-sm">
