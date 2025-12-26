@@ -414,7 +414,7 @@ const PRIORITY_CONFIG = {
 // Emoji reactions
 const REACTIONS = ['👍', '🔥', '💪', '🎉', '❤️', '👏'];
 
-const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, darkMode, setDarkMode }) => {
+const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, darkMode, setDarkMode, onAddHabit }) => {
   const desktopLabels = { 
     'dashboard': 'Dashboard', 
     'feed': 'Community Feed',
@@ -438,7 +438,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
     { id: 'tasks', icon: Target, label: 'Tasks' },
     { id: 'insights', icon: BarChart3, label: 'Insights' },
     { id: 'scorecard', icon: Award, label: 'Score' },
-    { id: 'add', icon: Plus, label: 'Add' },
+    { id: 'add', icon: Plus, label: 'Add', isAction: true },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
     { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
   ];
@@ -483,7 +483,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
       {allNavItems.map(item => (
         <button 
           key={item.id} 
-          onClick={() => setActiveView(item.id)} 
+          onClick={() => item.isAction ? onAddHabit?.() : setActiveView(item.id)} 
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all ${
             activeView === item.id 
               ? darkMode 
@@ -533,7 +533,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
   </div>
 );};
 
-const MobileNav = ({ activeView, setActiveView, darkMode }) => {
+const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
   // Show different items based on current view for context
   const mobileNavItems = [
     { id: 'dashboard', icon: Home, label: 'Home' },
@@ -550,7 +550,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode }) => {
     { id: 'monthly', icon: CalendarDays, label: 'Monthly' },
     { id: 'tasks', icon: Target, label: 'Tasks' },
     { id: 'scorecard', icon: Award, label: 'Scorecard' },
-    { id: 'add', icon: Plus, label: 'Add Habit' },
+    { id: 'add', icon: Plus, label: 'Add Habit', isAction: true },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
     { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' },
     { id: 'profile', icon: User, label: 'Profile' }
@@ -575,7 +575,11 @@ const MobileNav = ({ activeView, setActiveView, darkMode }) => {
                   key={item.id}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveView(item.id);
+                    if (item.isAction) {
+                      onAddHabit?.();
+                    } else {
+                      setActiveView(item.id);
+                    }
                     setShowMoreMenu(false);
                   }}
                   className={`flex flex-col items-center py-3 px-2 rounded-xl transition-all ${
@@ -820,6 +824,7 @@ export default function AccountabilityTracker() {
   
   // Habit editing state
   const [editingHabit, setEditingHabit] = useState(null); // {id, habit, target}
+  const [showAddHabitModal, setShowAddHabitModal] = useState(false); // Add habit popup
   const [weekHabitSuggestions, setWeekHabitSuggestions] = useState([]); // AI suggestions for new week
   const [weekSuggestLoading, setWeekSuggestLoading] = useState(false);
   const [editingPastWeek, setEditingPastWeek] = useState(false); // Allow editing locked past weeks;
@@ -1998,16 +2003,25 @@ export default function AccountabilityTracker() {
   const updateHabit = async () => {
     if (!editingHabit || !editingHabit.habit.trim()) return;
     
-    const habit = habits.find(h => h.id === editingHabit.id);
-    if (!habit) return;
-    
-    await setDoc(doc(db, 'habits', editingHabit.id), {
-      ...habit,
-      habit: editingHabit.habit,
-      target: parseInt(editingHabit.target)
-    });
-    
-    setEditingHabit(null);
+    try {
+      const habit = habits.find(h => h.id === editingHabit.id);
+      if (!habit) {
+        console.error('Habit not found:', editingHabit.id);
+        return;
+      }
+      
+      await setDoc(doc(db, 'habits', String(editingHabit.id)), {
+        ...habit,
+        habit: editingHabit.habit.trim(),
+        target: parseInt(editingHabit.target)
+      });
+      
+      console.log('Habit updated successfully:', editingHabit.id);
+      setEditingHabit(null);
+    } catch (error) {
+      console.error('Error updating habit:', error);
+      alert('Failed to save habit. Please try again.');
+    }
   };
 
   // Move habit up or down in the list
@@ -2767,7 +2781,7 @@ export default function AccountabilityTracker() {
         ? 'radial-gradient(ellipse at top right, rgba(59, 130, 246, 0.15), transparent 50%), radial-gradient(ellipse at bottom left, rgba(168, 85, 247, 0.1), transparent 50%)'
         : 'radial-gradient(ellipse at top right, rgba(59, 130, 246, 0.2), transparent 50%), radial-gradient(ellipse at bottom left, rgba(236, 72, 153, 0.15), transparent 50%)'
     }}>
-      <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} />
+      <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} onAddHabit={() => setShowAddHabitModal(true)} />
       <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-3">
@@ -4184,7 +4198,7 @@ export default function AccountabilityTracker() {
                 </button>
               </div>
               <button 
-                onClick={() => setActiveView('add')} 
+                onClick={() => setShowAddHabitModal(true)} 
                 className="flex items-center gap-1.5 px-4 py-2 bg-[#1E3A5F] text-white rounded-xl text-sm font-medium active:bg-[#162D4D]"
               >
                 <Plus className="w-4 h-4" />
@@ -4213,7 +4227,7 @@ export default function AccountabilityTracker() {
                     AI Suggest Habits
                   </button>
                   <button 
-                    onClick={() => setActiveView('add')} 
+                    onClick={() => setShowAddHabitModal(true)} 
                     className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors"
                   >
                     <Plus className="w-4 h-4" />
@@ -5181,28 +5195,153 @@ export default function AccountabilityTracker() {
           </div>
         )}
 
-        {activeView === 'add' && (
-          <div className="max-w-lg">
-            <div className="bg-white rounded-xl p-4 border border-gray-100">
-              <h2 className="font-bold text-gray-800 mb-4">Add Habits for {currentWeek ? formatWeekString(currentWeek) : 'this week'}</h2>
-              <div className="flex gap-2 mb-4">{['single', 'bulk'].map(m => <button key={m} onClick={() => setAddMode(m)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${addMode === m ? 'bg-[#1E3A5F] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{m === 'single' ? 'Single' : 'Bulk'}</button>)}</div>
+        {/* ADD HABIT MODAL */}
+        {showAddHabitModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowAddHabitModal(false)}
+            />
+            {/* Modal */}
+            <div className={`relative w-full max-w-md rounded-2xl p-5 shadow-2xl ${
+              darkMode 
+                ? 'bg-gray-900 border border-white/10' 
+                : 'bg-white'
+            }`}>
+              {/* Close button */}
+              <button 
+                onClick={() => setShowAddHabitModal(false)}
+                className={`absolute top-4 right-4 p-1 rounded-lg transition-colors ${
+                  darkMode ? 'text-gray-400 hover:bg-white/10' : 'text-gray-400 hover:bg-gray-100'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <h2 className={`font-bold text-lg mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                Add Habits for {currentWeek ? formatWeekString(currentWeek) : 'this week'}
+              </h2>
+              
+              {/* Single/Bulk toggle */}
+              <div className={`flex gap-2 mb-4 p-1 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                {['single', 'bulk'].map(m => (
+                  <button 
+                    key={m} 
+                    onClick={() => setAddMode(m)} 
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      addMode === m 
+                        ? 'bg-[#1E3A5F] text-white' 
+                        : darkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    {m === 'single' ? 'Single Habit' : 'Bulk Add'}
+                  </button>
+                ))}
+              </div>
+              
               {addMode === 'single' ? (
                 <div className="space-y-3">
-                  <input type="text" value={newHabit.habit} onChange={(e) => setNewHabit({ ...newHabit, habit: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]" placeholder="Habit name" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <select value={newHabit.participant} onChange={(e) => setNewHabit({ ...newHabit, participant: e.target.value })} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{allParticipants.map(p => <option key={p} value={p}>{p}</option>)}</select>
-                    <select value={newHabit.target} onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days</option>)}</select>
+                  <input 
+                    type="text" 
+                    value={newHabit.habit} 
+                    onChange={(e) => setNewHabit({ ...newHabit, habit: e.target.value })} 
+                    className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                      darkMode 
+                        ? 'bg-white/5 border border-white/10 text-white placeholder-gray-500' 
+                        : 'bg-gray-50 border border-gray-200 text-gray-800'
+                    }`} 
+                    placeholder="What habit do you want to track?" 
+                    autoFocus
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Participant</label>
+                      <select 
+                        value={newHabit.participant} 
+                        onChange={(e) => setNewHabit({ ...newHabit, participant: e.target.value })} 
+                        className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                          darkMode 
+                            ? 'bg-white/5 border border-white/10 text-white' 
+                            : 'bg-gray-50 border border-gray-200 text-gray-800'
+                        }`}
+                      >
+                        {allParticipants.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target</label>
+                      <select 
+                        value={newHabit.target} 
+                        onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} 
+                        className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                          darkMode 
+                            ? 'bg-white/5 border border-white/10 text-white' 
+                            : 'bg-gray-50 border border-gray-200 text-gray-800'
+                        }`}
+                      >
+                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n === 1 ? 'day' : 'days'}/week</option>)}
+                      </select>
+                    </div>
                   </div>
-                  <button onClick={addHabit} className="w-full bg-[#1E3A5F] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors">Add Habit</button>
+                  <button 
+                    onClick={() => { addHabit(); setShowAddHabitModal(false); }} 
+                    disabled={!newHabit.habit.trim()}
+                    className="w-full bg-[#1E3A5F] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#162D4D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add Habit
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <textarea value={bulkHabits} onChange={(e) => setBulkHabits(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm h-28 focus:outline-none focus:border-[#F5B800]" placeholder="One habit per line..." />
-                  <div className="grid grid-cols-2 gap-2">
-                    <select value={bulkParticipant} onChange={(e) => setBulkParticipant(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{allParticipants.map(p => <option key={p} value={p}>{p}</option>)}</select>
-                    <select value={bulkTarget} onChange={(e) => setBulkTarget(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800]">{[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days</option>)}</select>
+                  <textarea 
+                    value={bulkHabits} 
+                    onChange={(e) => setBulkHabits(e.target.value)} 
+                    className={`w-full rounded-xl px-4 py-3 text-sm h-32 focus:outline-none focus:ring-2 focus:ring-[#F5B800] resize-none ${
+                      darkMode 
+                        ? 'bg-white/5 border border-white/10 text-white placeholder-gray-500' 
+                        : 'bg-gray-50 border border-gray-200 text-gray-800'
+                    }`} 
+                    placeholder="Enter one habit per line...&#10;Example:&#10;Exercise 30 minutes&#10;Read for 20 minutes&#10;Meditate"
+                    autoFocus
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Participant</label>
+                      <select 
+                        value={bulkParticipant} 
+                        onChange={(e) => setBulkParticipant(e.target.value)} 
+                        className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                          darkMode 
+                            ? 'bg-white/5 border border-white/10 text-white' 
+                            : 'bg-gray-50 border border-gray-200 text-gray-800'
+                        }`}
+                      >
+                        {allParticipants.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`text-xs font-medium mb-1 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target (all)</label>
+                      <select 
+                        value={bulkTarget} 
+                        onChange={(e) => setBulkTarget(e.target.value)} 
+                        className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
+                          darkMode 
+                            ? 'bg-white/5 border border-white/10 text-white' 
+                            : 'bg-gray-50 border border-gray-200 text-gray-800'
+                        }`}
+                      >
+                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n === 1 ? 'day' : 'days'}/week</option>)}
+                      </select>
+                    </div>
                   </div>
-                  <button onClick={addBulkHabits} className="w-full bg-[#1E3A5F] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors">Add {bulkHabits.split('\n').filter(l => l.trim()).length} Habits</button>
+                  <button 
+                    onClick={() => { addBulkHabits(); setShowAddHabitModal(false); }} 
+                    disabled={!bulkHabits.trim()}
+                    className="w-full bg-[#1E3A5F] text-white py-3 rounded-xl text-sm font-medium hover:bg-[#162D4D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add {bulkHabits.split('\n').filter(l => l.trim()).length || 0} Habits
+                  </button>
                 </div>
               )}
             </div>
@@ -5212,17 +5351,6 @@ export default function AccountabilityTracker() {
         {/* INSIGHTS VIEW */}
         {activeView === 'insights' && (
           <div className="space-y-4">
-            {/* Header Card - Glass */}
-            <div className={`rounded-2xl p-6 backdrop-blur-xl transition-all duration-300 ${
-              darkMode 
-                ? 'bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10' 
-                : 'bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-white/50'
-            }`}>
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Instead of asking why can't I</p>
-              <h2 className={`text-3xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>DO MORE?</h2>
-              <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>first do a life audit:</p>
-            </div>
-
             {/* Main Stats Grid - Mobile: single column */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Radar Chart - Life Balance - Glass */}
@@ -6682,7 +6810,7 @@ export default function AccountabilityTracker() {
           </div>
         )}
       </div>
-      <MobileNav activeView={activeView} setActiveView={setActiveView} darkMode={darkMode} />
+      <MobileNav activeView={activeView} setActiveView={setActiveView} darkMode={darkMode} onAddHabit={() => setShowAddHabitModal(true)} />
     </div>
   );
 }
