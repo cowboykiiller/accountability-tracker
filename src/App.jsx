@@ -533,30 +533,99 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
   </div>
 );};
 
-const MobileNav = ({ activeView, setActiveView, darkMode }) => (
-  <div className={`md:hidden fixed bottom-0 left-0 right-0 backdrop-blur-xl px-1 pt-2 pb-6 z-50 border-t transition-colors duration-300 ${
-    darkMode 
-      ? 'bg-gray-900/80 border-white/10' 
-      : 'bg-white/80 border-gray-200/50'
-  }`} style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
-    <div className="flex justify-around items-center">
-      {NAV_ITEMS.map(item => (
-        <button
-          key={item.id}
-          onClick={() => setActiveView(item.id)}
-          className={`flex flex-col items-center py-1 px-1 rounded-xl transition-all ${
-            activeView === item.id 
-              ? darkMode ? 'text-white' : 'text-[#1E3A5F]'
-              : darkMode ? 'text-gray-500' : 'text-gray-400'
-          }`}
+const MobileNav = ({ activeView, setActiveView, darkMode }) => {
+  // Show different items based on current view for context
+  const mobileNavItems = [
+    { id: 'dashboard', icon: Home, label: 'Home' },
+    { id: 'tracker', icon: Calendar, label: 'Track' },
+    { id: 'insights', icon: BarChart3, label: 'Insights' },
+    { id: 'feed', icon: Users, label: 'Feed' },
+    { id: 'more', icon: Plus, label: 'More' }
+  ];
+  
+  const [showMoreMenu, setShowMoreMenu] = React.useState(false);
+  
+  const moreItems = [
+    { id: 'compete', icon: Trophy, label: 'Compete' },
+    { id: 'monthly', icon: CalendarDays, label: 'Monthly' },
+    { id: 'tasks', icon: Target, label: 'Tasks' },
+    { id: 'scorecard', icon: Award, label: 'Scorecard' },
+    { id: 'add', icon: Plus, label: 'Add Habit' },
+    { id: 'quotes', icon: Quote, label: 'Quotes' },
+    { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' },
+    { id: 'profile', icon: User, label: 'Profile' }
+  ];
+  
+  return (
+    <>
+      {/* More menu overlay */}
+      {showMoreMenu && (
+        <div 
+          className="md:hidden fixed inset-0 z-40"
+          onClick={() => setShowMoreMenu(false)}
         >
-          <item.icon className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">{item.label}</span>
-        </button>
-      ))}
-    </div>
-  </div>
-);
+          <div className={`absolute bottom-20 left-3 right-3 rounded-2xl p-2 backdrop-blur-xl shadow-2xl ${
+            darkMode 
+              ? 'bg-gray-800/95 border border-white/10' 
+              : 'bg-white/95 border border-gray-200'
+          }`}>
+            <div className="grid grid-cols-4 gap-1">
+              {moreItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveView(item.id);
+                    setShowMoreMenu(false);
+                  }}
+                  className={`flex flex-col items-center py-3 px-2 rounded-xl transition-all ${
+                    activeView === item.id 
+                      ? darkMode ? 'bg-white/10 text-white' : 'bg-[#1E3A5F]/10 text-[#1E3A5F]'
+                      : darkMode ? 'text-gray-400 active:bg-white/5' : 'text-gray-500 active:bg-gray-100'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5 mb-1" />
+                  <span className="text-[10px]">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Bottom nav bar */}
+      <div className={`md:hidden fixed bottom-0 left-0 right-0 backdrop-blur-xl px-2 pt-2 z-50 border-t transition-colors duration-300 ${
+        darkMode 
+          ? 'bg-gray-900/90 border-white/10' 
+          : 'bg-white/90 border-gray-200/50'
+      }`} style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+        <div className="flex justify-around items-center">
+          {mobileNavItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => {
+                if (item.id === 'more') {
+                  setShowMoreMenu(!showMoreMenu);
+                } else {
+                  setActiveView(item.id);
+                  setShowMoreMenu(false);
+                }
+              }}
+              className={`flex flex-col items-center py-2 px-3 rounded-xl transition-all ${
+                (item.id === 'more' && showMoreMenu) || (item.id !== 'more' && activeView === item.id)
+                  ? darkMode ? 'text-white bg-white/10' : 'text-[#1E3A5F] bg-[#1E3A5F]/10'
+                  : darkMode ? 'text-gray-500 active:text-white' : 'text-gray-400 active:text-[#1E3A5F]'
+              }`}
+            >
+              <item.icon className="w-6 h-6" />
+              <span className="text-[10px] mt-0.5 font-medium">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+};
 
 const StatCard = ({ title, value, icon: Icon, trend, trendUp, color }) => {
   const colors = { green: 'bg-emerald-50 text-emerald-600', blue: 'bg-blue-50 text-blue-600', purple: 'bg-[#F5F3E8] text-[#162D4D]', orange: 'bg-orange-50 text-orange-600' };
@@ -2685,16 +2754,15 @@ export default function AccountabilityTracker() {
       <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} />
       <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between mb-4">
+        <div className="md:hidden flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <img src={LOGO_BASE64} alt="Logo" className="w-8 h-8" />
-            <span className={`font-bold ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`}>Accountability</span>
+            <img src={LOGO_BASE64} alt="Logo" className="w-7 h-7" />
+            <span className={`font-bold text-sm ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`}>Accountability</span>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Mobile theme toggle */}
+          <div className="flex items-center gap-1.5">
             <button 
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-white/10 text-yellow-400' : 'bg-gray-100 text-gray-600'}`}
+              className={`p-2 rounded-xl transition-all ${darkMode ? 'bg-white/10 text-yellow-400' : 'bg-white/70 text-gray-600'}`}
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -2710,65 +2778,155 @@ export default function AccountabilityTracker() {
           </div>
         </div>
         
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <p className={`text-xs md:text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-            <h1 className={`text-lg md:text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Hello, {userProfile?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Team'} 👋</h1>
-          </div>
-          <div className="flex items-center gap-1 md:gap-2">
-            <div className="relative" ref={calendarRef}>
-              <button onClick={() => setShowCalendar(!showCalendar)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all backdrop-blur-sm ${
-                darkMode 
-                  ? 'bg-white/5 border border-white/10 hover:bg-white/10 text-white' 
-                  : 'bg-white/70 border border-white/50 hover:border-[#F5B800] text-gray-700'
-              }`}>
-                <CalendarDays className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-[#1E3A5F]'}`} />
-                <span className="font-medium">{currentWeek ? formatWeekString(currentWeek) : 'Select week'}</span>
-                <ChevronDown className={`w-3 h-3 transition-transform ${showCalendar ? 'rotate-180' : ''} ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-              </button>
-              {showCalendar && (
-                <div className={`absolute top-full right-0 mt-2 rounded-2xl p-4 shadow-2xl z-50 backdrop-blur-xl ${
+        {/* Greeting + Week Controls */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
+              <h1 className={`text-lg md:text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Hello, {userProfile?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Team'} 👋</h1>
+            </div>
+            {/* Desktop week controls */}
+            <div className="hidden md:flex items-center gap-2">
+              <div className="relative" ref={calendarRef}>
+                <button onClick={() => setShowCalendar(!showCalendar)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all backdrop-blur-sm ${
                   darkMode 
-                    ? 'bg-gray-800/90 border border-white/10' 
-                    : 'bg-white/90 border border-gray-200'
-                }`} style={{ minWidth: '300px' }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
-                    <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                    <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+                    ? 'bg-white/5 border border-white/10 hover:bg-white/10 text-white' 
+                    : 'bg-white/70 border border-white/50 hover:border-[#F5B800] text-gray-700'
+                }`}>
+                  <CalendarDays className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-[#1E3A5F]'}`} />
+                  <span className="font-medium">{currentWeek ? formatWeekString(currentWeek) : 'Select week'}</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform ${showCalendar ? 'rotate-180' : ''} ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                </button>
+                {showCalendar && (
+                  <div className={`absolute top-full right-0 mt-2 rounded-2xl p-4 shadow-2xl z-50 backdrop-blur-xl ${
+                    darkMode 
+                      ? 'bg-gray-800/90 border border-white/10' 
+                      : 'bg-white/90 border border-gray-200'
+                  }`} style={{ minWidth: '300px' }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                      <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 text-center mb-2">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} className={`text-xs font-medium py-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{d}</div>)}</div>
+                    <div className="grid grid-cols-7 gap-1">{calendarDays.map((date, i) => {
+                      if (!date) return <div key={i} className="w-9 h-9" />;
+                      const weekStr = getWeekStartFromDate(date);
+                      const hasData = ALL_WEEKS.includes(weekStr);
+                      const isCurrentWeek = weekStr === currentWeek;
+                      const isMonday = date.getDay() === 1;
+                      return <button key={i} onClick={() => handleCalendarDayClick(date)} disabled={!hasData} className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
+                        isCurrentWeek 
+                          ? 'bg-[#1E3A5F] text-white shadow-sm' 
+                          : hasData 
+                            ? isMonday 
+                              ? darkMode ? 'bg-white/10 text-white hover:bg-[#F5B800] hover:text-gray-900' : 'bg-[#EBE6D3] text-[#0F2940] hover:bg-[#F5B800]' 
+                              : darkMode ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
+                            : darkMode ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
+                      }`}>{date.getDate()}</button>;
+                    })}</div>
+                    <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-white/10' : 'border-gray-100'}`}><p className={`text-xs text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Click any date to jump to that week</p></div>
                   </div>
-                  <div className="grid grid-cols-7 gap-1 text-center mb-2">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} className={`text-xs font-medium py-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{d}</div>)}</div>
-                  <div className="grid grid-cols-7 gap-1">{calendarDays.map((date, i) => {
-                    if (!date) return <div key={i} className="w-9 h-9" />;
+                )}
+              </div>
+              <button onClick={prevWeek} disabled={safeWeekIndex === 0} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                  : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
+              }`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+              <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
+                darkMode 
+                  ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
+                  : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
+              }`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+            </div>
+          </div>
+          
+          {/* Mobile Week Selector - Simplified */}
+          <div className="md:hidden flex items-center justify-between gap-2">
+            <button onClick={prevWeek} disabled={safeWeekIndex === 0} className={`p-2.5 rounded-xl transition-all disabled:opacity-30 ${
+              darkMode 
+                ? 'bg-white/10 active:bg-white/20' 
+                : 'bg-white/80 active:bg-white'
+            }`}>
+              <ChevronLeft className={`w-5 h-5 ${darkMode ? 'text-white' : 'text-gray-700'}`} />
+            </button>
+            <button 
+              onClick={() => setShowCalendar(!showCalendar)} 
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl transition-all ${
+                darkMode 
+                  ? 'bg-white/10 active:bg-white/20' 
+                  : 'bg-white/80 active:bg-white'
+              }`}
+            >
+              <CalendarDays className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-[#1E3A5F]'}`} />
+              <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                {currentWeek ? formatWeekString(currentWeek) : 'Select week'}
+              </span>
+            </button>
+            <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className={`p-2.5 rounded-xl transition-all disabled:opacity-30 ${
+              darkMode 
+                ? 'bg-white/10 active:bg-white/20' 
+                : 'bg-white/80 active:bg-white'
+            }`}>
+              <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-white' : 'text-gray-700'}`} />
+            </button>
+          </div>
+          
+          {/* Mobile Calendar Popup */}
+          {showCalendar && (
+            <div className="md:hidden mt-3">
+              <div className={`rounded-2xl p-4 backdrop-blur-xl ${
+                darkMode 
+                  ? 'bg-gray-800/95 border border-white/10' 
+                  : 'bg-white/95 border border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-gray-100 active:bg-gray-200'}`}>
+                    <ChevronLeft className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                  </button>
+                  <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    {new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-gray-100 active:bg-gray-200'}`}>
+                    <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                    <div key={i} className={`text-xs font-medium py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarDays.map((date, i) => {
+                    if (!date) return <div key={i} className="w-full aspect-square" />;
                     const weekStr = getWeekStartFromDate(date);
                     const hasData = ALL_WEEKS.includes(weekStr);
                     const isCurrentWeek = weekStr === currentWeek;
                     const isMonday = date.getDay() === 1;
-                    return <button key={i} onClick={() => handleCalendarDayClick(date)} disabled={!hasData} className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
-                      isCurrentWeek 
-                        ? 'bg-[#1E3A5F] text-white shadow-sm' 
-                        : hasData 
-                          ? isMonday 
-                            ? darkMode ? 'bg-white/10 text-white hover:bg-[#F5B800] hover:text-gray-900' : 'bg-[#EBE6D3] text-[#0F2940] hover:bg-[#F5B800]' 
-                            : darkMode ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
-                          : darkMode ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
-                    }`}>{date.getDate()}</button>;
-                  })}</div>
-                  <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-white/10' : 'border-gray-100'}`}><p className={`text-xs text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Click any date to jump to that week</p></div>
+                    return (
+                      <button 
+                        key={i} 
+                        onClick={() => { handleCalendarDayClick(date); setShowCalendar(false); }} 
+                        disabled={!hasData} 
+                        className={`w-full aspect-square rounded-xl text-sm font-medium transition-all ${
+                          isCurrentWeek 
+                            ? 'bg-[#1E3A5F] text-white' 
+                            : hasData 
+                              ? isMonday 
+                                ? darkMode ? 'bg-white/15 text-white' : 'bg-[#EBE6D3] text-[#0F2940]' 
+                                : darkMode ? 'text-gray-300 active:bg-white/10' : 'text-gray-700 active:bg-gray-100'
+                              : darkMode ? 'text-gray-700' : 'text-gray-300'
+                        }`}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </div>
-            <button onClick={prevWeek} disabled={safeWeekIndex === 0} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
-              darkMode 
-                ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
-                : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
-            }`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
-            <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
-              darkMode 
-                ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
-                : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
-            }`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
-          </div>
+          )}
         </div>
 
         {activeView === 'dashboard' && (
@@ -2852,77 +3010,81 @@ export default function AccountabilityTracker() {
                 </div>
               </div>
               
-              {/* Stats row - clickable - Glass cards */}
-              <div className="grid grid-cols-5 gap-2">
+              {/* Stats row - clickable - Glass cards - Mobile optimized */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                 <button 
                   onClick={() => setShowHabitBreakdown('completed')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
-                      : 'bg-white/70 border border-white/50 hover:border-purple-300 hover:shadow-lg'
+                      ? 'bg-white/5 border border-white/10 active:bg-white/10' 
+                      : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <Target className="w-4 h-4 text-purple-500" />
+                    <Target className="w-5 h-5 text-purple-500" />
                     {dashboardView === 'personal' && teamComparison.vsTeam !== 0 && (
                       <span className={`text-[10px] font-medium ${teamComparison.vsTeam > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {teamComparison.vsTeam > 0 ? '+' : ''}{teamComparison.vsTeam}% vs team
+                        {teamComparison.vsTeam > 0 ? '+' : ''}{teamComparison.vsTeam}%
                       </span>
                     )}
                   </div>
-                  <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.rate}%</p>
+                  <p className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.rate}%</p>
                   <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Completion</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('total')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
-                      : 'bg-white/70 border border-white/50 hover:border-blue-300 hover:shadow-lg'
+                      ? 'bg-white/5 border border-white/10 active:bg-white/10' 
+                      : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
-                  <CheckCircle2 className="w-4 h-4 text-blue-500" />
-                  <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.total}</p>
-                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Total</p>
+                  <CheckCircle2 className="w-5 h-5 text-blue-500" />
+                  <p className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.total}</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Total Habits</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('exceeded')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
-                      : 'bg-white/70 border border-white/50 hover:border-green-300 hover:shadow-lg'
+                      ? 'bg-white/5 border border-white/10 active:bg-white/10' 
+                      : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
-                  <Award className="w-4 h-4 text-green-500" />
-                  <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.exceeded}</p>
+                  <Award className="w-5 h-5 text-green-500" />
+                  <p className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.exceeded}</p>
                   <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Exceeded</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('missed')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-white/5 border border-white/10 hover:bg-white/10' 
-                      : 'bg-white/70 border border-white/50 hover:border-red-300 hover:shadow-lg'
+                      ? 'bg-white/5 border border-white/10 active:bg-white/10' 
+                      : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
-                  <XCircle className="w-4 h-4 text-red-500" />
-                  <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.missed}</p>
+                  <XCircle className="w-5 h-5 text-red-500" />
+                  <p className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.missed}</p>
                   <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Missed</p>
                 </button>
                 {dashboardView === 'personal' && (
-                  <div className={`rounded-2xl p-3 backdrop-blur-xl ${
+                  <div className={`rounded-2xl p-3 col-span-2 md:col-span-1 backdrop-blur-xl ${
                     darkMode 
                       ? 'bg-indigo-500/10 border border-indigo-500/20' 
                       : 'bg-gradient-to-br from-indigo-50/80 to-purple-50/80 border border-indigo-200/50'
                   }`}>
-                    <Trophy className={`w-4 h-4 ${darkMode ? 'text-indigo-400' : 'text-indigo-500'}`} />
-                    <p className={`text-xl font-bold mt-1 ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>#{teamComparison.rank}</p>
-                    <p className={`text-xs ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>of {teamComparison.total}</p>
+                    <div className="flex items-center gap-3 md:block">
+                      <Trophy className={`w-5 h-5 ${darkMode ? 'text-indigo-400' : 'text-indigo-500'}`} />
+                      <div className="flex items-baseline gap-2 md:block">
+                        <p className={`text-2xl font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>#{teamComparison.rank}</p>
+                        <p className={`text-xs ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>of {teamComparison.total} on leaderboard</p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
               
-              {/* Week at a Glance - Daily Progress Rings - Glass */}
+              {/* Week at a Glance - Daily Progress Rings - Glass - Mobile Optimized */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
                   ? 'bg-white/5 border border-white/10' 
@@ -2932,22 +3094,24 @@ export default function AccountabilityTracker() {
                   <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Week at a Glance</h3>
                   <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{currentWeek ? formatWeekString(currentWeek) : ''}</span>
                 </div>
-                <div className="grid grid-cols-7 gap-2">
+                
+                {/* Mobile: Horizontal scroll, Desktop: Grid */}
+                <div className="flex md:grid md:grid-cols-7 gap-2 overflow-x-auto pb-2 md:pb-0 -mx-2 px-2 md:mx-0 md:px-0 snap-x snap-mandatory md:snap-none">
                   {dailyStats.map((day) => {
                     const ringColor = day.rate >= 80 ? '#10b981' : day.rate >= 50 ? '#f59e0b' : day.rate > 0 ? '#ef4444' : darkMode ? '#374151' : '#d1d5db';
-                    const circumference = 2 * Math.PI * 28;
+                    const circumference = 2 * Math.PI * 22;
                     const strokeDashoffset = circumference - (day.rate / 100) * circumference;
                     
                     return (
                       <button
                         key={day.dayIndex}
                         onClick={() => setSelectedDay(selectedDay === day.dayIndex ? null : day.dayIndex)}
-                        className={`flex flex-col items-center p-2 rounded-xl transition-all ${
+                        className={`flex-shrink-0 snap-center flex flex-col items-center p-2 md:p-2 rounded-xl transition-all min-w-[60px] md:min-w-0 ${
                           day.isToday 
                             ? 'bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f] text-white shadow-lg scale-105' 
                             : selectedDay === day.dayIndex 
                               ? darkMode ? 'bg-blue-500/20 border-2 border-blue-400/50' : 'bg-blue-50 border-2 border-blue-300' 
-                              : darkMode ? 'hover:bg-white/5 border border-transparent hover:border-white/10' : 'hover:bg-gray-50 border border-transparent hover:border-gray-200'
+                              : darkMode ? 'active:bg-white/10 border border-transparent' : 'active:bg-gray-100 border border-transparent'
                         }`}
                       >
                         <span className={`text-[10px] font-medium ${day.isToday ? 'text-blue-200' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -2957,13 +3121,13 @@ export default function AccountabilityTracker() {
                           {day.date.getDate()}
                         </span>
                         
-                        {/* Circular Progress Ring */}
-                        <div className="relative w-14 h-14">
-                          <svg className="w-14 h-14 transform -rotate-90">
+                        {/* Circular Progress Ring - Smaller on mobile */}
+                        <div className="relative w-11 h-11 md:w-14 md:h-14">
+                          <svg className="w-11 h-11 md:w-14 md:h-14 transform -rotate-90" viewBox="0 0 56 56">
                             <circle
                               cx="28"
                               cy="28"
-                              r="24"
+                              r="22"
                               stroke={day.isToday ? 'rgba(255,255,255,0.2)' : darkMode ? '#374151' : '#e5e7eb'}
                               strokeWidth="4"
                               fill="none"
@@ -2971,7 +3135,7 @@ export default function AccountabilityTracker() {
                             <circle
                               cx="28"
                               cy="28"
-                              r="24"
+                              r="22"
                               stroke={day.isToday ? '#F5B800' : ringColor}
                               strokeWidth="4"
                               fill="none"
@@ -2982,7 +3146,7 @@ export default function AccountabilityTracker() {
                             />
                           </svg>
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <span className={`text-sm font-bold ${day.isToday ? 'text-white' : darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                            <span className={`text-xs md:text-sm font-bold ${day.isToday ? 'text-white' : darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                               {day.total > 0 ? `${day.rate}%` : '-'}
                             </span>
                           </div>
@@ -2998,16 +3162,16 @@ export default function AccountabilityTracker() {
                 
                 {/* Expanded Day View */}
                 {selectedDay !== null && (
-                  <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-white/10' : 'border-gray-100'}`}>
+                  <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-white/10' : 'border-gray-200/50'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                         {dailyStats[selectedDay]?.dayName} - {dailyStats[selectedDay]?.dateStr}
                       </h4>
                       <button 
                         onClick={() => setSelectedDay(null)}
-                        className={`${darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`p-1 rounded-lg ${darkMode ? 'text-gray-500 active:bg-white/10' : 'text-gray-400 active:bg-gray-100'}`}
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-5 h-5" />
                       </button>
                     </div>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -3025,16 +3189,16 @@ export default function AccountabilityTracker() {
                           return (
                             <div 
                               key={h.id} 
-                              className={`flex items-center gap-3 p-2 rounded-xl ${
+                              className={`flex items-center gap-3 p-3 rounded-xl ${
                                 isCompleted 
                                   ? darkMode ? 'bg-green-500/10' : 'bg-green-50' 
                                   : darkMode ? 'bg-white/5' : 'bg-gray-50'
                               }`}
                             >
-                              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isCompleted ? 'bg-green-500 text-white' : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'}`}>
-                                {isCompleted ? <Check className="w-3 h-3" /> : <span className="text-xs">○</span>}
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${isCompleted ? 'bg-green-500 text-white' : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'}`}>
+                                {isCompleted ? <Check className="w-4 h-4" /> : <span className="text-xs">○</span>}
                               </div>
-                              <div className="flex-1">
+                              <div className="flex-1 min-w-0">
                                 <p className={`text-sm ${isCompleted ? darkMode ? 'text-green-400' : 'text-green-700' : darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{h.habit}</p>
                                 {dashboardView === 'team' && (
                                   <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.participant}</p>
@@ -4849,16 +5013,16 @@ export default function AccountabilityTracker() {
               <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>first do a life audit:</p>
             </div>
 
-            {/* Main Stats Grid */}
+            {/* Main Stats Grid - Mobile: single column */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Radar Chart - Life Balance - Glass */}
-              <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
+              <div className={`rounded-2xl p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
                 darkMode 
                   ? 'bg-white/5 border border-white/10' 
                   : 'bg-white/60 border border-white shadow-xl'
               }`}>
-                <h3 className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance</h3>
-                <ResponsiveContainer width="100%" height={250}>
+                <h3 className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance</h3>
+                <ResponsiveContainer width="100%" height={220}>
                   <RadarChart data={(() => {
                     const categories = ['Fitness', 'Business', 'Finance', 'Health', 'Learning', 'Relationships', 'Spiritual'];
                     const myHabits = habits.filter(h => h.participant === myParticipant);
@@ -4888,8 +5052,8 @@ export default function AccountabilityTracker() {
                     });
                   })()}>
                     <PolarGrid stroke={darkMode ? '#334155' : '#e2e8f0'} />
-                    <PolarAngleAxis dataKey="category" tick={{ fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 11 }} />
-                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: darkMode ? '#64748b' : '#94a3b8', fontSize: 9 }} />
+                    <PolarAngleAxis dataKey="category" tick={{ fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 10 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: darkMode ? '#64748b' : '#94a3b8', fontSize: 8 }} />
                     <Radar name="Score" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} strokeWidth={2} />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -4898,7 +5062,7 @@ export default function AccountabilityTracker() {
               {/* Heatmap + Life Score */}
               <div className="space-y-4">
                 {/* GitHub-style Heatmap - Glass */}
-                <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
+                <div className={`rounded-2xl p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
                   darkMode 
                     ? 'bg-white/5 border border-white/10' 
                     : 'bg-white/60 border border-white shadow-xl'
