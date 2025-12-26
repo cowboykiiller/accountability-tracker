@@ -4121,38 +4121,46 @@ export default function AccountabilityTracker() {
           <div className="space-y-3">
             {/* Header with view toggle */}
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              <div className={`flex gap-1 rounded-xl p-1 ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
                 <button 
                   onClick={() => setSelectedParticipant(myParticipant)} 
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedParticipant === myParticipant ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    selectedParticipant === myParticipant 
+                      ? darkMode ? 'bg-white/20 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
+                      : darkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
                 >
                   My Habits ({currentWeekHabits.filter(h => h.participant === myParticipant).length})
                 </button>
                 <button 
                   onClick={() => setSelectedParticipant('All')} 
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedParticipant === 'All' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    selectedParticipant === 'All' 
+                      ? darkMode ? 'bg-white/20 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
+                      : darkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}
                 >
                   Team ({currentWeekHabits.length})
                 </button>
               </div>
               <button 
                 onClick={() => setActiveView('add')} 
-                className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#1E3A5F] text-white rounded-xl text-sm font-medium active:bg-[#162D4D]"
               >
-                <Plus className="w-3 h-3" />
+                <Plus className="w-4 h-4" />
                 Add
               </button>
             </div>
             
             {/* No habits - Show AI suggestions */}
             {currentWeekHabits.length === 0 ? (
-              <div className="bg-white rounded-xl p-6 border border-gray-100">
+              <div className={`rounded-xl p-6 ${darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-100'}`}>
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-[#F5F3E8] rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Calendar className="w-8 h-8 text-[#1E3A5F]" />
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-white/10' : 'bg-[#F5F3E8]'}`}>
+                    <Calendar className={`w-8 h-8 ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`} />
                   </div>
-                  <h3 className="text-lg font-bold text-gray-800 mb-2">Start Your Week Fresh!</h3>
-                  <p className="text-gray-500 text-sm">No habits set for this week yet. Get AI suggestions based on your past performance, or add habits manually.</p>
+                  <h3 className={`text-lg font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Start Your Week Fresh!</h3>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No habits set for this week yet. Get AI suggestions based on your past performance, or add habits manually.</p>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
@@ -4211,23 +4219,31 @@ export default function AccountabilityTracker() {
               <div className="space-y-2">
                 {/* Past week lock banner and edit button */}
                 {isWeekPast && (
-                  <div className={`flex items-center justify-between p-3 rounded-xl mb-2 ${editingPastWeek ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-200'}`}>
+                  <div className={`flex items-center justify-between p-3 rounded-xl mb-2 ${
+                    editingPastWeek 
+                      ? darkMode ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
+                      : darkMode ? 'bg-white/5 border border-white/10' : 'bg-gray-50 border border-gray-200'
+                  }`}>
                     <div className="flex items-center gap-2">
                       {editingPastWeek ? (
                         <>
-                          <Edit3 className="w-4 h-4 text-amber-600" />
-                          <span className="text-sm font-medium text-amber-800">Editing past week - changes enabled for your habits</span>
+                          <Edit3 className="w-4 h-4 text-amber-500" />
+                          <span className={`text-sm font-medium ${darkMode ? 'text-amber-400' : 'text-amber-800'}`}>Editing past week</span>
                         </>
                       ) : (
                         <>
-                          <Lock className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">This week is complete and locked</span>
+                          <Lock className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>This week is complete and locked</span>
                         </>
                       )}
                     </div>
                     <button 
                       onClick={() => setEditingPastWeek(!editingPastWeek)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${editingPastWeek ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        editingPastWeek 
+                          ? 'bg-amber-500 text-white active:bg-amber-600' 
+                          : darkMode ? 'bg-white/10 text-white active:bg-white/20' : 'bg-white text-gray-600 border border-gray-300 active:bg-gray-100'
+                      }`}
                     >
                       {editingPastWeek ? 'Done Editing' : 'Edit Week'}
                     </button>
@@ -4239,7 +4255,11 @@ export default function AccountabilityTracker() {
                   <button 
                     onClick={suggestWeeklyHabits}
                     disabled={weekSuggestLoading}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors disabled:opacity-50"
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                      darkMode 
+                        ? 'bg-purple-500/20 text-purple-300 active:bg-purple-500/30' 
+                        : 'bg-purple-100 text-purple-700 active:bg-purple-200'
+                    }`}
                   >
                     {weekSuggestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                     AI Suggest More
@@ -4248,27 +4268,39 @@ export default function AccountabilityTracker() {
                 
                 {/* AI Suggestions panel */}
                 {weekHabitSuggestions.length > 0 && (
-                  <div className="bg-purple-50 rounded-xl p-4 border border-purple-200 mb-4">
+                  <div className={`rounded-xl p-4 mb-4 ${
+                    darkMode 
+                      ? 'bg-purple-500/10 border border-purple-500/20' 
+                      : 'bg-purple-50 border border-purple-200'
+                  }`}>
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-purple-800 flex items-center gap-2">
+                      <h4 className={`font-semibold flex items-center gap-2 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
                         <Sparkles className="w-4 h-4" />
                         AI Suggested Habits
                       </h4>
-                      <button onClick={() => setWeekHabitSuggestions([])} className="text-purple-400 hover:text-purple-600">
+                      <button onClick={() => setWeekHabitSuggestions([])} className={darkMode ? 'text-purple-400' : 'text-purple-400'}>
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {weekHabitSuggestions.map((habit, idx) => (
-                        <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${habit.added ? 'bg-green-100' : 'bg-white'}`}>
+                        <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${
+                          habit.added 
+                            ? darkMode ? 'bg-green-500/20' : 'bg-green-100'
+                            : darkMode ? 'bg-white/5' : 'bg-white'
+                        }`}>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>{habit.habit}</p>
-                            <p className="text-xs text-gray-500">{habit.target} days</p>
+                            <p className={`text-sm font-medium truncate ${
+                              habit.added 
+                                ? darkMode ? 'text-green-400' : 'text-green-700'
+                                : darkMode ? 'text-white' : 'text-gray-800'
+                            }`}>{habit.habit}</p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{habit.target} days</p>
                           </div>
                           {habit.added ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
                           ) : (
-                            <button onClick={() => addWeeklyHabit(habit, idx)} className="px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 flex-shrink-0">
+                            <button onClick={() => addWeeklyHabit(habit, idx)} className="px-2 py-1 bg-purple-600 text-white rounded text-xs active:bg-purple-700 flex-shrink-0">
                               Add
                             </button>
                           )}
@@ -4278,18 +4310,20 @@ export default function AccountabilityTracker() {
                   </div>
                 )}
                 
-                {/* Compact Habit Table */}
-                <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                {/* Compact Habit Table - Desktop */}
+                <div className={`hidden md:block rounded-xl border overflow-hidden ${
+                  darkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'
+                }`}>
                   <table className="w-full">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100">
-                        <th className="text-left p-2 pl-3 text-xs font-semibold text-gray-600 w-8"></th>
-                        <th className="text-left p-2 text-xs font-semibold text-gray-600">Habit</th>
-                        <th className="text-center p-2 text-xs font-semibold text-gray-600 w-12">Status</th>
+                      <tr className={`border-b ${darkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100'}`}>
+                        <th className="text-left p-2 pl-3 text-xs font-semibold text-gray-500 w-8"></th>
+                        <th className={`text-left p-2 text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Habit</th>
+                        <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'} w-12`}>Status</th>
                         {DAYS.map(d => (
-                          <th key={d} className="text-center p-1 text-xs font-semibold text-gray-500 w-8">{d[0]}</th>
+                          <th key={d} className={`text-center p-1 text-xs font-semibold ${darkMode ? 'text-gray-500' : 'text-gray-500'} w-8`}>{d[0]}</th>
                         ))}
-                        <th className="text-center p-2 text-xs font-semibold text-gray-600 w-16">Progress</th>
+                        <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'} w-16`}>Progress</th>
                         <th className="w-16"></th>
                       </tr>
                     </thead>
@@ -4308,24 +4342,26 @@ export default function AccountabilityTracker() {
                           
                           if (isEditing && canEdit) {
                             return (
-                              <tr key={h.id} className="border-b border-gray-50 bg-blue-50">
+                              <tr key={h.id} className={`border-b ${darkMode ? 'border-white/10 bg-blue-500/10' : 'border-gray-50 bg-blue-50'}`}>
                                 <td colSpan="11" className="p-3">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <input
                                       type="text"
                                       value={editingHabit.habit}
                                       onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
-                                      className="flex-1 min-w-[200px] bg-white border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:border-[#F5B800]"
+                                      className={`flex-1 min-w-[200px] border rounded px-2 py-1 text-sm focus:outline-none ${
+                                        darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200 focus:border-[#F5B800]'
+                                      }`}
                                     />
                                     <select
                                       value={editingHabit.target}
                                       onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                                      className="bg-white border border-gray-200 rounded px-2 py-1 text-sm"
+                                      className={`border rounded px-2 py-1 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'}`}
                                     >
                                       {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}d</option>)}
                                     </select>
                                     <button onClick={updateHabit} className="px-3 py-1 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600">Save</button>
-                                    <button onClick={() => setEditingHabit(null)} className="px-3 py-1 bg-gray-200 text-gray-600 rounded text-sm hover:bg-gray-300">Cancel</button>
+                                    <button onClick={() => setEditingHabit(null)} className={`px-3 py-1 rounded text-sm ${darkMode ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
                                   </div>
                                 </td>
                               </tr>
@@ -4333,15 +4369,15 @@ export default function AccountabilityTracker() {
                           }
                           
                           return (
-                            <tr key={h.id} className={`border-b border-gray-50 hover:bg-gray-50 ${!isMyHabit ? 'opacity-60' : ''}`}>
+                            <tr key={h.id} className={`border-b ${darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-50 hover:bg-gray-50'} ${!isMyHabit ? 'opacity-60' : ''}`}>
                               {/* Move arrows */}
                               <td className="p-1 pl-2">
                                 {canEdit && (
                                   <div className="flex flex-col">
-                                    <button onClick={() => moveHabit(h.id, 'up')} disabled={myHabitIndex === 0} className="text-gray-300 hover:text-gray-500 disabled:opacity-30">
+                                    <button onClick={() => moveHabit(h.id, 'up')} disabled={myHabitIndex === 0} className={`${darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'} disabled:opacity-30`}>
                                       <ChevronUp className="w-3 h-3" />
                                     </button>
-                                    <button onClick={() => moveHabit(h.id, 'down')} disabled={myHabitIndex === myHabitsOnly.length - 1} className="text-gray-300 hover:text-gray-500 disabled:opacity-30">
+                                    <button onClick={() => moveHabit(h.id, 'down')} disabled={myHabitIndex === myHabitsOnly.length - 1} className={`${darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'} disabled:opacity-30`}>
                                       <ChevronDown className="w-3 h-3" />
                                     </button>
                                   </div>
@@ -4350,9 +4386,9 @@ export default function AccountabilityTracker() {
                               {/* Habit name */}
                               <td className="p-2">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-800 font-medium truncate max-w-[200px]" title={h.habit}>{h.habit}</span>
+                                  <span className={`text-sm font-medium truncate max-w-[200px] ${darkMode ? 'text-white' : 'text-gray-800'}`} title={h.habit}>{h.habit}</span>
                                   {selectedParticipant === 'All' && (
-                                    <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{h.participant}</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'text-gray-500 bg-white/10' : 'text-gray-400 bg-gray-100'}`}>{h.participant}</span>
                                   )}
                                 </div>
                               </td>
@@ -4378,8 +4414,8 @@ export default function AccountabilityTracker() {
                                           : isToday
                                             ? 'border-[#F5B800] bg-amber-50'
                                             : canEdit 
-                                              ? 'border-gray-300 hover:border-green-400 bg-white' 
-                                              : 'border-gray-200 bg-gray-50'
+                                              ? darkMode ? 'border-gray-600 hover:border-green-400 bg-white/5' : 'border-gray-300 hover:border-green-400 bg-white'
+                                              : darkMode ? 'border-gray-700 bg-white/5' : 'border-gray-200 bg-gray-50'
                                       }`}
                                     >
                                       {isCompleted && <Check className="w-4 h-4" />}
@@ -4390,20 +4426,20 @@ export default function AccountabilityTracker() {
                               {/* Progress */}
                               <td className="p-1">
                                 <div className="flex items-center gap-1">
-                                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
                                     <div className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(progressPct, 100)}%` }}></div>
                                   </div>
-                                  <span className="text-[10px] text-gray-500 w-6">{h.daysCompleted.length}/{h.target}</span>
+                                  <span className={`text-[10px] w-6 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{h.daysCompleted.length}/{h.target}</span>
                                 </div>
                               </td>
                               {/* Actions */}
                               <td className="p-1 pr-2">
                                 {canEdit && (
                                   <div className="flex gap-0.5">
-                                    <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })} className="w-6 h-6 rounded text-blue-400 hover:bg-blue-50">
+                                    <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })} className={`w-6 h-6 rounded ${darkMode ? 'text-blue-400 hover:bg-blue-500/20' : 'text-blue-400 hover:bg-blue-50'}`}>
                                       <Edit3 className="w-3 h-3 mx-auto" />
                                     </button>
-                                    <button onClick={() => deleteHabit(h.id)} className="w-6 h-6 rounded text-red-400 hover:bg-red-50">
+                                    <button onClick={() => deleteHabit(h.id)} className={`w-6 h-6 rounded ${darkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-400 hover:bg-red-50'}`}>
                                       <Trash2 className="w-3 h-3 mx-auto" />
                                     </button>
                                   </div>
@@ -4415,6 +4451,140 @@ export default function AccountabilityTracker() {
                       })()}
                     </tbody>
                   </table>
+                </div>
+                
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-2">
+                  {(() => {
+                    const sortedHabits = filteredHabits.sort((a, b) => (a.order || 0) - (b.order || 0));
+                    const myHabitsOnly = sortedHabits.filter(h => h.participant === myParticipant);
+                    
+                    return sortedHabits.map((h, idx) => {
+                      const st = getStatus(h), cfg = STATUS_CONFIG[st];
+                      const isEditing = editingHabit?.id === h.id;
+                      const isMyHabit = h.participant === myParticipant;
+                      const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
+                      const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
+                      const progressPct = h.target > 0 ? Math.round((h.daysCompleted.length / h.target) * 100) : 0;
+                      
+                      if (isEditing && canEdit) {
+                        return (
+                          <div key={h.id} className={`rounded-xl p-4 ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-200'}`}>
+                            <input
+                              type="text"
+                              value={editingHabit.habit}
+                              onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
+                              className={`w-full rounded-lg px-3 py-2 text-sm mb-2 ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border focus:outline-none`}
+                            />
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={editingHabit.target}
+                                onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
+                                className={`rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border`}
+                              >
+                                {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} days/week</option>)}
+                              </select>
+                              <button onClick={updateHabit} className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium">Save</button>
+                              <button onClick={() => setEditingHabit(null)} className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div 
+                          key={h.id} 
+                          className={`rounded-xl p-3 transition-colors ${
+                            darkMode 
+                              ? `bg-white/5 border border-white/10 ${!isMyHabit ? 'opacity-50' : ''}` 
+                              : `bg-white border border-gray-100 ${!isMyHabit ? 'opacity-60' : ''}`
+                          }`}
+                        >
+                          {/* Header row: Habit name + Status */}
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</p>
+                              {selectedParticipant === 'All' && (
+                                <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.participant}</span>
+                              )}
+                            </div>
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${cfg.bgColor} ${cfg.textColor}`}>
+                              {st}
+                            </span>
+                          </div>
+                          
+                          {/* Days row - all 7 days visible */}
+                          <div className="flex items-center justify-between gap-1 mb-2">
+                            {DAYS.map((d, i) => {
+                              const isCompleted = h.daysCompleted.includes(i);
+                              const dayDate = new Date(currentWeek + 'T00:00:00');
+                              dayDate.setDate(dayDate.getDate() + i);
+                              const isToday = dayDate.toDateString() === new Date().toDateString();
+                              
+                              return (
+                                <button
+                                  key={d}
+                                  onClick={() => canEdit && toggleDay(h.id, i)}
+                                  disabled={!canEdit}
+                                  className={`flex-1 flex flex-col items-center py-1.5 rounded-lg transition-all ${
+                                    isCompleted 
+                                      ? 'bg-green-500 text-white' 
+                                      : isToday
+                                        ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
+                                        : darkMode 
+                                          ? canEdit ? 'bg-white/5 border border-white/10 active:bg-white/10' : 'bg-white/5 border border-white/5'
+                                          : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
+                                  }`}
+                                >
+                                  <span className={`text-[10px] font-medium ${
+                                    isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-500' : 'text-gray-400'
+                                  }`}>
+                                    {d[0]}
+                                  </span>
+                                  {isCompleted ? (
+                                    <Check className="w-4 h-4" />
+                                  ) : (
+                                    <div className={`w-4 h-4 rounded-full border-2 ${
+                                      isToday ? 'border-amber-400' : darkMode ? 'border-gray-600' : 'border-gray-300'
+                                    }`} />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          
+                          {/* Footer: Progress + Actions */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className={`flex-1 h-1.5 rounded-full overflow-hidden max-w-[120px] ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
+                                <div 
+                                  className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} 
+                                  style={{ width: `${Math.min(progressPct, 100)}%` }}
+                                />
+                              </div>
+                              <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.daysCompleted.length}/{h.target}</span>
+                            </div>
+                            {canEdit && (
+                              <div className="flex gap-1">
+                                <button 
+                                  onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })} 
+                                  className={`p-2 rounded-lg ${darkMode ? 'text-blue-400 active:bg-blue-500/20' : 'text-blue-500 active:bg-blue-50'}`}
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => deleteHabit(h.id)} 
+                                  className={`p-2 rounded-lg ${darkMode ? 'text-red-400 active:bg-red-500/20' : 'text-red-500 active:bg-red-50'}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
