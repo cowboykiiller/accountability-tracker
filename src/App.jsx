@@ -1740,7 +1740,7 @@ export default function AccountabilityTracker() {
     
     // If current week not found, find the closest week to today
     const today = new Date();
-    let closestIndex = 0;
+    let closestIndex = weeks.length - 1;
     let closestDiff = Infinity;
     
     for (let i = 0; i < weeks.length; i++) {
@@ -1755,27 +1755,43 @@ export default function AccountabilityTracker() {
     return closestIndex;
   };
   
-  // Initialize to current week once data loads
-  const [hasInitialized, setHasInitialized] = useState(false);
+  // Track if user has manually navigated (don't auto-correct after that)
+  const [userNavigated, setUserNavigated] = useState(false);
   
+  // Auto-initialize to current week when data loads
   useEffect(() => {
-    if (!dataLoading && ALL_WEEKS.length > 0 && !hasInitialized) {
-      const correctIndex = getInitialWeekIndex(ALL_WEEKS);
+    // Only auto-set when data is ready and user hasn't navigated yet
+    if (!dataLoading && ALL_WEEKS.length > 0 && !userNavigated) {
       const currentMon = getCurrentMonday();
-      console.log('Current Monday:', currentMon, 'Available weeks:', ALL_WEEKS.slice(-5));
-      console.log('Initializing week to:', ALL_WEEKS[correctIndex], 'index:', correctIndex);
-      setCurrentWeekIndex(correctIndex);
-      setHasInitialized(true);
+      const currentIdx = ALL_WEEKS.indexOf(currentMon);
+      
+      if (currentIdx !== -1) {
+        console.log('Auto-navigating to current week:', currentMon, 'at index:', currentIdx);
+        setCurrentWeekIndex(currentIdx);
+        setUserNavigated(true); // Prevent re-running
+      }
     }
-  }, [dataLoading, ALL_WEEKS, hasInitialized]);
+  }, [dataLoading, ALL_WEEKS, userNavigated]);
 
   // Use calculated index or find current week as fallback
   const safeWeekIndex = useMemo(() => {
+    // If we have a valid index, use it
     if (currentWeekIndex >= 0 && currentWeekIndex < ALL_WEEKS.length) {
       return currentWeekIndex;
     }
-    // Fallback: find current week
-    return getInitialWeekIndex(ALL_WEEKS);
+    
+    // Fallback: always try to find current week first
+    if (ALL_WEEKS.length > 0) {
+      const currentMon = getCurrentMonday();
+      const currentIdx = ALL_WEEKS.indexOf(currentMon);
+      if (currentIdx !== -1) {
+        return currentIdx;
+      }
+      // If current week not in list, find closest
+      return getInitialWeekIndex(ALL_WEEKS);
+    }
+    
+    return 0;
   }, [currentWeekIndex, ALL_WEEKS]);
   
   const currentWeek = ALL_WEEKS[safeWeekIndex] || '';
@@ -2714,13 +2730,14 @@ export default function AccountabilityTracker() {
   // Get current week's quote
   const currentQuote = quotes.length > 0 ? quotes[0] : null;
 
-  const prevWeek = () => safeWeekIndex > 0 && setCurrentWeekIndex(safeWeekIndex - 1);
-  const nextWeek = () => safeWeekIndex < ALL_WEEKS.length - 1 && setCurrentWeekIndex(safeWeekIndex + 1);
+  const prevWeek = () => { setUserNavigated(true); safeWeekIndex > 0 && setCurrentWeekIndex(safeWeekIndex - 1); };
+  const nextWeek = () => { setUserNavigated(true); safeWeekIndex < ALL_WEEKS.length - 1 && setCurrentWeekIndex(safeWeekIndex + 1); };
   const goToCurrentWeek = () => {
     const currentMon = getCurrentMonday();
     const idx = ALL_WEEKS.indexOf(currentMon);
     if (idx !== -1) {
       setCurrentWeekIndex(idx);
+      setUserNavigated(true);
     }
   };
   const isCurrentWeekSelected = currentWeek === getCurrentMonday();
@@ -2730,6 +2747,7 @@ export default function AccountabilityTracker() {
     const weekStr = getWeekStartFromDate(date);
     const idx = ALL_WEEKS.indexOf(weekStr);
     if (idx !== -1) {
+      setUserNavigated(true);
       setCurrentWeekIndex(idx);
       setShowCalendar(false);
     }
