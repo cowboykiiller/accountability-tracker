@@ -377,15 +377,19 @@ const initialData = [
 // Helper functions
 const formatWeekString = (weekStr) => new Date(weekStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const getStatus = (h) => { 
-  // Handle percentage-based habits
+  // Handle percentage-based habits (with instances tracking)
   if (h.habitType === 'percentage') {
-    const value = h.percentageValue;
+    const instances = h.instances || [];
+    if (instances.length === 0) return 'Pending';
+    
+    const successes = instances.filter(i => i.success).length;
+    const percentage = Math.round((successes / instances.length) * 100);
     const target = h.target;
-    if (value === null || value === undefined) return 'Pending';
-    if (value > target) return 'Exceeded';
-    if (value >= target) return 'Done';
-    if (value >= target * 0.75) return 'On Track';
-    if (value >= target * 0.5) return 'At Risk';
+    
+    if (percentage > target) return 'Exceeded';
+    if (percentage >= target) return 'Done';
+    if (percentage >= target * 0.75) return 'On Track';
+    if (percentage >= target * 0.5) return 'At Risk';
     return 'Missed';
   }
   // Handle daily habits (default)
@@ -1977,13 +1981,34 @@ export default function AccountabilityTracker() {
     await setDoc(doc(db, 'habits', id), { ...habit, daysCompleted: newDaysCompleted });
   };
 
-  // Update percentage value for percentage-type habits
-  const updatePercentageValue = async (id, value) => {
+  // Add a new instance (success or fail) to a percentage habit
+  const addPercentageInstance = async (id, success) => {
     const habit = habits.find(h => h.id === id);
     if (!habit) return;
     
-    const numValue = value === '' ? null : Math.min(100, Math.max(0, parseInt(value) || 0));
-    await setDoc(doc(db, 'habits', id), { ...habit, percentageValue: numValue });
+    const instances = habit.instances || [];
+    const newInstance = { id: Date.now(), success };
+    await setDoc(doc(db, 'habits', id), { ...habit, instances: [...instances, newInstance] });
+  };
+
+  // Toggle an existing instance between success/fail
+  const togglePercentageInstance = async (habitId, instanceId) => {
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+    
+    const instances = (habit.instances || []).map(i => 
+      i.id === instanceId ? { ...i, success: !i.success } : i
+    );
+    await setDoc(doc(db, 'habits', habitId), { ...habit, instances });
+  };
+
+  // Remove an instance from a percentage habit
+  const removePercentageInstance = async (habitId, instanceId) => {
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+    
+    const instances = (habit.instances || []).filter(i => i.id !== instanceId);
+    await setDoc(doc(db, 'habits', habitId), { ...habit, instances });
   };
 
   const addHabit = async () => {
@@ -2000,7 +2025,7 @@ export default function AccountabilityTracker() {
     
     // Add type-specific fields
     if (newHabit.habitType === 'percentage') {
-      habitData.percentageValue = null; // Will be set when user enters value
+      habitData.instances = []; // Array of {id, success: true/false}
     } else {
       habitData.daysCompleted = [];
     }
@@ -4429,8 +4454,11 @@ export default function AccountabilityTracker() {
                           const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
                           const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
                           const isPercentage = h.habitType === 'percentage';
+                          const instances = h.instances || [];
+                          const successCount = instances.filter(i => i.success).length;
+                          const currentPct = instances.length > 0 ? Math.round((successCount / instances.length) * 100) : 0;
                           const progressPct = isPercentage 
-                            ? (h.percentageValue !== null ? Math.round((h.percentageValue / h.target) * 100) : 0)
+                            ? (instances.length > 0 ? Math.round((currentPct / h.target) * 100) : 0)
                             : (h.target > 0 ? Math.round(((h.daysCompleted || []).length / h.target) * 100) : 0);
                           
                           if (isEditing && canEdit) {
@@ -4504,25 +4532,60 @@ export default function AccountabilityTracker() {
                               <td className="p-1 text-center">
                                 <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cfg.bgColor} ${cfg.textColor}`}>{st}</span>
                               </td>
-                              {/* Day toggles OR Percentage input */}
+                              {/* Day toggles OR Percentage instances */}
                               {isPercentage ? (
-                                <td colSpan="7" className="p-1 text-center">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      value={h.percentageValue ?? ''}
-                                      onChange={(e) => canEdit && updatePercentageValue(h.id, e.target.value)}
-                                      disabled={!canEdit}
-                                      placeholder="—"
-                                      className={`w-16 text-center border rounded px-2 py-1 text-sm ${
-                                        darkMode 
-                                          ? 'bg-white/5 border-white/20 text-white placeholder-gray-600' 
-                                          : 'bg-white border-gray-200 placeholder-gray-300'
-                                      } ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    />
-                                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>% of {h.target}%</span>
+                                <td colSpan="7" className="p-1">
+                                  <div className="flex items-center gap-1 justify-center flex-wrap">
+                                    {/* Show existing instances */}
+                                    {instances.map((inst, idx) => (
+                                      <button
+                                        key={inst.id}
+                                        onClick={() => canEdit && togglePercentageInstance(h.id, inst.id)}
+                                        onContextMenu={(e) => { e.preventDefault(); canEdit && removePercentageInstance(h.id, inst.id); }}
+                                        disabled={!canEdit}
+                                        title={canEdit ? "Click to toggle, right-click to remove" : ""}
+                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                          inst.success
+                                            ? 'bg-green-500 text-white hover:bg-green-600'
+                                            : 'bg-red-500 text-white hover:bg-red-600'
+                                        } ${!canEdit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                      >
+                                        {inst.success ? '✓' : '✗'}
+                                      </button>
+                                    ))}
+                                    {/* Add buttons */}
+                                    {canEdit && (
+                                      <div className="flex gap-0.5 ml-1">
+                                        <button
+                                          onClick={() => addPercentageInstance(h.id, true)}
+                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 border-dashed transition-all ${
+                                            darkMode 
+                                              ? 'border-green-500/50 text-green-400 hover:bg-green-500/20' 
+                                              : 'border-green-400 text-green-500 hover:bg-green-50'
+                                          }`}
+                                          title="Add success"
+                                        >
+                                          +
+                                        </button>
+                                        <button
+                                          onClick={() => addPercentageInstance(h.id, false)}
+                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 border-dashed transition-all ${
+                                            darkMode 
+                                              ? 'border-red-500/50 text-red-400 hover:bg-red-500/20' 
+                                              : 'border-red-400 text-red-500 hover:bg-red-50'
+                                          }`}
+                                          title="Add fail"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    )}
+                                    {/* Show percentage */}
+                                    {instances.length > 0 && (
+                                      <span className={`text-xs ml-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {successCount}/{instances.length} = {currentPct}%
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
                               ) : (
@@ -4559,8 +4622,8 @@ export default function AccountabilityTracker() {
                                   <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
                                     <div className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(progressPct, 100)}%` }}></div>
                                   </div>
-                                  <span className={`text-[10px] w-8 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                    {isPercentage ? `${h.percentageValue ?? '—'}%` : `${(h.daysCompleted || []).length}/${h.target}`}
+                                  <span className={`text-[10px] w-10 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                    {isPercentage ? `${currentPct}%` : `${(h.daysCompleted || []).length}/${h.target}`}
                                   </span>
                                 </div>
                               </td>
@@ -4598,8 +4661,11 @@ export default function AccountabilityTracker() {
                       const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
                       const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
                       const isPercentage = h.habitType === 'percentage';
+                      const instances = h.instances || [];
+                      const successCount = instances.filter(i => i.success).length;
+                      const currentPct = instances.length > 0 ? Math.round((successCount / instances.length) * 100) : 0;
                       const progressPct = isPercentage 
-                        ? (h.percentageValue !== null ? Math.round((h.percentageValue / h.target) * 100) : 0)
+                        ? (instances.length > 0 ? Math.round((currentPct / h.target) * 100) : 0)
                         : (h.target > 0 ? Math.round(((h.daysCompleted || []).length / h.target) * 100) : 0);
                       
                       if (isEditing && canEdit) {
@@ -4622,7 +4688,7 @@ export default function AccountabilityTracker() {
                                     onChange={(e) => setEditingHabit({ ...editingHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })}
                                     className={`w-16 rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border`}
                                   />
-                                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>%</span>
+                                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>% target</span>
                                 </div>
                               ) : (
                                 <select
@@ -4665,25 +4731,74 @@ export default function AccountabilityTracker() {
                             </span>
                           </div>
                           
-                          {/* Days row OR Percentage input */}
+                          {/* Days row OR Percentage instances */}
                           {isPercentage ? (
-                            <div className={`flex items-center justify-center gap-2 py-3 mb-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
-                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Achieved:</span>
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={h.percentageValue ?? ''}
-                                onChange={(e) => canEdit && updatePercentageValue(h.id, e.target.value)}
-                                disabled={!canEdit}
-                                placeholder="—"
-                                className={`w-20 text-center border rounded-lg px-2 py-1.5 text-sm font-medium ${
-                                  darkMode 
-                                    ? 'bg-white/10 border-white/20 text-white placeholder-gray-600' 
-                                    : 'bg-white border-gray-200 placeholder-gray-300'
-                                } ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              />
-                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>% / {h.target}% target</span>
+                            <div className={`py-3 mb-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                              {/* Instance circles */}
+                              <div className="flex items-center justify-center gap-2 flex-wrap px-2 mb-2">
+                                {instances.map((inst) => (
+                                  <button
+                                    key={inst.id}
+                                    onClick={() => canEdit && togglePercentageInstance(h.id, inst.id)}
+                                    disabled={!canEdit}
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                                      inst.success
+                                        ? 'bg-green-500 text-white active:bg-green-600'
+                                        : 'bg-red-500 text-white active:bg-red-600'
+                                    } ${!canEdit ? 'opacity-50' : ''}`}
+                                    onContextMenu={(e) => { e.preventDefault(); canEdit && removePercentageInstance(h.id, inst.id); }}
+                                  >
+                                    {inst.success ? '✓' : '✗'}
+                                  </button>
+                                ))}
+                                {instances.length === 0 && (
+                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    No entries yet
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {/* Add buttons + Stats */}
+                              <div className="flex items-center justify-between px-3">
+                                {canEdit ? (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => addPercentageInstance(h.id, true)}
+                                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                        darkMode 
+                                          ? 'bg-green-500/20 text-green-400 active:bg-green-500/30' 
+                                          : 'bg-green-100 text-green-600 active:bg-green-200'
+                                      }`}
+                                    >
+                                      <Plus className="w-3 h-3" /> Success
+                                    </button>
+                                    <button
+                                      onClick={() => addPercentageInstance(h.id, false)}
+                                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                        darkMode 
+                                          ? 'bg-red-500/20 text-red-400 active:bg-red-500/30' 
+                                          : 'bg-red-100 text-red-600 active:bg-red-200'
+                                      }`}
+                                    >
+                                      <Plus className="w-3 h-3" /> Fail
+                                    </button>
+                                  </div>
+                                ) : <div />}
+                                {instances.length > 0 && (
+                                  <div className={`text-sm font-medium ${
+                                    currentPct >= h.target ? 'text-green-500' : currentPct >= h.target * 0.75 ? 'text-blue-500' : 'text-amber-500'
+                                  }`}>
+                                    {successCount}/{instances.length} = {currentPct}%
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Long press hint */}
+                              {canEdit && instances.length > 0 && (
+                                <p className={`text-[10px] text-center mt-2 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                                  Tap to toggle • Long press to remove
+                                </p>
+                              )}
                             </div>
                           ) : (
                             <div className="flex items-center justify-between gap-1 mb-2">
@@ -4736,7 +4851,7 @@ export default function AccountabilityTracker() {
                                 />
                               </div>
                               <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                {isPercentage ? `${h.percentageValue ?? '—'}%` : `${(h.daysCompleted || []).length}/${h.target}`}
+                                {isPercentage ? (instances.length > 0 ? `${currentPct}% of ${h.target}%` : `Target: ${h.target}%`) : `${(h.daysCompleted || []).length}/${h.target}`}
                               </span>
                             </div>
                             {canEdit && (
@@ -5441,7 +5556,7 @@ export default function AccountabilityTracker() {
                   {/* Example hint for percentage */}
                   {newHabit.habitType === 'percentage' && (
                     <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                      💡 Example: "Don't cut trades" with 50% target means achieving at least 50% success rate
+                      💡 Track each attempt individually (✓/✗) and get automatic percentage. Example: 3 successes out of 5 trades = 60%
                     </p>
                   )}
                   
