@@ -7,6 +7,10 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
+// Supabase configuration
+const SUPABASE_URL = 'https://nqwssoupzsrovtmshlht.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BJubswL_3XMPckQNKibi4A_Ds6_M5wc';
+
 // Brand Logo (base64 encoded)
 const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAYAAACOEfKtAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfpDBUTOzRczqziAAAUWElEQVR42u2beZRfVZXvP/uce+9vqjmpSlIhA5AwBEgqg8hsd4sBpduhm4eAQtNLHEDtttWg9kKfStvY8KTRRsQBXN3Y2jQPGUJQGVQeSvcDQlKVQOIKY0asStWvKr+q33TPOfv98YsubRKgMgDP9fuuqr+q7jl7f+93n33OPvtCE0000UQTTTTRRBNNNNFEE0000cQkIK/l5CNrpmIRSSfAO3ApOvMtQy/5zM4HZyAGEQPZqWj+yB2vKYHRqz2h3zANNc6YWm4KaucBR/iWen/Ull07+PzEyxscQ3tXVl2lvtiUo2P8mjmbMGGTzxSL4nMaHzP0h0Hg4EOzf1fh2tVexUclkVrmaCF3AcRnomE+hPtF5CdaSrHRyweEEUUrKaI6KMgVYN5EiDZGlal3g35/Ym32qYx26njZIyC6e/6Okwf//wnhen8PIdtDVC3OUtFRUSmJaEZ88pdgP4O0zAUglJ5Uk54tajb4/CjxkWOvaPzqmhwJPSjhGNH4P5DcAiQGLW0C/yVM/fshkCqhTTAdPmWzyTjiRQeeRHPAQ7S/m9hNJamUTjUaX2WCLZjMuJWQfAyif8L0zEUyECbGEf9F4/Mb1FZeMXkA2cUVVFJMyD0B4QtobRyJwE6bD/F1hMwHbd92MRoXDMlVcRKfEoVO3MD01zeBaX8nJrShpnQCwd6ImtmQjlHtOB2NPo3tyYMHP+wR93W1lds1KmEXTl4Ztm87wYyjpnwHuOtxxYDWIZreAtHndO2cU0X8KNjZaHSjSvV44/P4/u7XL4E2tBKkdigkX0Wi+SAjEolF7fsxnR1oHfxwHcINKumV4jN1s2j7vs+3eDsSMnUlvRIJ38AXa4QymK5uiD6AdQK6EzJHoMk1SHqIaP71SaDvPwSNypFo9AnIHY9kgTCIi+Yi2ZPRusOPPI74D2HSFaJmzCzesv8OLNmCiIyqqX8S8R/CF9cQxj3YN+Gzs9DwAhKD5E5G7UfS/Fbj+2e+/ggUtYjPL0LN/8C0gHpAnwV7OtTWwNiF2PRCjPar4eg0Sm19YP8dqa3tJbV1i8rRoOsw7iIYvwjcesScgfA0mtKwyZ4Xlw85QsKB23zs10i19dMbLyEouDgg7hSwPZgM+OEyRocQLJreBNFpBPtp0EREP57Uu32aHd7/F4cSV7q9JqUZqL0WpAb6IOK/i4SpIGOEdByiFohmQTgZzMbKQK9BUUBz+7GM7DOBtYFpxD6DoseDpqhZjcjhSLJbff5JxI8R4r9AWt8C0o6Ol5DwNxNdm3+cL/aSLNy+3wQmfTvwa4U03v6jpDZ3Nhp9BVM4FvS9hNKPMG4l+AHUnYTEgtbno4ZE42UoEyBPvCYhHBGhppoRjf5WNDpLQgyqpkFgzYNbQyh8EDvzbCTXjpariPsHNaWbCyO9ahftP3m/TSZ924lrMzVQuQnc1YRKiuTbiWaei+bfD/4RtFpHIkCt+AwS7F+I2g+HzC7rB2a9+goUjUGjRagsB5mi2Z0Z0swWREAr2zC5JdjpS/ETEIrjiL8KW7tWNONM3/6TN2PRqaiqBFWTyee9XXIffk1vXaV6tQSNcTs/RtSZx874I9hRQCvPIsmRwBbNDhdI86cCc0299TpRefJVVaBbPx2p50DNmWA6QBbhs0cgPInW6wgZTPsi3HCKH34E8e9TU/tHDVHVHADlTTlqKRP5OVSTrjfWM93/s1SLuzuW/Cl28XYIdkKpfRFx78cNP4ofTjHtSxCXQasTCBvwyXFgjkHiGaJmuYSYdM20V49A0YiQH8uichIkgJ2KysmI7GzUVEJCGL0NSudh0j+rJaVbA9Rt39b9Jq9zwSn4zvmYdNcyTPJNbPxZ4uw1waXdbYvPouV0IURaq+R3/ACbnoWWzieM3g6mAyFAGGvYmrQhWVBO8/Gu2Jjo1STQIC7qBOYi8e6VQPpAetB0G0xciNlxEaI7VORk6yKL7v9a13HsKWj7LEgrS7HJtzFmISJgo/dIJn+turQnnt2Hc4JUW4wiyxCewxTfC/W/QtMdiJneUF9EY02UeSZkOgT7KiaRIKCSQymAbRii9CIsQPyXEPoJ3dei0a2ixsSh4CDsn/KOPQXa5oCrLMMmNyK2r1ELEUBETHy+yRQ+Z6sj8Zz3LSCrHV7URKi9Fd/6JST9T8T/PbAA6IYIVEFpbfgiryKBoiCaAnVQkAygXQ2S9DlCfAsafxB4Ro17QE2duO/X+07eMacR2uag9YllauJvI2bRi0xCt4vw00s2PuxciFCpo5L+HOUZyHyCkPke8CQSFNWORuQEANfYd+nBJ9A9MRu3fnYcjLYrbgT0OXA0jkq0gU6g9guYthPBAmGVcW2jKvV9D9sFJxHaDoH6+DJs/B0R07cH8rah/iOHPXr77d/sO0NH+u8lUMP4lhL4O5EITPvpqP086DCinYgFTUH0GYwf8eJa62t7o/ra3oNHoDhBvHQabz8tYnOIrkRrCgFEDGqOx7SdhmRAa4NIuFdteY/Vlo7FZ9LR95a2jr7lbR1L3sqUPZF3zGlo+1xIy8vEJt+RPStvmwT34ZFHfnjH84uX6/DanwAQ9w2hpoqKPkAob0MyYNrOJJg+xNBQXBoQ7tIgeaPJCitRuzX2IBKoigTNo+bdhGgF4n4I6S/QOmAFTd6A6TD4UZBwj0YT6/akvo6lb29k7qTtaySt/wy22y97B9nf+Z/2BSdD+ywkLS8VG39nL2G7leAuHflft905ddHpOrzm3t/7u4oj2NKvIKzCFcF0RJCcAlJDa0D6M0hvF40uEzXni0hBJlljntwaKIAhAsmg5qMQ/RG4v0MndqAhwbb3ohXQ6lPgr5W0NXVx6bePT+k9hI5lbwf1U4mz12DshZjoAuLsNah2597wLtqAjqNPhPbZaCNsb9wLeVsI7pL6SR+/q+uvz2S4//4Xmet1O9a1OSR8HWpPESbAdM6BYNHS8+D+DqLlYD8KkkM0mWyNfnIEqoJqAAJqcqj9IkaqULseMe1IksePDiLhMik/3y/ZGpkF4wDMPWE5YeYyDNotcfYaTPRekEYaFfseouSrIfgeecO7oPMwJK0sE5vsUXk0yLu0vOiiuzM//yIju8P2vyNZDMGmCB0DSPgUvrgTiVuQqB3q1yFEqL0ColzDJ8Jkc8mkCNTG7ziqY5gskMxpVFj8L8Eawvg4VD6JhE1amPUmrSe/fTaODM7mUInejthz+f37GEHsuWKTr+Fdj9YnlupewhZ0C95dWl5wwd2Fx65nZO29L+2gWoIpHo8JG6G2glAqQxyBfxS1n4XsIbs31CVUJia7nZncGmgDxLXRRo3Ng2kDlbeBWYS6IbR0A+LuR6NrIT5FQobaI417iExkkNo4Ia3dqd7dDBpeFJXGnkOUuVlsfKO8BHly8vl35x6/gZE1P35Je8cfmItoBtHoNDS+BhvuQce/TUiHULsUNX+CbQOtg+gzat2oSjh4BAYFU+2og/6fxqQJmEIOlXdC2IH6H6KZC1D7ZlRmUJ5ClGlMsf7n96BrViLW7iStrCD47/Li3bWIscv3pjwJ7tLaceffLT+9gdGBn7ysvZnOKvhWUGai5gw0eTf4/0DcFlTegWlNGhvqOqA/NbVCDXEHj8Bo4TbUVAF3F4RN+FGwXaB2CSIGQwBzXiO8ZU5oezr53edLwOjqlYiNR6hXVkjwN8krOaKobpHgLqkveOfd2ce+ycjA/a/MOWsJ2a0RmDlIAdSch2i1sRjZhdgu8KOAbkTCnWpr2ON2HDwCn/3ZXKCGhEM2IeFqtFxGU7AdraiZhso8iA9DWgCmiSY52cMUxdV3gbVFTScuI7ibeCkSVbcQ0kvcYW9dlay5meLAfZNYcwyEbA6YhskD0RGoHIqaWdjODrQGOlFCwpel3vK0TlJ9kyZwVmedIDYfoi1zMOnNiP8cfqiIyYIkHShHgc02dvlkUBPtbYrR1SsRExdJK5fJXkgUdIuou6R61DtXJRtvpdh/36Sck2CQYCKUHGIBm0N1PiS9SAbc0E4kfAap/CBkxuaqai7tn3EQk4gIImJE4y8Qko9h3PfQyrvxxf9EknbgUMQ2zpWiFUSd2BzVx1r2OF5x9V1gTJG0/Dskyu4f3Uxwl9QOf+uq/LrvM/wy2fa/o7q2nQfleUF82jhiBhDjwcxDMu2E4i+heg4mvRXyK0Sjy0FFwkHMwiEIxnWMo7IFtVcSkjswpgWK5xF23QByKFCBAKpPaXC54MZPjIoF/Po9dwVMX303mKhIWtkdzkFFdbOo+1Bl3hmrCk/+YK/7vL3BD0wj6hmTNzHrVEULEJ7bXS+oAEeh49+E0fMxpo2QuYNgrkDlWevay0H8wSMwXrwVNWWQcC/oGCQnoMn30MzlSPodJDwIPkIdEB4WMkcLma+Ynuxh4rLUN2ZfNOYGoLh65W+U+CkJ7ssS0kvKvSf9qHXD/2ao/6eTcqj2K5CQxQzOnkeIrhKNjwD9L/BAiCD8ApN+G00+i8b/BsmJQBHCfWqrJJOsGk26nKXUCdRWQ3gIBExnHjIXo/G/gFmPug2oqyC6FuRQgjmRYD+jNs1F9b23VRRX300hw0gmLX4u48Z+3LX5HobW3DdZ84grs1CTZlD7CdS8EZUjgccbNrEeMevw0b+gmYuRtgKqQLhfbX1AzeSTyKTr2EHLWO0qK+4bovVTCeV2omngh5eh5SuQ+kOo9iJmFyodjcqHvEd88jA+/90wMBOzcNsex972Xz8CmLwXvwndJ7uRcgtE5bMhuaAxd6UTIyV04tfg1qPmCqQwH9sFbghIB5FwnbhMNeQnJj3npBUYLymiUkNt7V7w16MVj9sJ0TQwnfNQOQPxNYQuCONIApLPobKCaPxw9OD1dEqaQ+PxWahZgSnkG0dtdoH0gBtD5Sxs1/zdLxy0WgN/tUte+KWaGtFRQwefQAC7eCsmRA6pX4WEr6LVKuk2MAUw3b2QPQy1fwz6HJpWMS2APRo157hoq/EDvR1u01xJ1+9/u1m6sZ3xIuLX9bbWZm4WNHoHxAsxedC0guizqDkd4qOJps/GtEC6FUJlAtEvq6l/Pap3B9u3b63C+3yxbhZvBbG7MLXLEf8BtP4Y6fYaWgXJGLB/iVHQdH1jX5IHlbdEblqPaPJ5U+Yc620u9M+mumnfbAj9M7H1XJLfPPft4pPPZ7b3dqG8GSlIozvCrQMVsOdjWhO0IqRbq1B/GBP+ClP9B1FbMYv3/bZwn+Np8KEpkDF4Fxyx+zebyiqCfSO66yQ0WoToQtT+DeJ/RhhbiO1IcOPzICqgphWVf0XMLeCuzBRP2ODXPY097pWFkFvXhanOAC0dTkguA/Ne0FtALMg8bCv44RoSHoDoo6ApoXQb1AcQHsb4R72pl/BixOzfZdc+K1BEUAeCmWvT+Co0vrhRcA23EFU/jKkvB70TI13o+FONf862E+gE/zBESaPwEN2mmR1nmKfPwT/x8iEd1k3DDnwK4tKbUXsb5D4AUR78LwkUkEIXWged+BUiU4C7MPXlRJW/xuptjRpgfLH1uSuN2Fn7ep35Wx7252G3dhYhqpoobfkQaq5CJAMyCmEI9CmExxAdBP9GNPcuSFrR0nsQ/wiaeQDTORctg1Y2I/5i0eS+EI3uVYluXTc2bUdN+scE+12kMAeTgzDyLFRPR+LDkLaVaC1FKj8EHkRtD8oJiMxvnNe1HbSG+BVOdn3LaiHY/ehT3O8mc79mJqr1yEjLpai9ApNvazQYpTTuHVwJ/FMIoPZYCHcSVS7CZf8Wsl8g6jb4naDVx7Duz1HZYhY9v5c1bzagvYToNmg5gWgKuBcCVC8nqlyLK3wD7AWIX4dqFcyRkHQg2UZ0hypoZQz85cFM3CAaO7t4/1pNDkiXvl8zExUfmZA9H+wVSGZ2IyPvPgNrBULFoTUB7xB/DeJuItjPIIULsV0RbhCkepm4wtWaHcYc+8Lvk7d+OpQ7IK58EgpXEfUIbihFyzdh/LVo9D7UfBSJYiQTMPkIkwMUfBlCCbT2HOI+q6b872js7AFocjpgnzm4x2fgGJKE3iVgPwnmbWAbajTZ3fkqsLuE5BF9DMJ9oMci+T+BbBu66zFM9W1ghszCzXtQX+hF86uQ9j50fBAt34fYzai8FewiJCcNtZlGBITK7mKpHwNdifiv1Do398e7pmm08NcHxO8D+p1Ivb8Nqx0gPichPh7Mn6IsBXqACJESsAm0H7SM0As6E+EoNDoOJUL8PxKFr4Zjnt9pnpqupErID4rZNbuXYD+N2ksRqlB7BJVnwAyBbN/dHnE0cBSqnY23xSCij0JYqSZ9VLBVs2jLgXT54H0r5wamoHgxWsiJ2oIqiPUBNS2oXbK7r3Ax2G4kakF9B/gEqCBsRPQW8KuAGDXvAHM2KvNQzWCiOphR1JUaCSsMIHov4h9Fwi51NgYQ6yZCVK6IWrXHDh8UPw/qx4a7HppBa6chBD9HQuZs1J4IsgiiOUg2xuQbbSGhAmHXLki/h4Q7QY4HcwlKFjAIRQjXozwB8i6I3o1pbbSnobuTw0QK/nkkPA7+F0Hrt4rwwr6eMF4pzEEd3CjBgyo7G00+SKOjS0C94nd53AvDhOF7oHYudvzjoMMgsxrM8CTwxO7Gnx5MeEZt+SNQO5dQvAc3OIIf9Wi9ceOqWkA1UuVZVMf2tePqdaPA32BirSEnswi4RIKdK8gRIJ1ABfRpjHsGjeah5lKQM4ANEK5H3P2ggiZnglwKzEH0DiR8S8VtEx/NAzkcyIAWEd2k4p4TonrZbKPlOP+HQeDeQ3wmLS0RSlgqRP8KUoLwNZV0pWhScnYQ8TGWqahUO4Toz1HzEURFxV0kSP/I1jpTz3rhNfPhNSXQjSbIs9NQyIrIEiQ8LSH3ax8NEh/3+x8fuoEujOtBzfjMxr1G+L8oVY7ajs0GmmiiiSaaaKKJJppoookmmmiiiSaaaKKJJpp4neP/AbHHp0bYmXQtAAAAAElFTkSuQmCC";
 
@@ -1081,22 +1085,48 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
-  // Listen for tasks
+  // Fetch tasks from Supabase
+  const fetchTasks = async () => {
+    try {
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/tasks?order=due_date.asc`,
+        {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          }
+        }
+      );
+      
+      if (!response.ok) throw new Error('Failed to fetch tasks');
+      
+      const data = await response.json();
+      const tasksData = data.map(t => ({
+        id: t.id,
+        task: t.task,
+        dueDate: t.due_date,
+        priority: t.priority,
+        category: t.category,
+        status: t.status,
+        participant: t.participant,
+        createdAt: t.created_at,
+        completedAt: t.completed_at,
+        createdBy: t.created_by
+      }));
+      setTasks(tasksData);
+    } catch (error) {
+      console.error('Tasks error:', error);
+    }
+  };
+
+  // Listen for tasks - poll Supabase every 5 seconds
   useEffect(() => {
     if (!user) return;
     
-    const q = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tasksData = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      }));
-      setTasks(tasksData);
-    }, (error) => {
-      console.error('Tasks error:', error);
-    });
-
-    return () => unsubscribe();
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 5000);
+    
+    return () => clearInterval(interval);
   }, [user]);
 
   // Listen for mood data
@@ -2141,33 +2171,77 @@ export default function AccountabilityTracker() {
     const taskDoc = {
       id: `task_${Date.now()}`,
       task: newTask.task,
-      dueDate: newTask.dueDate || new Date().toISOString().split('T')[0],
+      due_date: newTask.dueDate || new Date().toISOString().split('T')[0],
       priority: newTask.priority,
       category: newTask.category,
       status: 'Not Started',
-      createdAt: new Date().toISOString(),
-      createdBy: user?.uid,
+      created_at: new Date().toISOString(),
+      created_by: user?.uid,
       participant: userProfile?.linkedParticipant || user?.displayName
     };
     
-    await setDoc(doc(db, 'tasks', taskDoc.id), taskDoc);
-    setNewTask({ task: '', dueDate: '', priority: 'Medium', category: 'Work' });
-    setShowAddTask(false);
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(taskDoc)
+      });
+      
+      if (!response.ok) throw new Error('Failed to add task');
+      
+      fetchTasks();
+      setNewTask({ task: '', dueDate: '', priority: 'Medium', category: 'Work' });
+      setShowAddTask(false);
+    } catch (error) {
+      console.error('Add task error:', error);
+    }
   };
 
   const updateTaskStatus = async (taskId, newStatus) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-    
-    await setDoc(doc(db, 'tasks', taskId), {
-      ...task,
-      status: newStatus,
-      completedAt: newStatus === 'Completed' ? new Date().toISOString() : null
-    });
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.${taskId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          completed_at: newStatus === 'Completed' ? new Date().toISOString() : null
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to update task');
+      
+      fetchTasks();
+    } catch (error) {
+      console.error('Update task error:', error);
+    }
   };
 
   const deleteTask = async (taskId) => {
-    await deleteDoc(doc(db, 'tasks', taskId));
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.${taskId}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete task');
+      
+      fetchTasks();
+    } catch (error) {
+      console.error('Delete task error:', error);
+    }
   };
 
   // Mood tracking functions
