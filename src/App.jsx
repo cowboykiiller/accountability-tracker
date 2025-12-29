@@ -1101,6 +1101,7 @@ export default function AccountabilityTracker() {
       if (!response.ok) throw new Error('Failed to fetch tasks');
       
       const data = await response.json();
+      console.log('Supabase tasks:', data);
       const tasksData = data.map(t => ({
         id: t.id,
         task: t.task,
@@ -1119,12 +1120,47 @@ export default function AccountabilityTracker() {
     }
   };
 
-  // Listen for tasks - poll Supabase every 5 seconds
+  // Listen for tasks - poll Supabase every 10 seconds
   useEffect(() => {
     if (!user) return;
     
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 5000);
+    // Fetch immediately
+    const doFetch = async () => {
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/tasks?order=due_date.asc`,
+          {
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+          }
+        );
+        
+        if (!response.ok) throw new Error('Failed to fetch tasks');
+        
+        const data = await response.json();
+        console.log('Supabase tasks loaded:', data.length);
+        const tasksData = data.map(t => ({
+          id: t.id,
+          task: t.task,
+          dueDate: t.due_date,
+          priority: t.priority,
+          category: t.category,
+          status: t.status,
+          participant: t.participant,
+          createdAt: t.created_at,
+          completedAt: t.completed_at,
+          createdBy: t.created_by
+        }));
+        setTasks(tasksData);
+      } catch (error) {
+        console.error('Tasks error:', error);
+      }
+    };
+    
+    doFetch();
+    const interval = setInterval(doFetch, 10000);
     
     return () => clearInterval(interval);
   }, [user]);
@@ -5459,13 +5495,22 @@ export default function AccountabilityTracker() {
                   </button>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowAddTask(true)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]"
-              >
-                <Plus className="w-3 h-3" />
-                Add Task
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={fetchTasks}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Sync
+                </button>
+                <button 
+                  onClick={() => setShowAddTask(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Task
+                </button>
+              </div>
             </div>
 
             {/* Stats Cards */}
