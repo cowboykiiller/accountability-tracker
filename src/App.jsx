@@ -40,6 +40,41 @@ const STATUS_CONFIG = {
 };
 const PARTICIPANT_COLORS = { 'Taylor': '#8b5cf6', 'Brandon': '#06b6d4', 'John': '#f97316' };
 
+// SVG Watermark Logo Component
+const WatermarkLogo = ({ size = 200, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 200 200" className={className}>
+    {/* Left Laurel Branch */}
+    <g fill="#F5B800">
+      {/* Left side leaves */}
+      <ellipse cx="45" cy="140" rx="12" ry="25" transform="rotate(-30 45 140)" />
+      <ellipse cx="35" cy="115" rx="10" ry="22" transform="rotate(-40 35 115)" />
+      <ellipse cx="30" cy="90" rx="9" ry="20" transform="rotate(-50 30 90)" />
+      <ellipse cx="30" cy="65" rx="8" ry="18" transform="rotate(-60 30 65)" />
+      <ellipse cx="35" cy="42" rx="7" ry="16" transform="rotate(-70 35 42)" />
+      <ellipse cx="45" cy="25" rx="6" ry="14" transform="rotate(-80 45 25)" />
+      {/* Left stem */}
+      <path d="M100 180 Q70 170 50 145 Q35 120 32 90 Q30 60 40 35" fill="none" stroke="#F5B800" strokeWidth="4" />
+    </g>
+    {/* Right Laurel Branch */}
+    <g fill="#F5B800">
+      {/* Right side leaves */}
+      <ellipse cx="155" cy="140" rx="12" ry="25" transform="rotate(30 155 140)" />
+      <ellipse cx="165" cy="115" rx="10" ry="22" transform="rotate(40 165 115)" />
+      <ellipse cx="170" cy="90" rx="9" ry="20" transform="rotate(50 170 90)" />
+      <ellipse cx="170" cy="65" rx="8" ry="18" transform="rotate(60 170 65)" />
+      <ellipse cx="165" cy="42" rx="7" ry="16" transform="rotate(70 165 42)" />
+      <ellipse cx="155" cy="25" rx="6" ry="14" transform="rotate(80 155 25)" />
+      {/* Right stem */}
+      <path d="M100 180 Q130 170 150 145 Q165 120 168 90 Q170 60 160 35" fill="none" stroke="#F5B800" strokeWidth="4" />
+    </g>
+    {/* Ribbon at bottom */}
+    <path d="M85 175 L100 185 L115 175" fill="none" stroke="#F5B800" strokeWidth="6" strokeLinecap="round" />
+    <path d="M80 185 L90 175 M120 185 L110 175" stroke="#F5B800" strokeWidth="4" strokeLinecap="round" />
+    {/* Checkmark */}
+    <path d="M65 95 L90 130 L145 60" fill="none" stroke="#1E3A5F" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 // Initial data - this will be loaded into Firebase on first run
 const initialData = [
   { id: 1, habit: "Workout 4 Times", participant: "Taylor", weekStart: "2025-09-15", daysCompleted: [1, 4], target: 4 },
@@ -878,6 +913,15 @@ export default function AccountabilityTracker() {
   const [checkInWins, setCheckInWins] = useState('');
   const [checkInChallenges, setCheckInChallenges] = useState('');
   
+  // Splash screen state
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
+  
+  // Quote generation modal state
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [quoteCustomDirection, setQuoteCustomDirection] = useState('');
+  const [quoteThemeType, setQuoteThemeType] = useState('random'); // 'random', 'motivational', 'stoic', 'business', 'custom'
+  
   const calendarRef = useRef(null);
   const fileInputRef = useRef(null);
   const postTextRef = useRef(null);
@@ -891,6 +935,22 @@ export default function AccountabilityTracker() {
     link.href = LOGO_BASE64;
     document.getElementsByTagName('head')[0].appendChild(link);
     document.title = 'The Accountability Group';
+  }, []);
+
+  // Splash screen fade out effect
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => {
+      setSplashFading(true);
+    }, 1500); // Start fading after 1.5 seconds
+    
+    const hideTimer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2500); // Fully hidden after 2.5 seconds
+    
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(hideTimer);
+    };
   }, []);
 
   // Auth listener
@@ -2520,16 +2580,32 @@ export default function AccountabilityTracker() {
     ));
   };
 
-  // Generate new quote
-  const generateQuote = async () => {
+  // Generate new quote with custom direction
+  const generateQuote = async (customDir = '') => {
     setQuoteLoading(true);
+    setShowQuoteModal(false);
+    
+    // Build direction based on theme type and custom input
+    let direction = customDir;
+    if (!direction && quoteThemeType !== 'random') {
+      const themeDirections = {
+        'motivational': 'Focus on motivation, overcoming obstacles, and pushing through challenges',
+        'stoic': 'Focus on Stoic philosophy - quotes from Marcus Aurelius, Seneca, Epictetus, or similar themes of control, virtue, and resilience',
+        'business': 'Focus on business, entrepreneurship, leadership, and professional growth',
+        'faith': 'Focus on faith, spirituality, trust in God, and biblical wisdom',
+        'discipline': 'Focus on discipline, consistency, habits, and self-control'
+      };
+      direction = themeDirections[quoteThemeType] || '';
+    }
+    
     try {
       const response = await fetch('/api/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'generate-quote',
-          existingQuotes: quotes
+          existingQuotes: quotes,
+          customDirection: direction || quoteCustomDirection
         })
       });
       
@@ -2545,6 +2621,8 @@ export default function AccountabilityTracker() {
       console.error('Failed to generate quote:', error);
     }
     setQuoteLoading(false);
+    setQuoteCustomDirection('');
+    setQuoteThemeType('random');
   };
 
   // Generate PowerPoint for a quote
@@ -2601,6 +2679,19 @@ export default function AccountabilityTracker() {
       pptx.layout = 'LAYOUT_16x9';
       pptx.title = `${quote.theme || 'Weekly Quote'} - ${quote.author || 'Unknown'}`;
       pptx.author = 'The Accountability Group';
+      
+      // Helper function to add watermark to a slide
+      const addWatermark = (slide) => {
+        // Add small logo in bottom right corner
+        slide.addImage({ 
+          data: LOGO_BASE64,
+          x: 8.9, // Near right edge (10" wide slide)
+          y: 4.7, // Near bottom (5.63" tall slide)
+          w: 0.6, 
+          h: 0.6,
+          transparency: 30 // Slightly transparent
+        });
+      };
       
       // Slide 1: Title with Theme
       let slide1 = pptx.addSlide();
@@ -2746,6 +2837,13 @@ export default function AccountabilityTracker() {
         fontFace: 'Arial'
       });
       
+      // Add watermark to all slides
+      addWatermark(slide1);
+      addWatermark(slide2);
+      addWatermark(slide3);
+      addWatermark(slide4);
+      addWatermark(slide5);
+      
       // Generate filename
       const themeName = (quote.theme || 'Quote').replace(/[^a-zA-Z0-9]/g, '_');
       const weekStr = quote.weekOf || new Date().toISOString().split('T')[0];
@@ -2842,6 +2940,24 @@ export default function AccountabilityTracker() {
         ? 'radial-gradient(ellipse at top right, rgba(56, 189, 248, 0.08), transparent 50%), radial-gradient(ellipse at bottom left, rgba(139, 92, 246, 0.08), transparent 50%), radial-gradient(circle at 50% 50%, rgba(30, 58, 95, 0.3), transparent 70%)'
         : 'radial-gradient(ellipse at top right, rgba(59, 130, 246, 0.2), transparent 50%), radial-gradient(ellipse at bottom left, rgba(236, 72, 153, 0.15), transparent 50%)'
     }}>
+      {/* Splash Screen */}
+      {showSplash && (
+        <div 
+          className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#111827] to-[#0d1321] transition-opacity duration-1000 ${splashFading ? 'opacity-0' : 'opacity-100'}`}
+          style={{
+            backgroundImage: 'radial-gradient(ellipse at top right, rgba(56, 189, 248, 0.1), transparent 50%), radial-gradient(ellipse at bottom left, rgba(245, 184, 0, 0.1), transparent 50%)'
+          }}
+        >
+          <div className={`transform transition-all duration-1000 ${splashFading ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}>
+            <WatermarkLogo size={180} className="drop-shadow-2xl" />
+            <div className="mt-6 text-center">
+              <h1 className="text-2xl font-bold text-white mb-1">DO MORE</h1>
+              <p className="text-[#F5B800] text-sm font-medium tracking-wider">THE ACCOUNTABILITY GROUP</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} onAddHabit={() => setShowAddHabitModal(true)} />
       <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
         {/* Mobile Header */}
@@ -5717,6 +5833,130 @@ export default function AccountabilityTracker() {
           </div>
         )}
 
+        {/* QUOTE CUSTOMIZATION MODAL */}
+        {showQuoteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+              className={`absolute inset-0 backdrop-blur-md ${darkMode ? 'bg-black/70' : 'bg-black/50'}`}
+              onClick={() => setShowQuoteModal(false)}
+            />
+            {/* Modal */}
+            <div className={`relative w-full max-w-md rounded-2xl p-5 shadow-2xl ${
+              darkMode 
+                ? 'bg-gradient-to-br from-[#1a2332] to-[#0d1321] border border-white/10 shadow-black/50' 
+                : 'bg-white'
+            }`}>
+              {/* Close button */}
+              <button 
+                onClick={() => setShowQuoteModal(false)}
+                className={`absolute top-4 right-4 p-1 rounded-lg transition-colors ${
+                  darkMode ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200' : 'text-gray-400 hover:bg-gray-100'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              {/* Header with watermark */}
+              <div className="flex items-center gap-3 mb-5">
+                <WatermarkLogo size={48} />
+                <div>
+                  <h2 className={`font-bold text-lg ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+                    Generate Quote
+                  </h2>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Customize your weekly wisdom
+                  </p>
+                </div>
+              </div>
+              
+              {/* Theme Type Selection */}
+              <div className="mb-4">
+                <label className={`text-xs font-medium mb-2 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Theme Style
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'random', label: '🎲 Random', desc: 'Surprise me!' },
+                    { value: 'motivational', label: '🔥 Motivational', desc: 'Push forward' },
+                    { value: 'stoic', label: '🏛️ Stoic', desc: 'Ancient wisdom' },
+                    { value: 'business', label: '💼 Business', desc: 'Leadership' },
+                    { value: 'faith', label: '🙏 Faith', desc: 'Spiritual' },
+                    { value: 'discipline', label: '⚡ Discipline', desc: 'Self-control' }
+                  ].map(type => (
+                    <button
+                      key={type.value}
+                      onClick={() => setQuoteThemeType(type.value)}
+                      className={`p-3 rounded-xl text-left transition-all ${
+                        quoteThemeType === type.value
+                          ? darkMode 
+                            ? 'bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] text-white ring-2 ring-[#F5B800]/50' 
+                            : 'bg-[#1E3A5F] text-white ring-2 ring-[#F5B800]'
+                          : darkMode
+                            ? 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/5'
+                            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      <div className="font-medium text-sm">{type.label}</div>
+                      <div className={`text-xs ${quoteThemeType === type.value ? 'text-white/70' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {type.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Custom Direction */}
+              <div className="mb-5">
+                <label className={`text-xs font-medium mb-2 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Custom Direction <span className={darkMode ? 'text-gray-600' : 'text-gray-400'}>(optional)</span>
+                </label>
+                <textarea
+                  value={quoteCustomDirection}
+                  onChange={(e) => setQuoteCustomDirection(e.target.value)}
+                  placeholder="E.g., 'Something about perseverance during hard times' or 'A quote from an athlete about dedication'"
+                  className={`w-full rounded-xl px-4 py-3 text-sm h-20 focus:outline-none focus:ring-2 focus:ring-[#F5B800] resize-none ${
+                    darkMode 
+                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
+                      : 'bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400'
+                  }`}
+                />
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowQuoteModal(false)}
+                  className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    darkMode 
+                      ? 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/5' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => generateQuote()}
+                  disabled={quoteLoading}
+                  className="flex-1 py-3 rounded-xl text-sm font-medium transition-colors bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {quoteLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Generate
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* INSIGHTS VIEW */}
         {activeView === 'insights' && (
           <div className="space-y-4">
@@ -6278,7 +6518,7 @@ export default function AccountabilityTracker() {
                 <p className="text-sm text-gray-500">Wisdom for the accountability journey</p>
               </div>
               <button
-                onClick={generateQuote}
+                onClick={() => setShowQuoteModal(true)}
                 disabled={quoteLoading}
                 className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
               >
@@ -6293,7 +6533,7 @@ export default function AccountabilityTracker() {
                 <Quote className="w-12 h-12 text-amber-300 mx-auto mb-4" />
                 <p className="text-gray-500 mb-4">No quotes yet. Generate your first weekly theme!</p>
                 <button
-                  onClick={generateQuote}
+                  onClick={() => setShowQuoteModal(true)}
                   disabled={quoteLoading}
                   className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
                 >
