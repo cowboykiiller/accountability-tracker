@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { action, existingQuotes = [] } = req.body;
+  const { action, existingQuotes = [], customDirection = '' } = req.body;
 
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ error: 'OpenAI API key not configured' });
@@ -22,9 +22,10 @@ Your job is to:
 
 The theme should be memorable, action-oriented, and 2-4 words.`;
     
-    const userPrompt = `Generate a weekly theme and matching inspirational quote for an accountability group.
+    // Build the user prompt with custom direction if provided
+    let userPrompt = `Generate a weekly theme and matching inspirational quote for an accountability group.
 
-STEP 1: Choose a powerful theme first. Make it:
+${customDirection ? `USER DIRECTION: The user has requested: "${customDirection}". Please incorporate this direction into your theme and quote selection.\n\n` : ''}STEP 1: Choose a powerful theme first. Make it:
 - 2-4 words
 - Action-oriented and inspiring
 - Something that could guide someone's week
