@@ -1361,6 +1361,233 @@ export default function AccountabilityTracker() {
     }).sort((a, b) => b.score - a.score);
   }, [habits, calculateStreaks, allParticipants]);
 
+  // Calculate Wrapped Stats for the current user
+  const wrappedStats = useMemo(() => {
+    const myParticipantName = userProfile?.linkedParticipant || user?.displayName;
+    if (!myParticipantName || habits.length === 0) return null;
+    
+    const myHabits = habits.filter(h => h.participant === myParticipantName);
+    if (myHabits.length === 0) return null;
+    
+    // Basic totals
+    const totalHabitsTracked = myHabits.length;
+    const totalDaysCompleted = myHabits.reduce((sum, h) => {
+      const days = h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length;
+      return sum + days;
+    }, 0);
+    const totalTargetDays = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+    const overallCompletionRate = totalTargetDays > 0 ? Math.round((totalDaysCompleted / totalTargetDays) * 100) : 0;
+    
+    // Unique weeks tracked
+    const weeksTracked = [...new Set(myHabits.map(h => h.weekStart))].sort();
+    const totalWeeks = weeksTracked.length;
+    
+    // Calculate per-habit stats
+    const habitStats = {};
+    myHabits.forEach(h => {
+      const habitName = h.habit?.toLowerCase().trim() || 'unknown';
+      if (!habitStats[habitName]) {
+        habitStats[habitName] = { name: h.habit, completed: 0, target: 0, weeks: 0 };
+      }
+      const days = h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length;
+      habitStats[habitName].completed += days;
+      habitStats[habitName].target += (h.target || 5);
+      habitStats[habitName].weeks++;
+    });
+    
+    // Sort habits by completion rate
+    const habitRankings = Object.values(habitStats)
+      .map(h => ({
+        ...h,
+        rate: h.target > 0 ? Math.round((h.completed / h.target) * 100) : 0
+      }))
+      .filter(h => h.weeks >= 2) // At least 2 weeks of data
+      .sort((a, b) => b.rate - a.rate);
+    
+    const topHabit = habitRankings[0] || null;
+    const worstHabit = habitRankings[habitRankings.length - 1] || null;
+    const perfectHabits = habitRankings.filter(h => h.rate >= 100);
+    
+    // Calculate weekly performance
+    const weeklyPerformance = {};
+    weeksTracked.forEach(week => {
+      const weekHabits = myHabits.filter(h => h.weekStart === week);
+      const weekTarget = weekHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+      const weekCompleted = weekHabits.reduce((sum, h) => {
+        return sum + (h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length);
+      }, 0);
+      weeklyPerformance[week] = {
+        week,
+        target: weekTarget,
+        completed: weekCompleted,
+        rate: weekTarget > 0 ? Math.round((weekCompleted / weekTarget) * 100) : 0,
+        habitCount: weekHabits.length
+      };
+    });
+    
+    const weeklyRankings = Object.values(weeklyPerformance).sort((a, b) => b.rate - a.rate);
+    const bestWeek = weeklyRankings[0] || null;
+    const worstWeek = weeklyRankings[weeklyRankings.length - 1] || null;
+    const perfectWeeks = weeklyRankings.filter(w => w.rate >= 100).length;
+    
+    // Category breakdown (infer from habit names)
+    const categories = {
+      fitness: { keywords: ['workout', 'run', 'gym', 'exercise', 'cardio', 'lift', 'walk', 'stretch', 'yoga'], count: 0, completed: 0 },
+      health: { keywords: ['sleep', 'water', 'eat', 'diet', 'vitamin', 'meditat', 'health', 'track food', 'no sugar', 'no alcohol'], count: 0, completed: 0 },
+      business: { keywords: ['work', 'client', 'call', 'email', 'meeting', 'sales', 'deal', 'business', 'lead', 'prospect', 'tiktok', 'post'], count: 0, completed: 0 },
+      finance: { keywords: ['trade', 'invest', 'money', 'budget', 'save', 'finance', 'stock', 'crypto', 'portfolio'], count: 0, completed: 0 },
+      learning: { keywords: ['read', 'learn', 'study', 'course', 'book', 'podcast', 'app', 'code', 'practice'], count: 0, completed: 0 },
+      mindfulness: { keywords: ['journal', 'gratitude', 'reflect', 'pray', 'meditat', 'mindful', 'quiet', 'breathe'], count: 0, completed: 0 },
+      social: { keywords: ['friend', 'family', 'call', 'hang', 'connect', 'relationship', 'date'], count: 0, completed: 0 },
+      discipline: { keywords: ['no social', 'no phone', 'wake', 'morning', 'routine', 'habit', 'discipline', 'focus'], count: 0, completed: 0 }
+    };
+    
+    myHabits.forEach(h => {
+      const habitLower = (h.habit || '').toLowerCase();
+      const days = h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length;
+      
+      for (const [cat, data] of Object.entries(categories)) {
+        if (data.keywords.some(kw => habitLower.includes(kw))) {
+          data.count++;
+          data.completed += days;
+          break;
+        }
+      }
+    });
+    
+    const categoryRankings = Object.entries(categories)
+      .map(([name, data]) => ({ name, ...data }))
+      .filter(c => c.count > 0)
+      .sort((a, b) => b.count - a.count);
+    
+    const topCategory = categoryRankings[0] || null;
+    
+    // Streak calculation (consecutive weeks with 70%+ completion)
+    let longestStreak = 0;
+    let currentStreak = 0;
+    let tempStreak = 0;
+    
+    weeksTracked.sort().forEach(week => {
+      const perf = weeklyPerformance[week];
+      if (perf && perf.rate >= 70) {
+        tempStreak++;
+        longestStreak = Math.max(longestStreak, tempStreak);
+      } else {
+        tempStreak = 0;
+      }
+    });
+    
+    // Current streak (from most recent week backwards)
+    const recentWeeks = [...weeksTracked].sort().reverse();
+    for (const week of recentWeeks) {
+      const perf = weeklyPerformance[week];
+      if (perf && perf.rate >= 70) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+    
+    // Fun facts
+    const funFacts = [];
+    
+    if (totalDaysCompleted > 100) {
+      funFacts.push(`You completed ${totalDaysCompleted} habit days - that's like building a skyscraper one brick at a time! 🏗️`);
+    }
+    if (perfectWeeks > 0) {
+      funFacts.push(`You had ${perfectWeeks} PERFECT week${perfectWeeks > 1 ? 's' : ''} where you crushed every single goal! 💯`);
+    }
+    if (topHabit && topHabit.rate >= 90) {
+      funFacts.push(`"${topHabit.name}" became your signature move with ${topHabit.rate}% completion! 🎯`);
+    }
+    if (longestStreak >= 4) {
+      funFacts.push(`Your ${longestStreak}-week streak proves you've got serious staying power! 🔥`);
+    }
+    if (categoryRankings.length >= 3) {
+      funFacts.push(`You tracked habits across ${categoryRankings.length} different life areas - true balance! ⚖️`);
+    }
+    const morningHabits = myHabits.filter(h => (h.habit || '').toLowerCase().includes('morning') || (h.habit || '').toLowerCase().includes('wake') || (h.habit || '').toLowerCase().includes('5:30') || (h.habit || '').toLowerCase().includes('6am'));
+    if (morningHabits.length > 0) {
+      funFacts.push(`You committed to ${morningHabits.length} morning routine habits - early bird gets the gains! 🌅`);
+    }
+    const noHabits = myHabits.filter(h => (h.habit || '').toLowerCase().startsWith('no '));
+    if (noHabits.length >= 3) {
+      funFacts.push(`${noHabits.length} "No" habits tracked - saying no to distractions is saying yes to success! 🚫➡️✅`);
+    }
+    
+    // Group comparison
+    const groupStats = allParticipants.map(p => {
+      const pHabits = habits.filter(h => h.participant === p);
+      const pCompleted = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length), 0);
+      const pTarget = pHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+      return {
+        name: p,
+        rate: pTarget > 0 ? Math.round((pCompleted / pTarget) * 100) : 0,
+        totalHabits: pHabits.length,
+        totalCompleted: pCompleted
+      };
+    }).sort((a, b) => b.rate - a.rate);
+    
+    const myRank = groupStats.findIndex(g => g.name === myParticipantName) + 1;
+    const groupLeader = groupStats[0];
+    
+    // Motivational grade
+    let grade = 'C';
+    let gradeMessage = "Room for growth - let's make 2026 your breakout year!";
+    let gradeEmoji = '📈';
+    
+    if (overallCompletionRate >= 90) {
+      grade = 'A+';
+      gradeMessage = "LEGENDARY! You're in the top tier of habit champions!";
+      gradeEmoji = '👑';
+    } else if (overallCompletionRate >= 80) {
+      grade = 'A';
+      gradeMessage = "Outstanding! Your consistency is truly impressive!";
+      gradeEmoji = '🌟';
+    } else if (overallCompletionRate >= 70) {
+      grade = 'B+';
+      gradeMessage = "Strong performance! You showed up when it mattered!";
+      gradeEmoji = '💪';
+    } else if (overallCompletionRate >= 60) {
+      grade = 'B';
+      gradeMessage = "Solid effort! You've built a foundation to grow on!";
+      gradeEmoji = '🎯';
+    } else if (overallCompletionRate >= 50) {
+      grade = 'C+';
+      gradeMessage = "You showed up! Now let's level up in 2026!";
+      gradeEmoji = '🚀';
+    }
+    
+    return {
+      totalHabitsTracked,
+      totalDaysCompleted,
+      totalTargetDays,
+      overallCompletionRate,
+      totalWeeks,
+      weeksTracked,
+      topHabit,
+      worstHabit,
+      perfectHabits,
+      habitRankings,
+      bestWeek,
+      worstWeek,
+      perfectWeeks,
+      weeklyPerformance,
+      categoryRankings,
+      topCategory,
+      longestStreak,
+      currentStreak,
+      funFacts,
+      groupStats,
+      myRank,
+      groupLeader,
+      grade,
+      gradeMessage,
+      gradeEmoji,
+      myParticipantName
+    };
+  }, [habits, userProfile, user, allParticipants]);
+
   // Submit weekly check-in
   const submitCheckIn = async () => {
     if (!checkInWins.trim() && !checkInChallenges.trim() && !checkInText.trim()) return;
@@ -8217,17 +8444,25 @@ export default function AccountabilityTracker() {
           </div>
         )}
 
-        {/* Vision Wrapped Full-Screen Experience */}
+        {/* Vision Wrapped Full-Screen Experience - Spotify Style */}
         {showVisionWrapped && (
           <div className="fixed inset-0 z-[100] bg-[#0d1321] overflow-hidden">
+            {/* Animated Background */}
+            <div className="absolute inset-0">
+              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-[#1E3A5F]/50 via-transparent to-[#F5B800]/20 animate-pulse" style={{ animationDuration: '4s' }} />
+              <div className="absolute top-1/4 -left-20 w-96 h-96 bg-[#F5B800]/20 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '6s' }} />
+              <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-[#1E3A5F]/40 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '5s' }} />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-radial from-[#F5B800]/5 to-transparent rounded-full" />
+            </div>
+            
             {/* Progress Dots */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
-              {Array.from({ length: 12 }).map((_, i) => (
+              {Array.from({ length: 18 }).map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setVisionSlide(i)}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === visionSlide ? 'w-8 bg-[#F5B800]' : i < visionSlide ? 'w-1.5 bg-[#F5B800]/60' : 'w-1.5 bg-white/30'
+                    i === visionSlide ? 'w-6 bg-[#F5B800]' : i < visionSlide ? 'w-1.5 bg-[#F5B800]/60' : 'w-1.5 bg-white/30'
                   }`}
                 />
               ))}
@@ -8242,27 +8477,362 @@ export default function AccountabilityTracker() {
             </button>
 
             {/* Slide Container */}
-            <div className="h-full flex flex-col items-center justify-center p-6 md:p-12">
+            <div className="h-full flex flex-col items-center justify-center p-6 md:p-12 relative z-10">
               
-              {/* Slide 0: Welcome */}
+              {/* ==================== REVIEW SLIDES (0-9) ==================== */}
+              
+              {/* Slide 0: Welcome - Your Wrapped is Here! */}
               {visionSlide === 0 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500">
-                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#F5B800] to-amber-500 flex items-center justify-center">
-                    <Star className="w-12 h-12 text-[#1E3A5F]" />
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <div className="relative mb-8">
+                    <div className="w-32 h-32 mx-auto rounded-3xl bg-gradient-to-br from-[#F5B800] to-amber-500 flex items-center justify-center transform rotate-12 shadow-2xl shadow-amber-500/30">
+                      <PartyPopper className="w-16 h-16 text-[#1E3A5F] transform -rotate-12" />
+                    </div>
+                    <div className="absolute -top-4 -right-4 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
+                      <span className="text-2xl">🎉</span>
+                    </div>
                   </div>
+                  <p className="text-[#F5B800] text-sm uppercase tracking-[0.3em] mb-4 font-bold">It's finally here</p>
+                  <h1 className="text-5xl md:text-7xl font-black text-white mb-4">
+                    Your 2025
+                  </h1>
+                  <h1 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-[#F5B800] to-amber-400 bg-clip-text text-transparent mb-6">
+                    WRAPPED
+                  </h1>
+                  <p className="text-xl text-white/60 mb-2">
+                    Let's celebrate how far you've come.
+                  </p>
+                  <p className="text-white/40 text-sm">
+                    {wrappedStats?.totalWeeks || 0} weeks of grinding. {wrappedStats?.totalDaysCompleted || 0} days of progress.
+                  </p>
+                </div>
+              )}
+
+              {/* Slide 1: The Big Numbers */}
+              {visionSlide === 1 && wrappedStats && (
+                <div className="text-center max-w-3xl animate-fade-in">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-6">Your year in numbers</p>
+                  <div className="grid grid-cols-2 gap-6 mb-8">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/10">
+                      <p className="text-6xl md:text-8xl font-black bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                        {wrappedStats.totalHabitsTracked}
+                      </p>
+                      <p className="text-white/60 mt-2">habits tracked</p>
+                    </div>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/10">
+                      <p className="text-6xl md:text-8xl font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent">
+                        {wrappedStats.totalDaysCompleted}
+                      </p>
+                      <p className="text-white/60 mt-2">days completed</p>
+                    </div>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/10">
+                      <p className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 to-violet-500 bg-clip-text text-transparent">
+                        {wrappedStats.totalWeeks}
+                      </p>
+                      <p className="text-white/60 mt-2">weeks strong</p>
+                    </div>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/10">
+                      <p className="text-6xl md:text-8xl font-black bg-gradient-to-r from-[#F5B800] to-amber-500 bg-clip-text text-transparent">
+                        {wrappedStats.overallCompletionRate}%
+                      </p>
+                      <p className="text-white/60 mt-2">completion rate</p>
+                    </div>
+                  </div>
+                  <p className="text-white/40 text-sm">That's {wrappedStats.totalDaysCompleted} moments you chose discipline over comfort 💪</p>
+                </div>
+              )}
+
+              {/* Slide 2: Your #1 Habit - The Champion */}
+              {visionSlide === 2 && wrappedStats?.topHabit && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-2xl shadow-amber-500/30">
+                    <Crown className="w-12 h-12 text-[#1E3A5F]" />
+                  </div>
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your #1 Habit</p>
+                  <h2 className="text-3xl md:text-5xl font-black text-white mb-4">
+                    "{wrappedStats.topHabit.name}"
+                  </h2>
+                  <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-sm rounded-2xl p-8 border border-green-500/30 mb-6">
+                    <p className="text-7xl md:text-9xl font-black bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                      {wrappedStats.topHabit.rate}%
+                    </p>
+                    <p className="text-green-400 mt-2 font-medium">completion rate</p>
+                  </div>
+                  <p className="text-white/60">
+                    You tracked this {wrappedStats.topHabit.weeks} times and crushed it {wrappedStats.topHabit.completed} days!
+                  </p>
+                  <p className="text-white/40 text-sm mt-4">This is your signature move 🎯</p>
+                </div>
+              )}
+
+              {/* Slide 3: The Struggle Habit */}
+              {visionSlide === 3 && wrappedStats?.worstHabit && wrappedStats.worstHabit !== wrappedStats.topHabit && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-orange-400/50 to-red-500/50 flex items-center justify-center">
+                    <Target className="w-10 h-10 text-white/80" />
+                  </div>
+                  <p className="text-orange-400 text-sm uppercase tracking-widest mb-4">Your Growth Opportunity</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                    "{wrappedStats.worstHabit.name}"
+                  </h2>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 mb-6">
+                    <p className="text-5xl md:text-6xl font-black text-orange-400">
+                      {wrappedStats.worstHabit.rate}%
+                    </p>
+                    <p className="text-white/40 mt-2">completion rate</p>
+                  </div>
+                  <p className="text-white/60 mb-4">
+                    This one challenged you the most - and that's okay!
+                  </p>
+                  <div className="bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] rounded-xl p-4 inline-block">
+                    <p className="text-[#F5B800] font-medium">💡 2026 Focus Area?</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 3 Alt: If top and worst are same, show all habits */}
+              {visionSlide === 3 && wrappedStats?.worstHabit && wrappedStats.worstHabit === wrappedStats.topHabit && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Consistency King 👑</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    All your habits performed similarly!
+                  </h2>
+                  <p className="text-white/60 mb-4">
+                    That's the sign of a well-balanced approach.
+                  </p>
+                </div>
+              )}
+
+              {/* Slide 4: Best Week Ever */}
+              {visionSlide === 4 && wrappedStats?.bestWeek && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-2xl shadow-purple-500/30">
+                    <Flame className="w-12 h-12 text-white" />
+                  </div>
+                  <p className="text-purple-400 text-sm uppercase tracking-widest mb-4">Your Best Week</p>
+                  <h2 className="text-3xl md:text-5xl font-black text-white mb-2">
+                    Week of {new Date(wrappedStats.bestWeek.week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </h2>
+                  <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-sm rounded-2xl p-8 border border-purple-500/30 my-6">
+                    <p className="text-7xl md:text-8xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                      {wrappedStats.bestWeek.rate}%
+                    </p>
+                    <p className="text-purple-300 mt-2">completion rate</p>
+                  </div>
+                  <p className="text-white/60">
+                    {wrappedStats.bestWeek.completed}/{wrappedStats.bestWeek.target} habits completed across {wrappedStats.bestWeek.habitCount} goals
+                  </p>
+                  {wrappedStats.perfectWeeks > 0 && (
+                    <p className="text-[#F5B800] mt-4 font-medium">
+                      🏆 You had {wrappedStats.perfectWeeks} PERFECT week{wrappedStats.perfectWeeks > 1 ? 's' : ''}!
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Slide 5: Category Breakdown */}
+              {visionSlide === 5 && wrappedStats?.categoryRankings?.length > 0 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Where You Focused</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">
+                    Your Life Categories
+                  </h2>
+                  <div className="space-y-3 max-w-md mx-auto">
+                    {wrappedStats.categoryRankings.slice(0, 5).map((cat, idx) => {
+                      const colors = [
+                        'from-[#F5B800] to-amber-500',
+                        'from-blue-400 to-cyan-500',
+                        'from-green-400 to-emerald-500',
+                        'from-purple-400 to-violet-500',
+                        'from-pink-400 to-rose-500'
+                      ];
+                      const icons = { fitness: '💪', health: '❤️', business: '💼', finance: '💰', learning: '📚', mindfulness: '🧘', social: '👥', discipline: '🎯' };
+                      return (
+                        <div key={cat.name} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-white font-medium flex items-center gap-2">
+                              <span className="text-xl">{icons[cat.name] || '📌'}</span>
+                              <span className="capitalize">{cat.name}</span>
+                            </span>
+                            <span className="text-white/60 text-sm">{cat.count} habits</span>
+                          </div>
+                          <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full bg-gradient-to-r ${colors[idx]} rounded-full transition-all duration-1000`}
+                              style={{ width: `${(cat.count / wrappedStats.categoryRankings[0].count) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {wrappedStats.topCategory && (
+                    <p className="text-white/40 text-sm mt-6">
+                      {wrappedStats.topCategory.name.charAt(0).toUpperCase() + wrappedStats.topCategory.name.slice(1)} was your main focus area!
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Slide 6: Streak Stats */}
+              {visionSlide === 6 && wrappedStats && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-2xl shadow-orange-500/30 animate-pulse">
+                    <Flame className="w-14 h-14 text-white" />
+                  </div>
+                  <p className="text-orange-400 text-sm uppercase tracking-widest mb-4">Streak Master</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">
+                    Your Consistency Game
+                  </h2>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 backdrop-blur-sm rounded-2xl p-6 border border-orange-500/30">
+                      <p className="text-6xl md:text-7xl font-black text-orange-400">
+                        {wrappedStats.longestStreak}
+                      </p>
+                      <p className="text-white/60 mt-2">longest streak</p>
+                      <p className="text-white/40 text-sm">weeks of 70%+</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-sm rounded-2xl p-6 border border-green-500/30">
+                      <p className="text-6xl md:text-7xl font-black text-green-400">
+                        {wrappedStats.currentStreak}
+                      </p>
+                      <p className="text-white/60 mt-2">current streak</p>
+                      <p className="text-white/40 text-sm">and counting!</p>
+                    </div>
+                  </div>
+                  {wrappedStats.longestStreak >= 4 && (
+                    <p className="text-[#F5B800] mt-6 font-medium">
+                      🔥 A {wrappedStats.longestStreak}-week streak? That's elite-level consistency!
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Slide 7: Fun Facts */}
+              {visionSlide === 7 && wrappedStats?.funFacts?.length > 0 && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Fun Facts</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">
+                    Did You Know?
+                  </h2>
+                  <div className="space-y-4">
+                    {wrappedStats.funFacts.slice(0, 4).map((fact, idx) => (
+                      <div 
+                        key={idx} 
+                        className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 text-left"
+                        style={{ animationDelay: `${idx * 0.2}s` }}
+                      >
+                        <p className="text-white/90 text-lg">{fact}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 8: Group Comparison */}
+              {visionSlide === 8 && wrappedStats?.groupStats?.length > 1 && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Squad Goals</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-2">
+                    The Accountability Group
+                  </h2>
+                  <p className="text-white/40 mb-8">How everyone stacked up</p>
+                  <div className="space-y-4">
+                    {wrappedStats.groupStats.map((member, idx) => {
+                      const isMe = member.name === wrappedStats.myParticipantName;
+                      const medals = ['🥇', '🥈', '🥉'];
+                      return (
+                        <div 
+                          key={member.name}
+                          className={`rounded-xl p-4 border transition-all ${
+                            isMe 
+                              ? 'bg-gradient-to-r from-[#F5B800]/20 to-amber-500/20 border-[#F5B800]/50' 
+                              : 'bg-white/5 border-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{medals[idx] || '🏅'}</span>
+                              <div className="text-left">
+                                <p className={`font-bold ${isMe ? 'text-[#F5B800]' : 'text-white'}`}>
+                                  {member.name} {isMe && '(You!)'}
+                                </p>
+                                <p className="text-white/40 text-sm">{member.totalHabits} habits tracked</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-3xl font-black ${isMe ? 'text-[#F5B800]' : 'text-white'}`}>
+                                {member.rate}%
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {wrappedStats.myRank === 1 && (
+                    <p className="text-[#F5B800] mt-6 font-medium">👑 You led the pack! Champion status!</p>
+                  )}
+                </div>
+              )}
+
+              {/* Slide 9: Your Grade - The Big Reveal */}
+              {visionSlide === 9 && wrappedStats && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-6">Your 2025 Performance</p>
+                  <div className="relative mb-8">
+                    <div className="w-48 h-48 mx-auto rounded-full bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f] flex items-center justify-center border-4 border-[#F5B800] shadow-2xl shadow-[#F5B800]/20">
+                      <div className="text-center">
+                        <p className="text-7xl font-black text-[#F5B800]">{wrappedStats.grade}</p>
+                        <p className="text-4xl">{wrappedStats.gradeEmoji}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
+                    {wrappedStats.gradeMessage}
+                  </h2>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 mt-6">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <p className="text-2xl font-bold text-[#F5B800]">{wrappedStats.overallCompletionRate}%</p>
+                        <p className="text-white/40 text-xs">Overall Rate</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-green-400">{wrappedStats.perfectWeeks}</p>
+                        <p className="text-white/40 text-xs">Perfect Weeks</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-orange-400">{wrappedStats.longestStreak}</p>
+                        <p className="text-white/40 text-xs">Best Streak</p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-white/40 text-sm mt-6">Now let's make 2026 even better! 🚀</p>
+                </div>
+              )}
+
+              {/* ==================== VISION SLIDES (10-17) ==================== */}
+
+              {/* Slide 10: Transition to 2026 */}
+              {visionSlide === 10 && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#F5B800] to-amber-500 flex items-center justify-center">
+                    <Sparkles className="w-12 h-12 text-[#1E3A5F]" />
+                  </div>
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Part 2</p>
                   <h1 className="text-4xl md:text-6xl font-black text-white mb-4">
                     Your 2026 Vision
                   </h1>
                   <p className="text-xl text-white/60 mb-8">
-                    Let's reflect on your journey and set powerful intentions for the year ahead.
+                    Let's set powerful intentions for the year ahead.
                   </p>
-                  <p className="text-[#F5B800] text-sm mb-8">Takes about 5 minutes</p>
+                  <p className="text-white/40 text-sm">This takes about 3 minutes</p>
                 </div>
               )}
 
-              {/* Slide 1: Word of Year */}
-              {visionSlide === 1 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+              {/* Slide 11: Word of Year */}
+              {visionSlide === 11 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
                   <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Define Your Year</p>
                   <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
                     Choose Your Word of the Year
@@ -8294,9 +8864,9 @@ export default function AccountabilityTracker() {
                 </div>
               )}
 
-              {/* Slide 2: Biggest Goal */}
-              {visionSlide === 2 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+              {/* Slide 12: Biggest Goal */}
+              {visionSlide === 12 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
                   <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Mission</p>
                   <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
                     What's Your #1 Goal for 2026?
@@ -8311,31 +8881,14 @@ export default function AccountabilityTracker() {
                 </div>
               )}
 
-              {/* Slide 3: Why It Matters */}
-              {visionSlide === 3 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
-                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Why</p>
-                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-                    Why Does This Matter to You?
-                  </h2>
-                  <p className="text-white/60 mb-8">Understanding your "why" will keep you motivated when things get tough.</p>
-                  <textarea
-                    value={visionAnswers.whyMatters}
-                    onChange={(e) => setVisionAnswers({ ...visionAnswers, whyMatters: e.target.value })}
-                    placeholder="Why is this goal important to you? What will achieving it mean for your life?"
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
-                  />
-                </div>
-              )}
-
-              {/* Slide 4: Domain Scores */}
-              {visionSlide === 4 && (
-                <div className="text-center max-w-3xl transition-opacity duration-500 w-full">
-                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Life Assessment</p>
+              {/* Slide 13: Domain Scores */}
+              {visionSlide === 13 && (
+                <div className="text-center max-w-3xl animate-fade-in w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">2026 Life Assessment</p>
                   <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-                    Rate Your Life Domains
+                    Where Do You Want To Be?
                   </h2>
-                  <p className="text-white/60 mb-8">How satisfied are you currently in each area? (1-10)</p>
+                  <p className="text-white/60 mb-8">Rate your target satisfaction in each area for 2026 (1-10)</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
                     {[
                       { key: 'fitnessScore', label: 'Fitness', icon: '💪' },
@@ -8365,43 +8918,9 @@ export default function AccountabilityTracker() {
                 </div>
               )}
 
-              {/* Slide 5: Obstacles */}
-              {visionSlide === 5 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
-                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Anticipate Challenges</p>
-                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-                    What's Your Biggest Obstacle?
-                  </h2>
-                  <p className="text-white/60 mb-8">What could prevent you from reaching your goals?</p>
-                  <textarea
-                    value={visionAnswers.mainObstacle}
-                    onChange={(e) => setVisionAnswers({ ...visionAnswers, mainObstacle: e.target.value })}
-                    placeholder="Identify your main challenge or obstacle..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-28"
-                  />
-                </div>
-              )}
-
-              {/* Slide 6: Strategy */}
-              {visionSlide === 6 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
-                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Battle Plan</p>
-                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-                    How Will You Overcome It?
-                  </h2>
-                  <p className="text-white/60 mb-8">What's your strategy for pushing through challenges?</p>
-                  <textarea
-                    value={visionAnswers.overcomeStrategy}
-                    onChange={(e) => setVisionAnswers({ ...visionAnswers, overcomeStrategy: e.target.value })}
-                    placeholder="Describe your strategy for overcoming obstacles..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-28"
-                  />
-                </div>
-              )}
-
-              {/* Slide 7: Non-Negotiables */}
-              {visionSlide === 7 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+              {/* Slide 14: Non-Negotiables */}
+              {visionSlide === 14 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
                   <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Foundation</p>
                   <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
                     Your 3 Non-Negotiables
@@ -8426,27 +8945,9 @@ export default function AccountabilityTracker() {
                 </div>
               )}
 
-              {/* Slide 8: Daily Habit */}
-              {visionSlide === 8 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
-                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Daily Commitment</p>
-                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-                    Your Keystone Habit
-                  </h2>
-                  <p className="text-white/60 mb-8">One daily habit that will create a ripple effect across all areas.</p>
-                  <input
-                    type="text"
-                    value={visionAnswers.dailyHabit}
-                    onChange={(e) => setVisionAnswers({ ...visionAnswers, dailyHabit: e.target.value })}
-                    placeholder="e.g., Wake up at 5am, Exercise for 30 min, Read for 20 min"
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
-                  />
-                </div>
-              )}
-
-              {/* Slide 9: Accountability */}
-              {visionSlide === 9 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+              {/* Slide 15: Accountability Partner */}
+              {visionSlide === 15 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
                   <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Support System</p>
                   <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
                     Who Will Hold You Accountable?
@@ -8477,9 +8978,9 @@ export default function AccountabilityTracker() {
                 </div>
               )}
 
-              {/* Slide 10: Reward */}
-              {visionSlide === 10 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+              {/* Slide 16: Reward */}
+              {visionSlide === 16 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
                   <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Celebrate Success</p>
                   <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
                     How Will You Reward Yourself?
@@ -8495,9 +8996,9 @@ export default function AccountabilityTracker() {
                 </div>
               )}
 
-              {/* Slide 11: Letter to Self */}
-              {visionSlide === 11 && (
-                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+              {/* Slide 17: Letter to Self */}
+              {visionSlide === 17 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
                   <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Final Reflection</p>
                   <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
                     Write a Letter to Your Future Self
@@ -8514,7 +9015,7 @@ export default function AccountabilityTracker() {
             </div>
 
             {/* Navigation */}
-            <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-6">
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-6 z-20">
               {visionSlide > 0 && (
                 <button
                   onClick={() => setVisionSlide(visionSlide - 1)}
@@ -8524,12 +9025,12 @@ export default function AccountabilityTracker() {
                   Back
                 </button>
               )}
-              {visionSlide < 11 ? (
+              {visionSlide < 17 ? (
                 <button
                   onClick={() => setVisionSlide(visionSlide + 1)}
                   className="px-8 py-3 bg-[#F5B800] hover:bg-[#e5a800] text-[#1E3A5F] rounded-xl font-bold transition-colors flex items-center gap-2"
                 >
-                  {visionSlide === 0 ? "Let's Begin" : 'Continue'}
+                  {visionSlide === 0 ? "Let's Go! 🚀" : visionSlide === 9 ? "Set 2026 Goals" : 'Continue'}
                   <ChevronRight className="w-5 h-5" />
                 </button>
               ) : (
@@ -8542,10 +9043,6 @@ export default function AccountabilityTracker() {
                 </button>
               )}
             </div>
-
-            {/* Decorative Elements */}
-            <div className="absolute top-1/4 left-10 w-64 h-64 bg-[#F5B800]/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute bottom-1/4 right-10 w-48 h-48 bg-[#1E3A5F]/30 rounded-full blur-3xl pointer-events-none" />
           </div>
         )}
 
