@@ -1315,10 +1315,11 @@ export default function AccountabilityTracker() {
   }, []);
 
   // Calculate streaks for each participant (excluding current week)
+  // Calculate streaks for each participant (excluding current week from the streak-breaking check)
   const calculateStreaks = useMemo(() => {
     const streaks = {};
     allParticipants.forEach(p => {
-      // Group habits by week for this participant (exclude current week)
+      // Group habits by week for this participant (exclude current week - it's incomplete)
       const participantHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
       const weeklyData = {};
       
@@ -1327,16 +1328,16 @@ export default function AccountabilityTracker() {
         weeklyData[h.weekStart].push(h);
       });
       
-      // Sort weeks and count consecutive weeks with >70% completion
+      // Sort weeks from most recent to oldest and count consecutive weeks with >70% completion
       const sortedWeeks = Object.keys(weeklyData).sort().reverse();
       let currentStreak = 0;
       
       for (const week of sortedWeeks) {
         const weekHabits = weeklyData[week];
         const totalPossible = weekHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+        // Use daysCompleted array length (the actual data structure)
         const totalCompleted = weekHabits.reduce((sum, h) => {
-          const completed = DAYS.filter(d => h.days?.[d]).length;
-          return sum + completed;
+          return sum + (h.daysCompleted?.length || 0);
         }, 0);
         
         if (totalPossible > 0 && (totalCompleted / totalPossible) >= 0.7) {
@@ -5141,6 +5142,86 @@ export default function AccountabilityTracker() {
 
         {activeView === 'tracker' && (
           <div className="space-y-3">
+            {/* Non-Negotiables from Vision - Quick Reference */}
+            {visionData && (visionData.nonNegotiable1 || visionData.nonNegotiable2 || visionData.nonNegotiable3) && (
+              <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-500/20' : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
+                    <Lock className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+                  </div>
+                  <div>
+                    <h3 className={`font-bold text-sm ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Your Non-Negotiables</h3>
+                    <p className={`text-xs ${darkMode ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Habits you committed to — no excuses</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).map((nn, idx) => {
+                    // Check if this non-negotiable matches any habit in current week
+                    // Match if: habit contains non-negotiable text OR non-negotiable contains habit text OR significant word overlap
+                    const nnLower = nn.toLowerCase();
+                    const nnWords = nnLower.split(/\s+/).filter(w => w.length > 3);
+                    const matchingHabit = currentWeekHabits.find(h => {
+                      if (h.participant !== myParticipant) return false;
+                      const habitLower = (h.habit || '').toLowerCase();
+                      // Direct substring match either direction
+                      if (habitLower.includes(nnLower.slice(0, 15)) || nnLower.includes(habitLower.slice(0, 15))) return true;
+                      // Check if any significant word from non-negotiable is in habit
+                      return nnWords.some(word => habitLower.includes(word));
+                    });
+                    const isTracked = !!matchingHabit;
+                    const completedDays = matchingHabit?.daysCompleted?.length || 0;
+                    const target = matchingHabit?.target || 5;
+                    const progress = isTracked ? Math.round((completedDays / target) * 100) : 0;
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`flex items-center gap-2 p-2.5 rounded-lg transition-all ${
+                          isTracked 
+                            ? darkMode ? 'bg-green-500/20 border border-green-500/30' : 'bg-green-50 border border-green-200'
+                            : darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-200'
+                        }`}
+                      >
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isTracked 
+                            ? progress >= 100 ? 'bg-green-500 text-white' : 'bg-amber-500 text-white'
+                            : darkMode ? 'bg-gray-600' : 'bg-gray-200'
+                        }`}>
+                          {isTracked ? (
+                            progress >= 100 ? <Check className="w-3.5 h-3.5" /> : <span className="text-xs font-bold">{completedDays}</span>
+                          ) : (
+                            <span className={`text-xs font-bold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{idx + 1}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${
+                            isTracked 
+                              ? darkMode ? 'text-green-300' : 'text-green-700'
+                              : darkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>{nn}</p>
+                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                            {isTracked ? `${completedDays}/${target} this week` : 'Not tracked yet'}
+                          </p>
+                        </div>
+                        {!isTracked && (
+                          <button
+                            onClick={() => {
+                              setNewHabit({ habit: nn, participant: myParticipant, target: 5, habitType: 'daily' });
+                              setShowAddHabitModal(true);
+                            }}
+                            className={`p-1 rounded ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                            title="Add as habit"
+                          >
+                            <Plus className={`w-3.5 h-3.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Header with view toggle */}
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className={`flex gap-1 rounded-xl p-1 ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
