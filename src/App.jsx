@@ -903,6 +903,54 @@ export default function AccountabilityTracker() {
     letterToSelf: ''
   });
   
+  // 2025 Reflection state
+  const [reflectionData, setReflectionData] = useState(null); // Saved reflection document
+  const [showReflectionModal, setShowReflectionModal] = useState(false); // Reflection experience modal
+  const [reflectionSlide, setReflectionSlide] = useState(0); // Current slide
+  const [reflectionAnswers, setReflectionAnswers] = useState({
+    biggestWin: '',
+    proudestMoment: '',
+    biggestChallenge: '',
+    lessonLearned: '',
+    unexpectedJoy: '',
+    relationshipHighlight: '',
+    skillDeveloped: '',
+    habitMastered: '',
+    habitStruggled: '',
+    gratefulFor: '',
+    wordToDescribe2025: '',
+    letterFromPastSelf: '',
+    adviceToFutureSelf: '',
+    fitnessReflection: 5,
+    businessReflection: 5,
+    financeReflection: 5,
+    healthReflection: 5,
+    learningReflection: 5,
+    relationshipsReflection: 5,
+    spiritualReflection: 5
+  });
+  
+  // Time Capsule state
+  const [timeCapsuleData, setTimeCapsuleData] = useState(null);
+  const [showTimeCapsule, setShowTimeCapsule] = useState(false);
+  const [timeCapsuleAnswers, setTimeCapsuleAnswers] = useState({
+    currentMood: '',
+    currentChallenge: '',
+    hopesForEndOfYear: '',
+    predictionsFor2026: '',
+    secretGoal: '',
+    messageToFutureSelf: '',
+    currentFavorites: '', // song, show, food, etc
+    gratitudeList: ''
+  });
+  
+  // Time capsule unlock dates
+  const MID_YEAR_UNLOCK = new Date('2026-07-01');
+  const END_YEAR_UNLOCK = new Date('2026-12-26');
+  const today = new Date();
+  const isMidYearUnlocked = today >= MID_YEAR_UNLOCK;
+  const isEndYearUnlocked = today >= END_YEAR_UNLOCK;
+  
   // Monthly view state
   const [monthlyViewMonth, setMonthlyViewMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
   
@@ -1259,6 +1307,40 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
+  // Listen for 2025 reflection data
+  useEffect(() => {
+    if (!user) return;
+    
+    const reflectionRef = doc(db, 'reflections', `reflection_2025_${user.uid}`);
+    const unsubscribe = onSnapshot(reflectionRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setReflectionData(snapshot.data());
+        setReflectionAnswers(prev => ({ ...prev, ...snapshot.data() }));
+      }
+    }, (error) => {
+      console.error('Reflection error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Listen for time capsule data
+  useEffect(() => {
+    if (!user) return;
+    
+    const capsuleRef = doc(db, 'timeCapsules', `capsule_2026_${user.uid}`);
+    const unsubscribe = onSnapshot(capsuleRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setTimeCapsuleData(snapshot.data());
+        setTimeCapsuleAnswers(prev => ({ ...prev, ...snapshot.data() }));
+      }
+    }, (error) => {
+      console.error('Time capsule error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
   // Save vision document
   const saveVision = async () => {
     if (!user) return;
@@ -1274,6 +1356,42 @@ export default function AccountabilityTracker() {
     await setDoc(doc(db, 'visions', `vision_2026_${user.uid}`), visionDoc);
     setShowVisionWrapped(false);
     setVisionSlide(0);
+  };
+
+  // Save 2025 reflection document
+  const saveReflection = async () => {
+    if (!user) return;
+    
+    const reflectionDoc = {
+      ...reflectionAnswers,
+      userId: user.uid,
+      participant: userProfile?.linkedParticipant || user?.displayName,
+      updatedAt: new Date().toISOString(),
+      year: 2025
+    };
+    
+    await setDoc(doc(db, 'reflections', `reflection_2025_${user.uid}`), reflectionDoc);
+    setShowReflectionModal(false);
+    setReflectionSlide(0);
+  };
+
+  // Save time capsule document
+  const saveTimeCapsule = async () => {
+    if (!user) return;
+    
+    const capsuleDoc = {
+      ...timeCapsuleAnswers,
+      userId: user.uid,
+      participant: userProfile?.linkedParticipant || user?.displayName,
+      createdAt: timeCapsuleData?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      year: 2026,
+      midYearUnlockDate: '2026-07-01',
+      endYearUnlockDate: '2026-12-26'
+    };
+    
+    await setDoc(doc(db, 'timeCapsules', `capsule_2026_${user.uid}`), capsuleDoc);
+    setShowTimeCapsule(false);
   };
 
   // Get profile by participant name
@@ -2283,10 +2401,23 @@ export default function AccountabilityTracker() {
   }, [habits, ALL_WEEKS, scorecardRange, currentWeek, allParticipants]);
 
   const getRangeHabits = useMemo(() => {
+    // "This Week" - show current week (user needs to see their progress)
     if (scorecardRange === 'week') return habits.filter(h => h.weekStart === currentWeek);
-    if (scorecardRange === '4weeks') { const idx = ALL_WEEKS.indexOf(currentWeek); return habits.filter(h => ALL_WEEKS.slice(Math.max(0, idx - 3), idx + 1).includes(h.weekStart)); }
-    if (scorecardRange === 'quarter') { const d = new Date(currentWeek + 'T00:00:00'); const qs = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1); return habits.filter(h => new Date(h.weekStart + 'T00:00:00') >= qs); }
-    // For "all time", exclude current week so incomplete weeks don't drag down metrics
+    
+    // "Last 4 Weeks" - show last 4 COMPLETED weeks, excluding current incomplete week
+    if (scorecardRange === '4weeks') { 
+      const pastWeeks = ALL_WEEKS.filter(w => w < currentWeekStart).slice(-4);
+      return habits.filter(h => pastWeeks.includes(h.weekStart)); 
+    }
+    
+    // "Quarter" - show quarter but exclude current week
+    if (scorecardRange === 'quarter') { 
+      const d = new Date(currentWeek + 'T00:00:00'); 
+      const qs = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1); 
+      return habits.filter(h => new Date(h.weekStart + 'T00:00:00') >= qs && h.weekStart !== currentWeekStart); 
+    }
+    
+    // "All Time" - exclude current week so incomplete weeks don't drag down metrics
     return habits.filter(h => h.weekStart !== currentWeekStart);
   }, [habits, currentWeek, scorecardRange, ALL_WEEKS, currentWeekStart]);
 
@@ -7461,7 +7592,7 @@ export default function AccountabilityTracker() {
         {/* VISION VIEW */}
         {activeView === 'vision' && (
           <div className="space-y-4">
-            {/* Vision Header */}
+            {/* Vision Hub Header */}
             <div className="bg-gradient-to-r from-[#1E3A5F] via-[#2d4a6f] to-[#1E3A5F] rounded-2xl p-6 text-white relative overflow-hidden">
               <div className="absolute inset-0 opacity-20">
                 <div className="absolute top-4 right-4 w-32 h-32 bg-[#F5B800] rounded-full blur-3xl" />
@@ -7473,17 +7604,166 @@ export default function AccountabilityTracker() {
                     <Star className="w-6 h-6 text-[#1E3A5F]" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold">2026 Vision</h2>
-                    <p className="text-[#F5B800]/80 text-sm">Your Year-End Review & Future Vision</p>
+                    <h2 className="text-2xl font-bold">Your Journey Hub</h2>
+                    <p className="text-[#F5B800]/80 text-sm">Reflect • Dream • Achieve</p>
                   </div>
                 </div>
-                <p className="text-white/70 text-sm mt-3">Reflect on your journey, set your intentions, and create your roadmap for an amazing 2026.</p>
+                <p className="text-white/70 text-sm mt-3">Look back at 2025, seal your time capsule, and set your vision for 2026.</p>
               </div>
             </div>
 
-            {/* Vision Content */}
-            {visionData ? (
+            {/* Three Cards: Reflection, Time Capsule, Vision */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* 2025 Reflection Card */}
+              <div className={`rounded-2xl p-5 border-2 transition-all ${
+                reflectionData 
+                  ? 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200' 
+                  : 'bg-white border-gray-200 hover:border-purple-300'
+              }`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${reflectionData ? 'bg-purple-500' : 'bg-purple-100'}`}>
+                    <Eye className={`w-5 h-5 ${reflectionData ? 'text-white' : 'text-purple-500'}`} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800">2025 Reflection</h3>
+                    <p className="text-xs text-gray-500">Look back & learn</p>
+                  </div>
+                </div>
+                {reflectionData ? (
+                  <div className="space-y-2 mb-4">
+                    <div className="bg-white/60 rounded-lg p-2">
+                      <p className="text-xs text-gray-500">Word to describe 2025</p>
+                      <p className="font-bold text-purple-700">{reflectionData.wordToDescribe2025 || '—'}</p>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-2">
+                      <p className="text-xs text-gray-500">Biggest Win</p>
+                      <p className="text-sm text-gray-700 line-clamp-2">{reflectionData.biggestWin || '—'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 mb-4">Take time to reflect on your 2025 journey - the wins, lessons, and growth.</p>
+                )}
+                <button
+                  onClick={() => { setShowReflectionModal(true); setReflectionSlide(0); }}
+                  className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                    reflectionData 
+                      ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                      : 'bg-purple-500 text-white hover:bg-purple-600'
+                  }`}
+                >
+                  {reflectionData ? 'View/Edit Reflection' : 'Start 2025 Reflection'}
+                </button>
+              </div>
+
+              {/* Time Capsule Card */}
+              <div className={`rounded-2xl p-5 border-2 transition-all relative overflow-hidden ${
+                timeCapsuleData 
+                  ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200' 
+                  : 'bg-white border-gray-200 hover:border-amber-300'
+              }`}>
+                {timeCapsuleData && !isEndYearUnlocked && (
+                  <div className="absolute top-2 right-2">
+                    <div className="px-2 py-1 bg-amber-100 rounded-full flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-amber-600" />
+                      <span className="text-xs font-medium text-amber-600">Sealed</span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${timeCapsuleData ? 'bg-amber-500' : 'bg-amber-100'}`}>
+                    <Gift className={`w-5 h-5 ${timeCapsuleData ? 'text-white' : 'text-amber-500'}`} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800">Time Capsule</h3>
+                    <p className="text-xs text-gray-500">Message to future you</p>
+                  </div>
+                </div>
+                {timeCapsuleData ? (
+                  <div className="space-y-2 mb-4">
+                    <div className="bg-white/60 rounded-lg p-2">
+                      <p className="text-xs text-gray-500">Created</p>
+                      <p className="text-sm font-medium text-amber-700">{new Date(timeCapsuleData.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-2">
+                      <p className="text-xs text-gray-500">Unlocks</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded ${isMidYearUnlocked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {isMidYearUnlocked ? '✓ Jul 1' : '🔒 Jul 1'}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${isEndYearUnlocked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {isEndYearUnlocked ? '✓ Dec 26' : '🔒 Dec 26'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 mb-4">Seal a message to your future self. Opens at mid-year and year-end!</p>
+                )}
+                <button
+                  onClick={() => setShowTimeCapsule(true)}
+                  className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                    timeCapsuleData 
+                      ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' 
+                      : 'bg-amber-500 text-white hover:bg-amber-600'
+                  }`}
+                >
+                  {timeCapsuleData ? (isEndYearUnlocked ? 'Open Time Capsule' : 'View Sealed Capsule') : 'Create Time Capsule'}
+                </button>
+              </div>
+
+              {/* 2026 Vision Card */}
+              <div className={`rounded-2xl p-5 border-2 transition-all ${
+                visionData 
+                  ? 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200' 
+                  : 'bg-white border-gray-200 hover:border-blue-300'
+              }`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${visionData ? 'bg-blue-500' : 'bg-blue-100'}`}>
+                    <Target className={`w-5 h-5 ${visionData ? 'text-white' : 'text-blue-500'}`} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800">2026 Vision</h3>
+                    <p className="text-xs text-gray-500">Set your intentions</p>
+                  </div>
+                </div>
+                {visionData ? (
+                  <div className="space-y-2 mb-4">
+                    <div className="bg-white/60 rounded-lg p-2">
+                      <p className="text-xs text-gray-500">Word of the Year</p>
+                      <p className="font-bold text-blue-700">{visionData.wordOfYear || '—'}</p>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-2">
+                      <p className="text-xs text-gray-500">Biggest Goal</p>
+                      <p className="text-sm text-gray-700 line-clamp-2">{visionData.biggestGoal || '—'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 mb-4">Define your word, goals, and non-negotiables for an incredible 2026.</p>
+                )}
+                <button
+                  onClick={() => { setShowVisionWrapped(true); setVisionSlide(0); }}
+                  className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                    visionData 
+                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
+                >
+                  {visionData ? 'View/Edit Vision' : 'Start 2026 Vision'}
+                </button>
+              </div>
+            </div>
+
+            {/* Detailed View: Show selected data if exists */}
+            {visionData && (
               <div className="space-y-4">
+                {/* Section Header */}
+                <div className="flex items-center gap-2 pt-2">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                  <span className="text-sm font-medium text-gray-400 px-2">2026 Vision Details</span>
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+                </div>
+
                 {/* Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Word of Year */}
@@ -7598,25 +7878,6 @@ export default function AccountabilityTracker() {
                 <p className="text-center text-xs text-gray-400">
                   Last updated: {visionData.updatedAt ? new Date(visionData.updatedAt).toLocaleDateString() : 'Never'}
                 </p>
-              </div>
-            ) : (
-              /* Empty State - No Vision Yet */
-              <div className="bg-white rounded-2xl p-8 border border-gray-100 text-center">
-                <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#F5B800] to-amber-500 flex items-center justify-center mb-4">
-                  <Star className="w-10 h-10 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">Create Your 2026 Vision</h3>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                  Take a few minutes to reflect on your journey and set your intentions for the year ahead. 
-                  Complete the interactive vision experience to clarify your goals.
-                </p>
-                <button
-                  onClick={() => { setShowVisionWrapped(true); setVisionSlide(0); }}
-                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] text-white rounded-xl font-semibold hover:from-[#162D4D] hover:to-[#1E3A5F] transition-all shadow-lg shadow-[#1E3A5F]/25"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  Start Vision Journey
-                </button>
               </div>
             )}
           </div>
@@ -9136,6 +9397,526 @@ export default function AccountabilityTracker() {
                   <CheckCircle2 className="w-5 h-5" />
                   Save My Vision
                 </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 2025 Reflection Modal */}
+        {showReflectionModal && (
+          <div className="fixed inset-0 z-[100] bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-800 overflow-y-auto">
+            {/* Progress Dots */}
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setReflectionSlide(i)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === reflectionSlide ? 'w-6 bg-purple-300' : i < reflectionSlide ? 'w-1.5 bg-purple-400/60' : 'w-1.5 bg-white/30'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => setShowReflectionModal(false)}
+              className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+
+            {/* Slide Container */}
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 md:p-12">
+              
+              {/* Slide 0: Welcome */}
+              {reflectionSlide === 0 && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center shadow-2xl shadow-purple-500/30">
+                    <Eye className="w-12 h-12 text-white" />
+                  </div>
+                  <p className="text-purple-300 text-sm uppercase tracking-[0.3em] mb-4 font-bold">Looking Back</p>
+                  <h1 className="text-4xl md:text-6xl font-black text-white mb-4">
+                    Your 2025
+                  </h1>
+                  <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-purple-300 to-pink-300 bg-clip-text text-transparent mb-6">
+                    Reflection
+                  </h1>
+                  <p className="text-xl text-white/60 mb-2">
+                    Take a moment to honor your journey.
+                  </p>
+                  <p className="text-white/40 text-sm">This takes about 5 minutes</p>
+                </div>
+              )}
+
+              {/* Slide 1: Word to Describe 2025 */}
+              {reflectionSlide === 1 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <p className="text-purple-300 text-sm uppercase tracking-widest mb-4">One Word</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    What word describes your 2025?
+                  </h2>
+                  <p className="text-white/60 mb-8">If you had to sum up this year in one word...</p>
+                  <input
+                    type="text"
+                    value={reflectionAnswers.wordToDescribe2025}
+                    onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, wordToDescribe2025: e.target.value.toUpperCase() })}
+                    placeholder="e.g., GROWTH, CHALLENGING, TRANSFORMATIVE"
+                    className="w-full max-w-md mx-auto block bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl px-6 py-4 text-2xl text-white text-center uppercase tracking-widest placeholder:text-white/30 outline-none transition-colors"
+                    maxLength={20}
+                  />
+                  <div className="flex flex-wrap justify-center gap-2 mt-6">
+                    {['GROWTH', 'CHALLENGING', 'TRANSFORMATIVE', 'REWARDING', 'SURPRISING', 'BUILDING', 'HEALING'].map(word => (
+                      <button
+                        key={word}
+                        onClick={() => setReflectionAnswers({ ...reflectionAnswers, wordToDescribe2025: word })}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                          reflectionAnswers.wordToDescribe2025 === word 
+                            ? 'bg-purple-400 text-white' 
+                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                        }`}
+                      >
+                        {word}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 2: Biggest Win */}
+              {reflectionSlide === 2 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center">
+                    <Trophy className="w-8 h-8 text-white" />
+                  </div>
+                  <p className="text-amber-300 text-sm uppercase tracking-widest mb-4">Celebrate</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    What was your biggest win in 2025?
+                  </h2>
+                  <textarea
+                    value={reflectionAnswers.biggestWin}
+                    onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, biggestWin: e.target.value })}
+                    placeholder="Describe your proudest achievement this year..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                  />
+                </div>
+              )}
+
+              {/* Slide 3: Biggest Challenge */}
+              {reflectionSlide === 3 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <p className="text-orange-300 text-sm uppercase tracking-widest mb-4">Growth Edge</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    What was your biggest challenge?
+                  </h2>
+                  <p className="text-white/60 mb-8">The struggles that shaped you...</p>
+                  <textarea
+                    value={reflectionAnswers.biggestChallenge}
+                    onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, biggestChallenge: e.target.value })}
+                    placeholder="What obstacle tested you the most?"
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-orange-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                  />
+                </div>
+              )}
+
+              {/* Slide 4: Lesson Learned */}
+              {reflectionSlide === 4 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center">
+                    <Lightbulb className="w-8 h-8 text-white" />
+                  </div>
+                  <p className="text-cyan-300 text-sm uppercase tracking-widest mb-4">Wisdom Gained</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    What's the most important lesson you learned?
+                  </h2>
+                  <textarea
+                    value={reflectionAnswers.lessonLearned}
+                    onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, lessonLearned: e.target.value })}
+                    placeholder="Share the wisdom you gained..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-cyan-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                  />
+                </div>
+              )}
+
+              {/* Slide 5: Domain Reflection */}
+              {reflectionSlide === 5 && (
+                <div className="text-center max-w-3xl animate-fade-in w-full">
+                  <p className="text-purple-300 text-sm uppercase tracking-widest mb-4">Life Assessment</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    How did 2025 go in each area?
+                  </h2>
+                  <p className="text-white/60 mb-8">Rate your satisfaction (1-10)</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                    {[
+                      { key: 'fitnessReflection', label: 'Fitness', icon: '💪' },
+                      { key: 'businessReflection', label: 'Business/Career', icon: '💼' },
+                      { key: 'financeReflection', label: 'Finance', icon: '💰' },
+                      { key: 'healthReflection', label: 'Health', icon: '❤️' },
+                      { key: 'learningReflection', label: 'Learning', icon: '📚' },
+                      { key: 'relationshipsReflection', label: 'Relationships', icon: '🤝' },
+                      { key: 'spiritualReflection', label: 'Spiritual', icon: '🙏' }
+                    ].map(domain => (
+                      <div key={domain.key} className="bg-white/5 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-white font-medium">{domain.icon} {domain.label}</span>
+                          <span className="text-purple-300 font-bold text-xl">{reflectionAnswers[domain.key]}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="10"
+                          value={reflectionAnswers[domain.key]}
+                          onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, [domain.key]: parseInt(e.target.value) })}
+                          className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-purple-400"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 6: Habit Reflection */}
+              {reflectionSlide === 6 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <p className="text-green-300 text-sm uppercase tracking-widest mb-4">Habits</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    Habit Wins & Struggles
+                  </h2>
+                  <div className="space-y-6">
+                    <div>
+                      <label className="text-white/70 text-sm block mb-2">What habit did you master? 💪</label>
+                      <input
+                        type="text"
+                        value={reflectionAnswers.habitMastered}
+                        onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, habitMastered: e.target.value })}
+                        placeholder="e.g., Morning workouts, Daily reading..."
+                        className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-green-400 rounded-xl px-6 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-white/70 text-sm block mb-2">What habit did you struggle with? 🎯</label>
+                      <input
+                        type="text"
+                        value={reflectionAnswers.habitStruggled}
+                        onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, habitStruggled: e.target.value })}
+                        placeholder="e.g., Consistent sleep, Diet tracking..."
+                        className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-orange-400 rounded-xl px-6 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 7: Unexpected Joy */}
+              {reflectionSlide === 7 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
+                    <Heart className="w-8 h-8 text-white" />
+                  </div>
+                  <p className="text-pink-300 text-sm uppercase tracking-widest mb-4">Surprise</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    What brought you unexpected joy?
+                  </h2>
+                  <textarea
+                    value={reflectionAnswers.unexpectedJoy}
+                    onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, unexpectedJoy: e.target.value })}
+                    placeholder="A moment, person, or experience that surprised you with happiness..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-pink-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                  />
+                </div>
+              )}
+
+              {/* Slide 8: Gratitude */}
+              {reflectionSlide === 8 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <p className="text-amber-300 text-sm uppercase tracking-widest mb-4">Gratitude</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    What are you most grateful for from 2025?
+                  </h2>
+                  <textarea
+                    value={reflectionAnswers.gratefulFor}
+                    onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, gratefulFor: e.target.value })}
+                    placeholder="People, experiences, lessons, opportunities..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                  />
+                </div>
+              )}
+
+              {/* Slide 9: Advice to Future Self */}
+              {reflectionSlide === 9 && (
+                <div className="text-center max-w-2xl animate-fade-in w-full">
+                  <p className="text-purple-300 text-sm uppercase tracking-widest mb-4">Final Wisdom</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    What advice would you give yourself going into 2026?
+                  </h2>
+                  <textarea
+                    value={reflectionAnswers.adviceToFutureSelf}
+                    onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, adviceToFutureSelf: e.target.value })}
+                    placeholder="Based on everything you learned in 2025..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-40"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Navigation */}
+            <div className="fixed bottom-8 left-0 right-0 flex justify-center gap-4 px-6 z-20">
+              {reflectionSlide > 0 && (
+                <button
+                  onClick={() => setReflectionSlide(reflectionSlide - 1)}
+                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                  Back
+                </button>
+              )}
+              {reflectionSlide < 9 ? (
+                <button
+                  onClick={() => setReflectionSlide(reflectionSlide + 1)}
+                  className="px-8 py-3 bg-purple-500 hover:bg-purple-400 text-white rounded-xl font-bold transition-colors flex items-center gap-2"
+                >
+                  {reflectionSlide === 0 ? "Let's Reflect" : 'Continue'}
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              ) : (
+                <button
+                  onClick={saveReflection}
+                  className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-500/25"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  Save Reflection
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Time Capsule Modal */}
+        {showTimeCapsule && (
+          <div className="fixed inset-0 z-[100] bg-gradient-to-br from-amber-900 via-orange-900 to-amber-800 overflow-y-auto">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowTimeCapsule(false)}
+              className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 md:p-12">
+              {/* If capsule exists and is locked */}
+              {timeCapsuleData && !isEndYearUnlocked ? (
+                <div className="text-center max-w-lg">
+                  <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 relative">
+                    <Gift className="w-16 h-16 text-white" />
+                    <div className="absolute -top-2 -right-2 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
+                      <Lock className="w-6 h-6 text-amber-600" />
+                    </div>
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-black text-white mb-4">
+                    Your Time Capsule is Sealed
+                  </h1>
+                  <p className="text-white/70 mb-6">
+                    You created this capsule on {new Date(timeCapsuleData.createdAt).toLocaleDateString()}. 
+                    It contains your hopes, predictions, and a message to your future self.
+                  </p>
+                  
+                  <div className="bg-white/10 rounded-2xl p-6 mb-6">
+                    <h3 className="text-amber-300 font-bold mb-4">Unlock Schedule</h3>
+                    <div className="space-y-3">
+                      <div className={`flex items-center justify-between p-3 rounded-xl ${isMidYearUnlocked ? 'bg-green-500/20' : 'bg-white/5'}`}>
+                        <div className="flex items-center gap-3">
+                          {isMidYearUnlocked ? <Check className="w-5 h-5 text-green-400" /> : <Lock className="w-5 h-5 text-white/40" />}
+                          <span className="text-white font-medium">Mid-Year Review</span>
+                        </div>
+                        <span className={isMidYearUnlocked ? 'text-green-400' : 'text-white/40'}>July 1, 2026</span>
+                      </div>
+                      <div className={`flex items-center justify-between p-3 rounded-xl ${isEndYearUnlocked ? 'bg-green-500/20' : 'bg-white/5'}`}>
+                        <div className="flex items-center gap-3">
+                          {isEndYearUnlocked ? <Check className="w-5 h-5 text-green-400" /> : <Lock className="w-5 h-5 text-white/40" />}
+                          <span className="text-white font-medium">Full Capsule</span>
+                        </div>
+                        <span className={isEndYearUnlocked ? 'text-green-400' : 'text-white/40'}>December 26, 2026</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mid-year preview if unlocked */}
+                  {isMidYearUnlocked && (
+                    <div className="bg-white/10 rounded-2xl p-6 text-left mb-6">
+                      <h3 className="text-amber-300 font-bold mb-3 flex items-center gap-2">
+                        <PartyPopper className="w-5 h-5" />
+                        Mid-Year Preview
+                      </h3>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-white/50 text-xs uppercase">Your Current Challenge Was:</p>
+                          <p className="text-white">{timeCapsuleData.currentChallenge || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-white/50 text-xs uppercase">Your Hopes For End of Year:</p>
+                          <p className="text-white">{timeCapsuleData.hopesForEndOfYear || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-white/50 text-sm">
+                    Come back {isEndYearUnlocked ? 'now' : isMidYearUnlocked ? 'on Dec 26' : 'on Jul 1 for your mid-year peek'} to open!
+                  </p>
+                </div>
+              ) : timeCapsuleData && isEndYearUnlocked ? (
+                /* Full capsule unlocked! */
+                <div className="text-center max-w-2xl w-full">
+                  <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 animate-pulse">
+                    <PartyPopper className="w-16 h-16 text-white" />
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-black text-white mb-4">
+                    🎉 Your Time Capsule is Open!
+                  </h1>
+                  <p className="text-white/70 mb-8">
+                    Created on {new Date(timeCapsuleData.createdAt).toLocaleDateString()} — Let's see what past you wrote!
+                  </p>
+                  
+                  <div className="space-y-4 text-left">
+                    {timeCapsuleData.currentMood && (
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <p className="text-amber-300 text-xs uppercase font-bold mb-1">Your Mood Back Then</p>
+                        <p className="text-white">{timeCapsuleData.currentMood}</p>
+                      </div>
+                    )}
+                    {timeCapsuleData.currentChallenge && (
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <p className="text-amber-300 text-xs uppercase font-bold mb-1">Challenge You Were Facing</p>
+                        <p className="text-white">{timeCapsuleData.currentChallenge}</p>
+                      </div>
+                    )}
+                    {timeCapsuleData.hopesForEndOfYear && (
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <p className="text-amber-300 text-xs uppercase font-bold mb-1">Your Hopes for End of Year</p>
+                        <p className="text-white">{timeCapsuleData.hopesForEndOfYear}</p>
+                      </div>
+                    )}
+                    {timeCapsuleData.predictionsFor2026 && (
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <p className="text-amber-300 text-xs uppercase font-bold mb-1">Your Predictions</p>
+                        <p className="text-white">{timeCapsuleData.predictionsFor2026}</p>
+                      </div>
+                    )}
+                    {timeCapsuleData.secretGoal && (
+                      <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl p-4 border border-purple-500/30">
+                        <p className="text-purple-300 text-xs uppercase font-bold mb-1">🤫 Your Secret Goal</p>
+                        <p className="text-white">{timeCapsuleData.secretGoal}</p>
+                      </div>
+                    )}
+                    {timeCapsuleData.messageToFutureSelf && (
+                      <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-xl p-4 border border-amber-500/30">
+                        <p className="text-amber-300 text-xs uppercase font-bold mb-1">💌 Message to Future You</p>
+                        <p className="text-white italic">"{timeCapsuleData.messageToFutureSelf}"</p>
+                      </div>
+                    )}
+                    {timeCapsuleData.currentFavorites && (
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <p className="text-amber-300 text-xs uppercase font-bold mb-1">Your Favorites Back Then</p>
+                        <p className="text-white">{timeCapsuleData.currentFavorites}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Create new capsule */
+                <div className="text-center max-w-2xl w-full">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-2xl shadow-amber-500/30">
+                    <Gift className="w-12 h-12 text-white" />
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-black text-white mb-4">
+                    Create Your 2026 Time Capsule
+                  </h1>
+                  <p className="text-white/70 mb-8">
+                    Seal a message to your future self. Opens at mid-year and year-end!
+                  </p>
+                  
+                  <div className="space-y-4 text-left max-w-lg mx-auto">
+                    <div>
+                      <label className="text-amber-300 text-sm font-medium block mb-2">How are you feeling right now?</label>
+                      <input
+                        type="text"
+                        value={timeCapsuleAnswers.currentMood}
+                        onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, currentMood: e.target.value })}
+                        placeholder="Describe your current state of mind..."
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-amber-300 text-sm font-medium block mb-2">What challenge are you facing?</label>
+                      <input
+                        type="text"
+                        value={timeCapsuleAnswers.currentChallenge}
+                        onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, currentChallenge: e.target.value })}
+                        placeholder="Your biggest obstacle right now..."
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-amber-300 text-sm font-medium block mb-2">What do you hope to achieve by December?</label>
+                      <textarea
+                        value={timeCapsuleAnswers.hopesForEndOfYear}
+                        onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, hopesForEndOfYear: e.target.value })}
+                        placeholder="Your hopes and dreams for this year..."
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none resize-none h-24"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-amber-300 text-sm font-medium block mb-2">Make a prediction for 2026 🔮</label>
+                      <input
+                        type="text"
+                        value={timeCapsuleAnswers.predictionsFor2026}
+                        onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, predictionsFor2026: e.target.value })}
+                        placeholder="Something you think will happen..."
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-purple-300 text-sm font-medium block mb-2">🤫 Secret goal (just between you and future you)</label>
+                      <input
+                        type="text"
+                        value={timeCapsuleAnswers.secretGoal}
+                        onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, secretGoal: e.target.value })}
+                        placeholder="Something you haven't told anyone..."
+                        className="w-full bg-white/10 border-2 border-purple-500/30 focus:border-purple-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-amber-300 text-sm font-medium block mb-2">Message to your future self 💌</label>
+                      <textarea
+                        value={timeCapsuleAnswers.messageToFutureSelf}
+                        onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, messageToFutureSelf: e.target.value })}
+                        placeholder="Dear future me..."
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none resize-none h-32"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-amber-300 text-sm font-medium block mb-2">Current favorites (song, show, food, etc)</label>
+                      <input
+                        type="text"
+                        value={timeCapsuleAnswers.currentFavorites}
+                        onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, currentFavorites: e.target.value })}
+                        placeholder="What you're loving right now..."
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={saveTimeCapsule}
+                    className="mt-8 px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl font-bold transition-all flex items-center gap-2 mx-auto shadow-lg shadow-amber-500/25"
+                  >
+                    <Lock className="w-5 h-5" />
+                    Seal My Time Capsule
+                  </button>
+                  <p className="text-white/40 text-xs mt-4">
+                    Once sealed, you can peek at mid-year (Jul 1) and open fully on Dec 26
+                  </p>
+                </div>
               )}
             </div>
           </div>
