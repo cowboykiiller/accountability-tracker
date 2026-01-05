@@ -1304,12 +1304,22 @@ export default function AccountabilityTracker() {
     return baseParticipants;
   }, [profiles, habits]);
 
-  // Calculate streaks for each participant
+  // Helper: Get current week start string (for excluding from past metrics)
+  const currentWeekStart = useMemo(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    return monday.toISOString().split('T')[0];
+  }, []);
+
+  // Calculate streaks for each participant (excluding current week)
   const calculateStreaks = useMemo(() => {
     const streaks = {};
     allParticipants.forEach(p => {
-      // Group habits by week for this participant
-      const participantHabits = habits.filter(h => h.participant === p);
+      // Group habits by week for this participant (exclude current week)
+      const participantHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
       const weeklyData = {};
       
       participantHabits.forEach(h => {
@@ -1339,12 +1349,12 @@ export default function AccountabilityTracker() {
       streaks[p] = currentStreak;
     });
     return streaks;
-  }, [habits, allParticipants]);
+  }, [habits, allParticipants, currentWeekStart]);
 
-  // Calculate leaderboard
+  // Calculate leaderboard (excluding current week for fair comparison)
   const leaderboard = useMemo(() => {
     return allParticipants.map(p => {
-      const participantHabits = habits.filter(h => h.participant === p);
+      const participantHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
       const totalPossible = participantHabits.reduce((sum, h) => sum + (h.target || 5), 0);
       const totalCompleted = participantHabits.reduce((sum, h) => {
         return sum + (h.daysCompleted?.length || 0);
@@ -1359,14 +1369,15 @@ export default function AccountabilityTracker() {
         score: rate + (calculateStreaks[p] || 0) * 10 // Rate + streak bonus
       };
     }).sort((a, b) => b.score - a.score);
-  }, [habits, calculateStreaks, allParticipants]);
+  }, [habits, calculateStreaks, allParticipants, currentWeekStart]);
 
   // Calculate Wrapped Stats for the current user
   const wrappedStats = useMemo(() => {
     const myParticipantName = userProfile?.linkedParticipant || user?.displayName;
     if (!myParticipantName || habits.length === 0) return null;
     
-    const myHabits = habits.filter(h => h.participant === myParticipantName);
+    // Filter to only PAST weeks (exclude current week)
+    const myHabits = habits.filter(h => h.participant === myParticipantName && h.weekStart !== currentWeekStart);
     if (myHabits.length === 0) return null;
     
     // Basic totals
@@ -1378,7 +1389,7 @@ export default function AccountabilityTracker() {
     const totalTargetDays = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
     const overallCompletionRate = totalTargetDays > 0 ? Math.round((totalDaysCompleted / totalTargetDays) * 100) : 0;
     
-    // Unique weeks tracked
+    // Unique weeks tracked (past weeks only)
     const weeksTracked = [...new Set(myHabits.map(h => h.weekStart))].sort();
     const totalWeeks = weeksTracked.length;
     
@@ -1515,9 +1526,9 @@ export default function AccountabilityTracker() {
       funFacts.push(`${noHabits.length} "No" habits tracked - saying no to distractions is saying yes to success! 🚫➡️✅`);
     }
     
-    // Group comparison
+    // Group comparison (also excluding current week for fair comparison)
     const groupStats = allParticipants.map(p => {
-      const pHabits = habits.filter(h => h.participant === p);
+      const pHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
       const pCompleted = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length), 0);
       const pTarget = pHabits.reduce((sum, h) => sum + (h.target || 5), 0);
       return {
@@ -1586,7 +1597,7 @@ export default function AccountabilityTracker() {
       gradeEmoji,
       myParticipantName
     };
-  }, [habits, userProfile, user, allParticipants]);
+  }, [habits, userProfile, user, allParticipants, currentWeekStart]);
 
   // Submit weekly check-in
   const submitCheckIn = async () => {
@@ -2274,8 +2285,9 @@ export default function AccountabilityTracker() {
     if (scorecardRange === 'week') return habits.filter(h => h.weekStart === currentWeek);
     if (scorecardRange === '4weeks') { const idx = ALL_WEEKS.indexOf(currentWeek); return habits.filter(h => ALL_WEEKS.slice(Math.max(0, idx - 3), idx + 1).includes(h.weekStart)); }
     if (scorecardRange === 'quarter') { const d = new Date(currentWeek + 'T00:00:00'); const qs = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1); return habits.filter(h => new Date(h.weekStart + 'T00:00:00') >= qs); }
-    return habits;
-  }, [habits, currentWeek, scorecardRange, ALL_WEEKS]);
+    // For "all time", exclude current week so incomplete weeks don't drag down metrics
+    return habits.filter(h => h.weekStart !== currentWeekStart);
+  }, [habits, currentWeek, scorecardRange, ALL_WEEKS, currentWeekStart]);
 
   // My habits in the selected range
   const myRangeHabits = useMemo(() => getRangeHabits.filter(h => h.participant === myParticipant), [getRangeHabits, myParticipant]);
@@ -6752,7 +6764,8 @@ export default function AccountabilityTracker() {
                 <ResponsiveContainer width="100%" height={220}>
                   <RadarChart data={(() => {
                     const categories = ['Fitness', 'Business', 'Finance', 'Health', 'Learning', 'Relationships', 'Spiritual'];
-                    const myHabits = habits.filter(h => h.participant === myParticipant);
+                    // Exclude current week for accurate historical balance
+                    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart !== currentWeekStart);
                     
                     return categories.map(cat => {
                       const catHabits = myHabits.filter(h => (h.category || 'Personal') === cat);
@@ -6801,7 +6814,8 @@ export default function AccountabilityTracker() {
                     </div>
                     <span className="text-emerald-500 text-sm font-medium">
                       {(() => {
-                        const myHabits = habits.filter(h => h.participant === myParticipant);
+                        // Exclude current week for accurate historical stats
+                        const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart !== currentWeekStart);
                         const completed = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
                         return myHabits.length > 0 ? Math.round((completed / myHabits.length) * 100) : 0;
                       })()}% Overall
