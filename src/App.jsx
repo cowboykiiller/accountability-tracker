@@ -832,9 +832,14 @@ export default function AccountabilityTracker() {
   
   // Bets/Challenges state
   const [bets, setBets] = useState([]);
-  const [newBet, setNewBet] = useState({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false });
+  const [newBet, setNewBet] = useState({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false, allowMultipleWinners: false });
   const [showNewBet, setShowNewBet] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
+  const [showIncomingChallenge, setShowIncomingChallenge] = useState(null); // For dramatic challenge reveal
+  const [challengeSuggestions, setChallengeSuggestions] = useState([]);
+  const [prizeSuggestions, setPrizeSuggestions] = useState([]);
+  const [loadingChallengeSuggestions, setLoadingChallengeSuggestions] = useState(false);
+  const [loadingPrizeSuggestions, setLoadingPrizeSuggestions] = useState(false);
   
   // Profile state
   const [profiles, setProfiles] = useState([]);
@@ -2110,6 +2115,7 @@ export default function AccountabilityTracker() {
       challengerPhoto: userProfile?.photoURL || user.photoURL,
       challenged: newBet.isGroup ? newBet.challenged : [newBet.challenged], // Always store as array
       isGroup: newBet.isGroup || false,
+      allowMultipleWinners: newBet.allowMultipleWinners || false,
       goal: newBet.goal,
       reward: newBet.reward || 'Bragging rights! 🏆',
       deadline: newBet.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -2118,13 +2124,16 @@ export default function AccountabilityTracker() {
       declinedBy: [], // Track who has declined
       acceptedAt: null,
       completedAt: null,
-      winner: null,
+      winner: null, // Can be string or array now
+      winners: [], // New field for multiple winners
       createdAt: new Date().toISOString()
     };
     
     await setDoc(doc(db, 'bets', bet.id), bet);
-    setNewBet({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false });
+    setNewBet({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false, allowMultipleWinners: false });
     setShowNewBet(false);
+    setChallengeSuggestions([]);
+    setPrizeSuggestions([]);
   };
 
   // Update/Edit challenge
@@ -2169,6 +2178,9 @@ export default function AccountabilityTracker() {
         acceptedAt: new Date().toISOString()
       }, { merge: true });
     }
+    
+    // Close the incoming challenge modal if open
+    setShowIncomingChallenge(null);
   };
 
   // Decline challenge
@@ -2176,23 +2188,165 @@ export default function AccountabilityTracker() {
     const bet = bets.find(b => b.id === betId);
     if (!bet) return;
     
+    const myName = userProfile?.linkedParticipant || user.displayName;
+    const declinedBy = [...(bet.declinedBy || [])];
+    if (!declinedBy.includes(myName)) {
+      declinedBy.push(myName);
+    }
+    
     await setDoc(doc(db, 'bets', betId), { 
-      ...bet, 
+      ...bet,
+      declinedBy,
       status: 'declined'
     }, { merge: true });
+    
+    setShowIncomingChallenge(null);
   };
 
-  // Complete challenge (mark winner)
-  const completeBet = async (betId, winnerName) => {
+  // Complete challenge (mark winner - now supports multiple winners)
+  const completeBet = async (betId, winnerName, isMultiple = false) => {
     const bet = bets.find(b => b.id === betId);
     if (!bet) return;
+    
+    if (isMultiple && bet.allowMultipleWinners) {
+      // Toggle winner in the winners array
+      const currentWinners = [...(bet.winners || [])];
+      const idx = currentWinners.indexOf(winnerName);
+      if (idx >= 0) {
+        currentWinners.splice(idx, 1);
+      } else {
+        currentWinners.push(winnerName);
+      }
+      
+      await setDoc(doc(db, 'bets', betId), { 
+        ...bet, 
+        winners: currentWinners,
+        // Don't mark as completed until explicitly done
+      }, { merge: true });
+    } else {
+      // Single winner - complete immediately
+      await setDoc(doc(db, 'bets', betId), { 
+        ...bet, 
+        status: 'completed',
+        winner: winnerName,
+        winners: [winnerName],
+        completedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  };
+
+  // Finalize challenge with multiple winners
+  const finalizeBetWithWinners = async (betId) => {
+    const bet = bets.find(b => b.id === betId);
+    if (!bet || !bet.winners || bet.winners.length === 0) return;
     
     await setDoc(doc(db, 'bets', betId), { 
       ...bet, 
       status: 'completed',
-      winner: winnerName,
+      winner: bet.winners.length === 1 ? bet.winners[0] : bet.winners.join(', '),
       completedAt: new Date().toISOString()
     }, { merge: true });
+  };
+
+  // AI Generate Challenge Suggestions
+  const generateChallengeSuggestions = async () => {
+    setLoadingChallengeSuggestions(true);
+    try {
+      const participants = newBet.isGroup 
+        ? newBet.challenged.join(', ')
+        : newBet.challenged;
+      
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          messages: [{
+            role: 'user',
+            content: `Generate 5 fun and motivating accountability challenge ideas for habit tracking. The challenger is "${userProfile?.linkedParticipant || 'Someone'}" and they're challenging "${participants || 'a friend'}".
+
+Mix of challenge types:
+- Completion-based (hit X% completion)
+- Streak-based (maintain habits for X days/weeks)
+- Head-to-head (who performs better)
+- Group achievement (everyone hits a goal)
+
+Return ONLY a JSON array of 5 strings, each being a complete challenge description. Make them specific, measurable, and exciting! Examples:
+["Hit 90% habit completion for the next 2 weeks", "7-day perfect streak showdown", "Most improved completion rate wins"]
+
+JSON array only, no other text:`
+          }]
+        })
+      });
+      
+      const data = await response.json();
+      const text = data.content?.[0]?.text || '[]';
+      const suggestions = JSON.parse(text.replace(/```json|```/g, '').trim());
+      setChallengeSuggestions(suggestions);
+    } catch (error) {
+      console.error('Challenge suggestions error:', error);
+      setChallengeSuggestions([
+        "Hit 85% habit completion this week",
+        "7-day streak challenge - no missed habits",
+        "Most habits exceeded by end of month wins",
+        "Complete every habit for 5 days straight",
+        "Beat your personal best completion rate"
+      ]);
+    }
+    setLoadingChallengeSuggestions(false);
+  };
+
+  // AI Generate Prize Suggestions
+  const generatePrizeSuggestions = async () => {
+    setLoadingPrizeSuggestions(true);
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 400,
+          messages: [{
+            role: 'user',
+            content: `Generate 6 fun prize/reward ideas for an accountability challenge between friends. Mix of:
+- Free/fun stakes (bragging rights, social media shoutout)
+- Small stakes ($5-20 value)
+- Medium stakes (lunch, coffee, small gift)
+- Funny/creative stakes (embarrassing task)
+
+Return ONLY a JSON array of 6 strings with emoji. Examples:
+["🏆 Eternal bragging rights", "☕ Loser buys coffee", "📱 Winner gets a social media shoutout"]
+
+JSON array only:`
+          }]
+        })
+      });
+      
+      const data = await response.json();
+      const text = data.content?.[0]?.text || '[]';
+      const suggestions = JSON.parse(text.replace(/```json|```/g, '').trim());
+      setPrizeSuggestions(suggestions);
+    } catch (error) {
+      console.error('Prize suggestions error:', error);
+      setPrizeSuggestions([
+        "🏆 Eternal bragging rights",
+        "☕ Loser buys winner coffee",
+        "🍕 Pizza on the loser",
+        "📱 Winner gets a hype post on social media",
+        "😅 Loser does 50 burpees on video",
+        "💪 Loser has to do winner's least favorite habit for a week"
+      ]);
+    }
+    setLoadingPrizeSuggestions(false);
   };
 
   // Delete challenge
@@ -5003,68 +5157,96 @@ export default function AccountabilityTracker() {
                       const isChallengee = challengedList.includes(myName);
                       const hasAccepted = bet.acceptedBy?.includes(myName);
                       const hasDeclined = bet.declinedBy?.includes(myName);
+                      const isChallenger = bet.challengerId === user?.uid;
                       
                       return (
-                        <div key={bet.id} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                        <div key={bet.id} className={`p-4 rounded-xl border-2 transition-all ${
+                          isChallengee && !hasAccepted && !hasDeclined && !isChallenger
+                            ? 'bg-gradient-to-r from-purple-100 via-pink-50 to-orange-50 border-purple-300 shadow-lg shadow-purple-200/50 animate-pulse'
+                            : 'bg-purple-50 border-purple-100'
+                        }`}>
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 flex-wrap">
-                              {bet.isGroup && <span className="px-1.5 py-0.5 bg-purple-200 text-purple-800 text-[10px] font-medium rounded">GROUP</span>}
+                              {bet.isGroup && <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-bold rounded-full">GROUP</span>}
+                              {bet.allowMultipleWinners && <span className="px-2 py-0.5 bg-green-200 text-green-800 text-xs font-bold rounded-full">MULTI-WIN</span>}
                               <Swords className="w-4 h-4 text-purple-600" />
-                              <span className="font-medium text-purple-800">{bet.challenger}</span>
-                              <span className="text-purple-400">vs</span>
-                              <span className="font-medium text-purple-800">
+                              <span className="font-bold text-purple-800">{bet.challenger}</span>
+                              <span className="text-purple-400">⚔️</span>
+                              <span className="font-bold text-purple-800">
                                 {challengedList.length > 2 
                                   ? `${challengedList.slice(0, 2).join(', ')} +${challengedList.length - 2}`
                                   : challengedList.join(', ')}
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
-                              {bet.challengerId === user?.uid && (
+                              {isChallenger && (
                                 <>
                                   <button onClick={() => setEditingBet(bet)} className="p-1 text-purple-400 hover:text-purple-600">
-                                    <Wand2 className="w-3 h-3" />
+                                    <Wand2 className="w-4 h-4" />
                                   </button>
                                   <button onClick={() => deleteBet(bet.id)} className="p-1 text-purple-400 hover:text-red-500">
-                                    <Trash2 className="w-3 h-3" />
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
                                 </>
                               )}
                             </div>
                           </div>
-                          <p className="text-sm text-purple-700 mb-1">{bet.goal}</p>
-                          {bet.reward && <p className="text-xs text-purple-500 mb-1">🎁 {bet.reward}</p>}
-                          <p className="text-xs text-purple-500 mb-2">Deadline: {new Date(bet.deadline).toLocaleDateString()}</p>
+                          <p className="text-sm text-purple-700 mb-1 font-medium">{bet.goal}</p>
+                          {bet.reward && <p className="text-xs text-purple-500 mb-1">🏆 Stakes: {bet.reward}</p>}
+                          <p className="text-xs text-purple-500 mb-2">⏰ Deadline: {new Date(bet.deadline).toLocaleDateString()}</p>
                           
                           {/* Group challenge status */}
                           {bet.isGroup && bet.acceptedBy?.length > 0 && (
-                            <p className="text-xs text-green-600 mb-2">
+                            <p className="text-xs text-green-600 mb-2 bg-green-50 px-2 py-1 rounded-lg inline-block">
                               ✓ Accepted: {bet.acceptedBy.join(', ')}
                             </p>
                           )}
                           
-                          {isChallengee && bet.challengerId !== user?.uid && !hasAccepted && !hasDeclined && (
-                            <div className="flex gap-2">
+                          {/* Dramatic View Challenge button for challangees */}
+                          {isChallengee && !isChallenger && !hasAccepted && !hasDeclined && (
+                            <button 
+                              onClick={() => setShowIncomingChallenge(bet)}
+                              className="w-full mt-2 py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 text-white rounded-xl font-black text-sm hover:from-purple-500 hover:via-pink-500 hover:to-orange-400 transition-all shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 animate-pulse"
+                            >
+                              <Flame className="w-4 h-4" />
+                              VIEW CHALLENGE
+                              <Flame className="w-4 h-4" />
+                            </button>
+                          )}
+                          
+                          {/* Quick accept/decline for returning users */}
+                          {isChallengee && !isChallenger && !hasAccepted && !hasDeclined && (
+                            <div className="flex gap-2 mt-2">
                               <button 
                                 onClick={() => acceptBet(bet.id)}
-                                className="flex-1 py-1.5 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600"
+                                className="flex-1 py-2 bg-green-500 text-white rounded-lg text-sm font-bold hover:bg-green-600 flex items-center justify-center gap-1"
                               >
-                                Accept
+                                <Check className="w-4 h-4" />
+                                Quick Accept
                               </button>
                               <button 
                                 onClick={() => declineBet(bet.id)}
-                                className="flex-1 py-1.5 bg-red-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-200"
+                                className="flex-1 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-bold hover:bg-red-200 flex items-center justify-center gap-1"
                               >
+                                <X className="w-4 h-4" />
                                 Decline
                               </button>
                             </div>
                           )}
+                          
                           {hasAccepted && (
-                            <p className="text-xs text-green-600 font-medium">✓ You accepted - waiting for others</p>
+                            <p className="text-xs text-green-600 font-bold mt-2 bg-green-50 px-3 py-2 rounded-lg">✓ You accepted - waiting for others</p>
+                          )}
+                          
+                          {isChallenger && (
+                            <p className="text-xs text-purple-500 font-medium mt-2">⏳ Waiting for response...</p>
                           )}
                         </div>
                       );
                     })}
                   </div>
+                )}
+              </div>
                 )}
               </div>
               
@@ -5083,16 +5265,18 @@ export default function AccountabilityTracker() {
                       const allParticipantsInChallenge = [bet.challenger, ...challengedList];
                       const myName = userProfile?.linkedParticipant || user?.displayName;
                       const isParticipant = allParticipantsInChallenge.includes(myName) || bet.challengerId === user?.uid;
+                      const currentWinners = bet.winners || [];
                       
                       return (
-                        <div key={bet.id} className="p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
+                        <div key={bet.id} className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-200">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 flex-wrap">
-                              {bet.isGroup && <span className="px-1.5 py-0.5 bg-orange-200 text-orange-800 text-[10px] font-medium rounded">GROUP</span>}
+                              {bet.isGroup && <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs font-bold rounded-full">GROUP</span>}
+                              {bet.allowMultipleWinners && <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-bold rounded-full">MULTI-WIN</span>}
                               <span className="text-lg">⚔️</span>
-                              <span className="font-medium text-gray-800">{bet.challenger}</span>
-                              <span className="text-gray-400">vs</span>
-                              <span className="font-medium text-gray-800">
+                              <span className="font-bold text-gray-800">{bet.challenger}</span>
+                              <span className="text-gray-400 text-sm">vs</span>
+                              <span className="font-bold text-gray-800">
                                 {challengedList.length > 2 
                                   ? `${challengedList.slice(0, 2).join(', ')} +${challengedList.length - 2}`
                                   : challengedList.join(', ')}
@@ -5101,29 +5285,67 @@ export default function AccountabilityTracker() {
                             <div className="flex items-center gap-1">
                               {bet.challengerId === user?.uid && (
                                 <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-400 hover:text-red-500">
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               )}
                             </div>
                           </div>
-                          <p className="text-sm text-gray-700 mb-1">{bet.goal}</p>
-                          {bet.reward && <p className="text-xs text-orange-600 mb-2">🎁 {bet.reward}</p>}
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-gray-500">Ends: {new Date(bet.deadline).toLocaleDateString()}</p>
-                            {isParticipant && (
-                              <div className="flex gap-1 flex-wrap">
-                                {allParticipantsInChallenge.map(p => (
-                                  <button 
-                                    key={p}
-                                    onClick={() => completeBet(bet.id, p)}
-                                    className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
-                                  >
-                                    {p} won
-                                  </button>
-                                ))}
+                          <p className="text-sm text-gray-700 mb-2 font-medium">{bet.goal}</p>
+                          {bet.reward && <p className="text-xs text-orange-600 mb-3 bg-orange-100 px-2 py-1 rounded-lg inline-block">🏆 Stakes: {bet.reward}</p>}
+                          
+                          {/* Winner Selection */}
+                          {isParticipant && (
+                            <div className="mt-3 pt-3 border-t border-yellow-200">
+                              <p className="text-xs text-gray-500 mb-2 font-medium">
+                                {bet.allowMultipleWinners ? '🎖️ Select all winners:' : '🏆 Who won?'}
+                              </p>
+                              <div className="flex gap-2 flex-wrap">
+                                {allParticipantsInChallenge.map(p => {
+                                  const isSelectedWinner = currentWinners.includes(p);
+                                  return (
+                                    <button 
+                                      key={p}
+                                      onClick={() => completeBet(bet.id, p, bet.allowMultipleWinners)}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                        isSelectedWinner 
+                                          ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md' 
+                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      {isSelectedWinner && <Crown className="w-3 h-3" />}
+                                      {p}
+                                      {!bet.allowMultipleWinners && ' won'}
+                                    </button>
+                                  );
+                                })}
                               </div>
+                              
+                              {/* Finalize button for multi-winner challenges */}
+                              {bet.allowMultipleWinners && currentWinners.length > 0 && (
+                                <button
+                                  onClick={() => finalizeBetWithWinners(bet.id)}
+                                  className="mt-3 w-full py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-sm font-bold hover:from-green-400 hover:to-emerald-400 transition-all flex items-center justify-center gap-2"
+                                >
+                                  <Trophy className="w-4 h-4" />
+                                  Finalize Challenge ({currentWinners.length} winner{currentWinners.length > 1 ? 's' : ''})
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-between mt-3 pt-2 border-t border-yellow-200/50">
+                            <p className="text-xs text-gray-500">⏰ Ends: {new Date(bet.deadline).toLocaleDateString()}</p>
+                            {currentWinners.length > 0 && !bet.allowMultipleWinners === false && (
+                              <p className="text-xs text-amber-600 font-medium">
+                                Selected: {currentWinners.join(', ')}
+                              </p>
                             )}
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                         </div>
                       );
                     })}
@@ -5140,152 +5362,397 @@ export default function AccountabilityTracker() {
                   Completed Challenges
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {bets.filter(b => b.status === 'completed').map(bet => (
-                    <div key={bet.id} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">{bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</span>
-                        <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-300 hover:text-red-400">
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                  {bets.filter(b => b.status === 'completed').map(bet => {
+                    const winnersList = bet.winners && bet.winners.length > 0 ? bet.winners : (bet.winner ? [bet.winner] : []);
+                    const isMultipleWinners = winnersList.length > 1;
+                    
+                    return (
+                      <div key={bet.id} className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {bet.isGroup && <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-bold rounded-full">GROUP</span>}
+                            {isMultipleWinners && <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs font-bold rounded-full">CO-CHAMPS</span>}
+                            <span className="text-sm text-gray-600">
+                              {bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}
+                            </span>
+                          </div>
+                          <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-300 hover:text-red-400">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-2">{bet.goal}</p>
+                        {bet.reward && <p className="text-xs text-purple-500 mb-2">🎁 {bet.reward}</p>}
+                        
+                        {/* Winner Display */}
+                        <div className={`mt-3 p-3 rounded-xl ${isMultipleWinners ? 'bg-gradient-to-r from-amber-100 to-orange-100' : 'bg-gradient-to-r from-purple-100 to-pink-100'}`}>
+                          <div className="flex items-center gap-2">
+                            <div className="flex -space-x-2">
+                              {winnersList.map((w, idx) => (
+                                <div key={w} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white ${
+                                  idx === 0 ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white' : 'bg-gradient-to-br from-purple-400 to-pink-500 text-white'
+                                }`}>
+                                  {getParticipantPhoto(w) ? (
+                                    <img src={getParticipantPhoto(w)} alt={w} className="w-full h-full rounded-full object-cover" />
+                                  ) : (
+                                    w.charAt(0)
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">{isMultipleWinners ? 'Champions' : 'Champion'}</p>
+                              <p className="font-bold text-purple-700 flex items-center gap-1">
+                                <Crown className="w-4 h-4 text-amber-500" />
+                                {winnersList.join(' & ')}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {bet.completedAt && (
+                          <p className="text-xs text-gray-400 mt-2">
+                            Completed {new Date(bet.completedAt).toLocaleDateString()}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-xs text-gray-500">{bet.goal}</p>
-                      <p className="text-sm font-medium text-purple-600 mt-1">🏆 Winner: {bet.winner}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
             
-            {/* New Challenge Modal */}
+            {/* New Challenge Modal - Game-like Experience */}
             {showNewBet && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <Swords className="w-5 h-5 text-purple-600" />
-                    Create New Challenge
-                  </h3>
+              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                <div className="bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-800 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto relative">
+                  {/* Animated Background Effects */}
+                  <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-purple-500/30 rounded-full blur-3xl animate-pulse" />
+                    <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-500/30 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                  </div>
                   
-                  <div className="space-y-4">
+                  {/* Header */}
+                  <div className="relative p-6 pb-4 border-b border-white/10">
+                    <button 
+                      onClick={() => { setShowNewBet(false); setNewBet({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false, allowMultipleWinners: false }); setChallengeSuggestions([]); setPrizeSuggestions([]); }}
+                      className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                        <Swords className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-white">Throw Down the Gauntlet</h3>
+                        <p className="text-purple-300 text-sm">Create an epic challenge</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="relative p-6 space-y-5">
                     {/* Challenge Type Toggle */}
                     <div>
-                      <label className="text-sm text-gray-600 block mb-2">Challenge Type</label>
+                      <label className="text-purple-300 text-sm font-medium block mb-2">Battle Type</label>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setNewBet({ ...newBet, isGroup: false, challenged: '' })}
-                          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${!newBet.isGroup ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                          onClick={() => setNewBet({ ...newBet, isGroup: false, challenged: '', allowMultipleWinners: false })}
+                          className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${!newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
                         >
-                          <User className="w-4 h-4" />
-                          1 vs 1
+                          <Swords className="w-4 h-4" />
+                          1 vs 1 Duel
                         </button>
                         <button
                           onClick={() => setNewBet({ ...newBet, isGroup: true, challenged: [] })}
-                          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${newBet.isGroup ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                          className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
                         >
                           <Users className="w-4 h-4" />
-                          Group
+                          Group Battle
                         </button>
                       </div>
                     </div>
                     
                     {/* Participant Selection */}
                     <div>
-                      <label className="text-sm text-gray-600 block mb-1">
-                        {newBet.isGroup ? 'Challenge Who? (select multiple)' : 'Challenge Who?'}
+                      <label className="text-purple-300 text-sm font-medium block mb-2">
+                        {newBet.isGroup ? '⚔️ Challenge Who?' : '⚔️ Your Opponent'}
                       </label>
                       
-                      {newBet.isGroup ? (
-                        <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            {allParticipants.filter(p => p !== userProfile?.linkedParticipant && p !== user?.displayName).map(p => {
-                              const isSelected = Array.isArray(newBet.challenged) && newBet.challenged.includes(p);
-                              return (
-                                <button
-                                  key={p}
-                                  onClick={() => {
-                                    const current = Array.isArray(newBet.challenged) ? newBet.challenged : [];
-                                    if (isSelected) {
-                                      setNewBet({ ...newBet, challenged: current.filter(x => x !== p) });
-                                    } else {
-                                      setNewBet({ ...newBet, challenged: [...current, p] });
-                                    }
-                                  }}
-                                  className={`p-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${isSelected ? 'bg-purple-100 text-purple-700 border-2 border-purple-400' : 'bg-gray-50 text-gray-700 border-2 border-transparent hover:bg-gray-100'}`}
-                                >
-                                  {isSelected && <CheckCircle2 className="w-4 h-4" />}
-                                  {p}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {Array.isArray(newBet.challenged) && newBet.challenged.length > 0 && (
-                            <p className="text-xs text-purple-600">
-                              Selected: {newBet.challenged.join(', ')}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <select 
-                          value={typeof newBet.challenged === 'string' ? newBet.challenged : ''}
-                          onChange={(e) => setNewBet({ ...newBet, challenged: e.target.value })}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                        >
-                          <option value="">Select opponent...</option>
-                          {allParticipants.filter(p => p !== userProfile?.linkedParticipant && p !== user?.displayName).map(p => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
-                        </select>
-                      )}
+                      <div className="grid grid-cols-3 gap-2">
+                        {allParticipants.filter(p => p !== userProfile?.linkedParticipant && p !== user?.displayName).map(p => {
+                          const isSelected = newBet.isGroup 
+                            ? (Array.isArray(newBet.challenged) && newBet.challenged.includes(p))
+                            : newBet.challenged === p;
+                          const photo = getParticipantPhoto(p);
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => {
+                                if (newBet.isGroup) {
+                                  const current = Array.isArray(newBet.challenged) ? newBet.challenged : [];
+                                  if (isSelected) {
+                                    setNewBet({ ...newBet, challenged: current.filter(x => x !== p) });
+                                  } else {
+                                    setNewBet({ ...newBet, challenged: [...current, p] });
+                                  }
+                                } else {
+                                  setNewBet({ ...newBet, challenged: p });
+                                }
+                              }}
+                              className={`p-3 rounded-xl transition-all flex flex-col items-center gap-2 ${isSelected ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/30 scale-105' : 'bg-white/10 hover:bg-white/20'}`}
+                            >
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${isSelected ? 'bg-white/30' : 'bg-white/20'}`}>
+                                {photo ? (
+                                  <img src={photo} alt={p} className="w-full h-full rounded-full object-cover" />
+                                ) : (
+                                  p.charAt(0)
+                                )}
+                              </div>
+                              <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-white/80'}`}>{p}</span>
+                              {isSelected && <Crown className="w-4 h-4 text-white absolute -top-1 -right-1" />}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     
+                    {/* The Challenge - with AI suggestions */}
                     <div>
-                      <label className="text-sm text-gray-600 block mb-1">The Challenge</label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-purple-300 text-sm font-medium">🎯 The Challenge</label>
+                        <button
+                          onClick={generateChallengeSuggestions}
+                          disabled={loadingChallengeSuggestions}
+                          className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-50"
+                        >
+                          {loadingChallengeSuggestions ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                          AI Ideas
+                        </button>
+                      </div>
                       <input
                         type="text"
                         value={newBet.goal}
                         onChange={(e) => setNewBet({ ...newBet, goal: e.target.value })}
-                        placeholder={newBet.isGroup ? "e.g., Everyone hits 80% completion this month" : "e.g., Complete all habits for 2 weeks"}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        placeholder="e.g., First to 7 days of 100% completion wins"
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
                       />
+                      
+                      {/* AI Challenge Suggestions */}
+                      {challengeSuggestions.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {challengeSuggestions.map((suggestion, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setNewBet({ ...newBet, goal: suggestion })}
+                              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${newBet.goal === suggestion ? 'bg-purple-500/40 text-white border border-purple-400' : 'bg-white/5 text-white/70 hover:bg-white/10'}`}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     
+                    {/* Prize/Stakes - with AI suggestions */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-purple-300 text-sm font-medium">🏆 The Stakes</label>
+                        <button
+                          onClick={generatePrizeSuggestions}
+                          disabled={loadingPrizeSuggestions}
+                          className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-50"
+                        >
+                          {loadingPrizeSuggestions ? <Loader2 className="w-3 h-3 animate-spin" /> : <Gift className="w-3 h-3" />}
+                          Prize Ideas
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={newBet.reward}
+                        onChange={(e) => setNewBet({ ...newBet, reward: e.target.value })}
+                        placeholder="Bragging rights, coffee, $10..."
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                      />
+                      
+                      {/* AI Prize Suggestions */}
+                      {prizeSuggestions.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {prizeSuggestions.map((suggestion, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setNewBet({ ...newBet, reward: suggestion })}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${newBet.reward === suggestion ? 'bg-amber-500/40 text-white border border-amber-400' : 'bg-white/5 text-white/70 hover:bg-white/10'}`}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Deadline */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-sm text-gray-600 block mb-1">Reward (optional)</label>
-                        <input
-                          type="text"
-                          value={newBet.reward}
-                          onChange={(e) => setNewBet({ ...newBet, reward: e.target.value })}
-                          placeholder="Bragging rights 🏆"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-600 block mb-1">Deadline</label>
+                        <label className="text-purple-300 text-sm font-medium block mb-2">⏰ Deadline</label>
                         <input
                           type="date"
                           value={newBet.deadline}
                           onChange={(e) => setNewBet({ ...newBet, deadline: e.target.value })}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                          className="w-full bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl px-4 py-3 text-white outline-none transition-colors"
                         />
+                      </div>
+                      
+                      {/* Multiple Winners Option (for group challenges) */}
+                      {newBet.isGroup && (
+                        <div>
+                          <label className="text-purple-300 text-sm font-medium block mb-2">🎖️ Winners</label>
+                          <button
+                            onClick={() => setNewBet({ ...newBet, allowMultipleWinners: !newBet.allowMultipleWinners })}
+                            className={`w-full py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.allowMultipleWinners ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                          >
+                            <Users className="w-4 h-4" />
+                            {newBet.allowMultipleWinners ? 'Multi-Winner' : 'Single Winner'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Quick Deadline Buttons */}
+                    <div className="flex gap-2">
+                      {[
+                        { label: '1 Week', days: 7 },
+                        { label: '2 Weeks', days: 14 },
+                        { label: '1 Month', days: 30 }
+                      ].map(opt => {
+                        const date = new Date(Date.now() + opt.days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                        return (
+                          <button
+                            key={opt.label}
+                            onClick={() => setNewBet({ ...newBet, deadline: date })}
+                            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${newBet.deadline === date ? 'bg-purple-500 text-white' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Send Challenge Button */}
+                  <div className="relative p-6 pt-4 border-t border-white/10">
+                    <button 
+                      onClick={createBet}
+                      disabled={!(newBet.isGroup ? (Array.isArray(newBet.challenged) && newBet.challenged.length > 0) : newBet.challenged) || !newBet.goal}
+                      className="w-full py-4 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 hover:from-amber-300 hover:via-orange-400 hover:to-red-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-lg transition-all shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2"
+                    >
+                      <Swords className="w-5 h-5" />
+                      {newBet.isGroup ? 'SEND GROUP CHALLENGE' : 'SEND CHALLENGE'}
+                      <Flame className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Incoming Challenge Modal - Dramatic Reveal */}
+            {showIncomingChallenge && (
+              <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 backdrop-blur-md">
+                <div className="text-center max-w-lg animate-fade-in">
+                  {/* Animated Background */}
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-red-500/20 rounded-full blur-3xl animate-pulse" />
+                    <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-orange-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '0.5s' }} />
+                  </div>
+                  
+                  {/* VS Animation */}
+                  <div className="relative mb-8">
+                    <div className="flex items-center justify-center gap-4">
+                      {/* Challenger */}
+                      <div className="text-center">
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-red-500/50 border-4 border-red-400">
+                          {getParticipantPhoto(showIncomingChallenge.challenger) ? (
+                            <img src={getParticipantPhoto(showIncomingChallenge.challenger)} alt={showIncomingChallenge.challenger} className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            showIncomingChallenge.challenger?.charAt(0)
+                          )}
+                        </div>
+                        <p className="text-red-400 font-bold mt-2">{showIncomingChallenge.challenger}</p>
+                      </div>
+                      
+                      {/* VS Badge */}
+                      <div className="relative">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-2xl shadow-amber-500/50 animate-pulse">
+                          <span className="text-xl font-black text-white">VS</span>
+                        </div>
+                        <Swords className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-8 text-amber-400" />
+                      </div>
+                      
+                      {/* You */}
+                      <div className="text-center">
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-blue-500/50 border-4 border-blue-400">
+                          {userProfile?.photoURL ? (
+                            <img src={userProfile.photoURL} alt="You" className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            (userProfile?.linkedParticipant || 'Y').charAt(0)
+                          )}
+                        </div>
+                        <p className="text-blue-400 font-bold mt-2">You</p>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex gap-3 mt-6">
-                    <button 
-                      onClick={() => { setShowNewBet(false); setNewBet({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false }); }}
-                      className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                  {/* Challenge Alert */}
+                  <div className="mb-6">
+                    <h1 className="text-4xl md:text-5xl font-black text-white mb-2 animate-pulse">
+                      ⚔️ CHALLENGE! ⚔️
+                    </h1>
+                    <p className="text-amber-400 text-lg font-bold">
+                      {showIncomingChallenge.challenger} has challenged you!
+                    </p>
+                  </div>
+                  
+                  {/* Challenge Details */}
+                  <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-white/20 text-left">
+                    <div className="mb-4">
+                      <p className="text-white/50 text-xs uppercase tracking-wider mb-1">The Challenge</p>
+                      <p className="text-white text-xl font-bold">{showIncomingChallenge.goal}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Stakes</p>
+                        <p className="text-amber-400 font-bold">{showIncomingChallenge.reward}</p>
+                      </div>
+                      <div>
+                        <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Deadline</p>
+                        <p className="text-white font-bold">{new Date(showIncomingChallenge.deadline).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => declineBet(showIncomingChallenge.id)}
+                      className="flex-1 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
                     >
-                      Cancel
+                      <X className="w-5 h-5" />
+                      Decline
                     </button>
-                    <button 
-                      onClick={createBet}
-                      disabled={!(newBet.isGroup ? (Array.isArray(newBet.challenged) && newBet.challenged.length > 0) : newBet.challenged) || !newBet.goal}
-                      className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+                    <button
+                      onClick={() => acceptBet(showIncomingChallenge.id)}
+                      className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white rounded-xl font-black transition-all shadow-lg shadow-green-500/30 flex items-center justify-center gap-2"
                     >
-                      {newBet.isGroup ? 'Send Group Challenge' : 'Send Challenge'}
+                      <Flame className="w-5 h-5" />
+                      ACCEPT CHALLENGE
                     </button>
                   </div>
+                  
+                  <button
+                    onClick={() => setShowIncomingChallenge(null)}
+                    className="mt-4 text-white/50 hover:text-white/80 text-sm transition-colors"
+                  >
+                    Decide later
+                  </button>
                 </div>
               </div>
             )}
