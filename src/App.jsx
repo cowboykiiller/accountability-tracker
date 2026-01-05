@@ -5247,8 +5247,6 @@ JSON array only:`
                   </div>
                 )}
               </div>
-                )}
-              </div>
               
               {/* Active Challenges */}
               <div className="bg-white rounded-xl p-4 border border-gray-100">
@@ -5335,17 +5333,12 @@ JSON array only:`
                           
                           <div className="flex items-center justify-between mt-3 pt-2 border-t border-yellow-200/50">
                             <p className="text-xs text-gray-500">⏰ Ends: {new Date(bet.deadline).toLocaleDateString()}</p>
-                            {currentWinners.length > 0 && !bet.allowMultipleWinners === false && (
+                            {currentWinners.length > 0 && bet.allowMultipleWinners && (
                               <p className="text-xs text-amber-600 font-medium">
                                 Selected: {currentWinners.join(', ')}
                               </p>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
                         </div>
                       );
                     })}
