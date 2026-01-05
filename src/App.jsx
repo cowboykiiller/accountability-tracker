@@ -860,6 +860,12 @@ export default function AccountabilityTracker() {
   const [newTask, setNewTask] = useState({ task: '', dueDate: '', priority: 'Medium', category: 'Work' });
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskFilter, setTaskFilter] = useState('all'); // all, today, overdue, completed
+  const [editingTask, setEditingTask] = useState(null); // Task being edited
+  
+  // Non-Negotiables state - 3 core habits that never change
+  const [nonNegotiables, setNonNegotiables] = useState([]);
+  const [showNonNegotiableModal, setShowNonNegotiableModal] = useState(false);
+  const [newNonNegotiable, setNewNonNegotiable] = useState({ habit: '', description: '', frequency: 'Daily' });
   
   // Mood tracking state  
   const [moodData, setMoodData] = useState([]); // {date, mood: 1-10, motivation: 1-10, notes}
@@ -1080,6 +1086,27 @@ export default function AccountabilityTracker() {
       }
     }, (error) => {
       console.error('Profiles error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Listen for non-negotiables
+  useEffect(() => {
+    if (!user) {
+      setNonNegotiables([]);
+      return;
+    }
+
+    const q = query(collection(db, 'nonNegotiables'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const nnData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setNonNegotiables(nnData);
+    }, (error) => {
+      console.error('Non-negotiables error:', error);
     });
 
     return () => unsubscribe();
@@ -2280,6 +2307,63 @@ export default function AccountabilityTracker() {
     }
   };
 
+  // Update existing task
+  const updateTask = async (taskId, updates) => {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.${taskId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(updates)
+      });
+      
+      if (!response.ok) throw new Error('Failed to update task');
+      
+      fetchTasks();
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Update task error:', error);
+    }
+  };
+
+  // Non-Negotiables management
+  const saveNonNegotiable = async () => {
+    if (!newNonNegotiable.habit.trim() || nonNegotiables.length >= 3) return;
+    
+    const nnDoc = {
+      id: `nn_${Date.now()}_${user?.uid}`,
+      habit: newNonNegotiable.habit,
+      description: newNonNegotiable.description,
+      frequency: newNonNegotiable.frequency,
+      participant: userProfile?.linkedParticipant || user?.displayName,
+      userId: user?.uid,
+      createdAt: new Date().toISOString(),
+      streak: 0
+    };
+    
+    await setDoc(doc(db, 'nonNegotiables', nnDoc.id), nnDoc);
+    setNewNonNegotiable({ habit: '', description: '', frequency: 'Daily' });
+    setShowNonNegotiableModal(false);
+  };
+
+  const deleteNonNegotiable = async (nnId) => {
+    if (window.confirm('Remove this non-negotiable? This cannot be undone.')) {
+      await deleteDoc(doc(db, 'nonNegotiables', nnId));
+    }
+  };
+
+  const updateNonNegotiableStreak = async (nnId, completed) => {
+    const nn = nonNegotiables.find(n => n.id === nnId);
+    if (!nn) return;
+    
+    const newStreak = completed ? (nn.streak || 0) + 1 : 0;
+    await setDoc(doc(db, 'nonNegotiables', nnId), { ...nn, streak: newStreak, lastUpdated: new Date().toISOString() }, { merge: true });
+  };
+
   // Mood tracking functions
   const saveMood = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -2428,18 +2512,140 @@ export default function AccountabilityTracker() {
         ? currentWeekHabits 
         : currentWeekHabits.filter(h => h.participant === selectedAiParticipant);
       
+      // Get all historical habits for context (to suggest NEW things)
+      const allParticipantHabits = habits.filter(h => h.participant === selectedAiParticipant);
+      const existingHabitNames = [...new Set(allParticipantHabits.map(h => h.habit.toLowerCase()))];
+      
       // Build conversation context
       const conversationContext = followUp ? aiConversation : [];
+      
+      // Determine the actual action and add context for diverse suggestions
+      let effectiveAction = followUp ? 'follow-up' : action;
+      let effectiveGoal = followUp || goal;
+      
+      // For explore-new, add context about existing habits to avoid
+      if (action === 'explore-new') {
+        effectiveAction = 'suggest-habits';
+        effectiveGoal = `Suggest 5-7 NEW and DIFFERENT habits that I have NOT tried before. 
+          I want habits OUTSIDE my comfort zone and from categories I haven't explored.
+          My existing habits include: ${existingHabitNames.slice(0, 15).join(', ')}.
+          Suggest something completely different - maybe creative, social, learning, or wellness habits I haven't considered.
+          Focus on variety and growth in new areas.`;
+      }
+      
+      // For category-specific suggestions
+      if (action === 'category-suggest') {
+        effectiveAction = 'suggest-habits';
+        const categoryHabits = existingHabitNames.filter(h => 
+          (goal === 'Fitness' && (h.includes('exercise') || h.includes('workout') || h.includes('cardio'))) ||
+          (goal === 'Mental' && (h.includes('meditat') || h.includes('journal') || h.includes('read'))) ||
+          (goal === 'Finance' && (h.includes('budget') || h.includes('save') || h.includes('invest'))) ||
+          (goal === 'Learning' && (h.includes('learn') || h.includes('study') || h.includes('course'))) ||
+          (goal === 'Social' && (h.includes('friend') || h.includes('family') || h.includes('network'))) ||
+          (goal === 'Spiritual' && (h.includes('pray') || h.includes('gratitude') || h.includes('church'))) ||
+          (goal === 'Creative' && (h.includes('draw') || h.includes('write') || h.includes('music') || h.includes('art'))) ||
+          (goal === 'Growth' && (h.includes('goal') || h.includes('reflect') || h.includes('improve'))) ||
+          (goal === 'Productivity' && (h.includes('task') || h.includes('plan') || h.includes('organize'))) ||
+          (goal === 'Recovery' && (h.includes('sleep') || h.includes('rest') || h.includes('stretch')))
+        );
+        effectiveGoal = `Suggest 5 specific ${goal} habits that would complement my routine.
+          I already do: ${categoryHabits.length > 0 ? categoryHabits.join(', ') : 'nothing in this category yet'}.
+          Suggest DIFFERENT ${goal.toLowerCase()} habits I haven't tried, with specific targets.
+          Be creative and suggest both beginner and advanced options.`;
+      }
+      
+      // Lifestyle Change - Big picture transformational habits
+      if (action === 'lifestyle-change') {
+        effectiveAction = 'suggest-habits';
+        effectiveGoal = `Suggest 5-7 TRANSFORMATIONAL lifestyle habits that could fundamentally improve my life.
+          Think big picture: morning routines, evening wind-downs, relationship builders, health transformers.
+          I currently track: ${existingHabitNames.slice(0, 10).join(', ')}.
+          Suggest habits that could create lasting change - not just daily tasks but life-changing practices.
+          Include habits around: sleep optimization, stress reduction, relationship nurturing, physical wellness, mental clarity.
+          Each habit should be specific and measurable with a weekly target.`;
+      }
+      
+      // Random Challenge - Fun, unconventional challenges
+      if (action === 'random-challenge') {
+        effectiveAction = 'suggest-habits';
+        const challenges = ['cold showers', 'no phone mornings', 'walking meetings', 'gratitude jar', 'random acts of kindness', 'digital detox', 'sleep tracking', 'posture checks', 'deep breathing breaks'];
+        const randomChallenge = challenges[Math.floor(Math.random() * challenges.length)];
+        effectiveGoal = `Give me ONE fun and unconventional challenge habit related to "${randomChallenge}" or something equally creative.
+          Make it specific, achievable, and include a target for the week.
+          Then suggest 4 more totally random, outside-the-box challenge habits I've probably never considered.
+          Think: quirky, fun, science-backed, or trending wellness practices.
+          NOT basic stuff like "drink water" - I want INTERESTING challenges!`;
+      }
+      
+      // Random Habit - Truly random suggestions
+      if (action === 'random-habit') {
+        effectiveAction = 'suggest-habits';
+        effectiveGoal = `Surprise me with 5 COMPLETELY RANDOM habits from ANY category.
+          Mix it up: one from fitness, one creative, one social, one mental, one wild card.
+          I don't want suggestions based on what I do - give me a random selection of interesting habits people track.
+          Make them specific with targets. Include at least one habit that's unusual or unexpected.`;
+      }
+      
+      // 30-Day Sprint - Intensive short-term habits
+      if (action === '30-day-sprint') {
+        effectiveAction = 'suggest-habits';
+        effectiveGoal = `Suggest 3-5 INTENSIVE 30-day challenge habits.
+          These should be daily commitments designed for a focused sprint.
+          Examples: 30 days of meditation, 30 days of no sugar, 30 days of journaling.
+          Make them challenging but achievable. Focus on habits that create noticeable transformation in a month.
+          Each should be trackable with a daily target of 1 (do it or don't).`;
+      }
+      
+      // Habit Experiment - Testing new approaches
+      if (action === 'habit-experiment') {
+        effectiveAction = 'suggest-habits';
+        effectiveGoal = `Suggest 5 EXPERIMENTAL habits to test for one week.
+          These should be "hypothesis" habits - things to try and see if they work for me.
+          Mix of: productivity experiments, wellness tests, mindset shifts, social experiments.
+          Frame each as "Try X to see if Y happens" - make them like mini life experiments.
+          Each should be measurable and have a clear target.`;
+      }
+      
+      // Micro Habits - Tiny 2-minute habits
+      if (action === 'micro-habits') {
+        effectiveAction = 'suggest-habits';
+        effectiveGoal = `Suggest 5-7 MICRO habits that take less than 2 minutes each.
+          Based on the book "Atomic Habits" - tiny actions that build momentum.
+          Examples: 2 pushups, 1 page of reading, 10 seconds of stretching.
+          I want TINY versions of bigger habits - the minimum viable habit.
+          Each should be embarrassingly small but stackable.`;
+      }
+      
+      // Elite Level - High-performance habits
+      if (action === 'elite-habits') {
+        effectiveAction = 'suggest-habits';
+        effectiveGoal = `Suggest 5 ELITE-LEVEL habits that high performers and successful people practice.
+          Think: CEOs, athletes, top performers, thought leaders.
+          I currently do: ${existingHabitNames.slice(0, 8).join(', ')}.
+          Give me habits that would level-up my routine - advanced practices, not beginner stuff.
+          Include specific protocols (time, duration, frequency).`;
+      }
+      
+      // Trending Habits - Popular global practices
+      if (action === 'trending-habits') {
+        effectiveAction = 'suggest-habits';
+        effectiveGoal = `Suggest 5 TRENDING habits that are popular in wellness, productivity, or self-improvement communities right now.
+          Think: What are people on Reddit, Twitter, or in biohacking communities tracking?
+          Include habits like: ice baths, breathwork protocols, dopamine fasting, zone 2 cardio, etc.
+          Give me what's hot right now in the self-improvement world, with specific targets.
+          Don't give me old basics - I want current, trending practices!`;
+      }
       
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: followUp ? 'follow-up' : action,
+          action: effectiveAction,
           habits: action === 'insights' ? habits : participantHabits,
           participant: selectedAiParticipant,
-          goal: followUp || goal,
-          conversation: conversationContext
+          goal: effectiveGoal,
+          conversation: conversationContext,
+          existingHabits: existingHabitNames // Pass existing habits for context
         })
       });
       
@@ -2465,8 +2671,11 @@ export default function AccountabilityTracker() {
           ]);
         }
         
-        // Parse suggested habits from response (for suggest-habits action)
-        if (action === 'suggest-habits' || action === 'write-habit') {
+        // Parse suggested habits from response (for suggestion actions)
+        const suggestionActions = ['suggest-habits', 'write-habit', 'explore-new', 'category-suggest', 
+          'lifestyle-change', 'random-challenge', 'random-habit', '30-day-sprint', 
+          'habit-experiment', 'micro-habits', 'elite-habits', 'trending-habits'];
+        if (suggestionActions.includes(action)) {
           const habitMatches = newMessage.match(/(?:^|\n)[-•*]\s*(.+?)(?:\s*[-–]\s*(\d+)\s*(?:days?|x)?\s*(?:per\s*)?(?:week)?)?(?=\n|$)/gim);
           if (habitMatches) {
             const parsed = habitMatches.map(match => {
@@ -3763,6 +3972,103 @@ export default function AccountabilityTracker() {
                 </button>
               </div>
               
+              {/* Non-Negotiables - Core Habits */}
+              <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
+                darkMode 
+                  ? 'bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 shadow-xl shadow-black/20' 
+                  : 'bg-gradient-to-br from-amber-50/80 to-orange-50/80 border border-amber-200/50'
+              }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-amber-500/30' : 'bg-amber-200'}`}>
+                      <Lock className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+                    </div>
+                    <div>
+                      <h3 className={`font-semibold text-sm ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Non-Negotiables</h3>
+                      <p className={`text-[10px] ${darkMode ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Your 3 core commitments</p>
+                    </div>
+                  </div>
+                  {nonNegotiables.filter(n => n.userId === user?.uid).length < 3 && (
+                    <button 
+                      onClick={() => setShowNonNegotiableModal(true)}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                        darkMode ? 'bg-amber-500/30 hover:bg-amber-500/50 text-amber-300' : 'bg-amber-200 hover:bg-amber-300 text-amber-700'
+                      }`}
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {nonNegotiables.filter(n => n.userId === user?.uid).length === 0 ? (
+                    <div className={`text-center py-4 rounded-xl border-2 border-dashed ${darkMode ? 'border-amber-500/30' : 'border-amber-300'}`}>
+                      <Lock className={`w-8 h-8 mx-auto mb-2 ${darkMode ? 'text-amber-500/50' : 'text-amber-400'}`} />
+                      <p className={`text-xs ${darkMode ? 'text-amber-400/70' : 'text-amber-600'}`}>Set up to 3 core habits you'll never skip</p>
+                      <button 
+                        onClick={() => setShowNonNegotiableModal(true)}
+                        className={`mt-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          darkMode 
+                            ? 'bg-amber-500/30 hover:bg-amber-500/50 text-amber-300' 
+                            : 'bg-amber-200 hover:bg-amber-300 text-amber-700'
+                        }`}
+                      >
+                        + Add your first
+                      </button>
+                    </div>
+                  ) : (
+                    nonNegotiables.filter(n => n.userId === user?.uid).map((nn, idx) => (
+                      <div key={nn.id} className={`flex items-center gap-2 p-2.5 rounded-xl group transition-colors ${
+                        darkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-white/60 hover:bg-white/80'
+                      }`}>
+                        <button
+                          onClick={() => updateNonNegotiableStreak(nn.id, true)}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs transition-all ${
+                            darkMode 
+                              ? 'bg-amber-500/30 text-amber-300 hover:bg-amber-500/50 hover:scale-105' 
+                              : 'bg-amber-200 text-amber-700 hover:bg-amber-300 hover:scale-105'
+                          }`}
+                          title="Mark as done today"
+                        >
+                          {nn.streak > 0 ? <Check className="w-4 h-4" /> : (idx + 1)}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{nn.habit}</p>
+                          <div className="flex items-center gap-2">
+                            <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{nn.frequency}</p>
+                            {nn.streak > 0 && (
+                              <div className="flex items-center gap-0.5">
+                                <Flame className="w-2.5 h-2.5 text-orange-500" />
+                                <span className="text-[10px] font-bold text-orange-500">{nn.streak} day streak</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => updateNonNegotiableStreak(nn.id, false)}
+                            className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
+                              darkMode ? 'text-gray-500 hover:text-orange-400 hover:bg-orange-500/20' : 'text-gray-400 hover:text-orange-500 hover:bg-orange-100'
+                            }`}
+                            title="Reset streak"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </button>
+                          <button 
+                            onClick={() => deleteNonNegotiable(nn.id)}
+                            className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
+                              darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/20' : 'text-gray-400 hover:text-red-500 hover:bg-red-100'
+                            }`}
+                            title="Remove"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
               {/* Today's Tasks - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
@@ -5585,7 +5891,7 @@ export default function AccountabilityTracker() {
                     <th className="text-left p-2 font-semibold text-gray-700 w-20 text-xs">Priority</th>
                     <th className="text-left p-2 font-semibold text-gray-700 w-24 text-xs">Status</th>
                     <th className="text-left p-2 font-semibold text-gray-700 w-24 text-xs">Category</th>
-                    <th className="w-8 p-2"></th>
+                    <th className="w-16 p-2 text-xs font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -5617,6 +5923,90 @@ export default function AccountabilityTracker() {
                       const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG['Medium'];
                       const categoryCfg = TASK_CATEGORIES.find(c => c.id === task.category) || TASK_CATEGORIES[0];
                       const isMyTask = task.participant === myParticipant;
+                      const isEditing = editingTask?.id === task.id;
+
+                      if (isEditing) {
+                        return (
+                          <tr key={task.id} className="border-b border-gray-50 bg-blue-50">
+                            <td className="p-2"></td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                value={editingTask.task}
+                                onChange={(e) => setEditingTask({ ...editingTask, task: e.target.value })}
+                                className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+                                autoFocus
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="date"
+                                value={editingTask.dueDate}
+                                onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value })}
+                                className="px-2 py-1 text-xs border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <select
+                                value={editingTask.priority}
+                                onChange={(e) => setEditingTask({ ...editingTask, priority: e.target.value })}
+                                className="text-xs px-1 py-1 border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+                              >
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                                <option value="Optional">Optional</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <select
+                                value={editingTask.status}
+                                onChange={(e) => setEditingTask({ ...editingTask, status: e.target.value })}
+                                className="text-xs px-1 py-1 border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+                              >
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <select
+                                value={editingTask.category}
+                                onChange={(e) => setEditingTask({ ...editingTask, category: e.target.value })}
+                                className="text-xs px-1 py-1 border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+                              >
+                                {TASK_CATEGORIES.map(cat => (
+                                  <option key={cat.id} value={cat.id}>{cat.icon} {cat.id}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => updateTask(task.id, {
+                                    task: editingTask.task,
+                                    due_date: editingTask.dueDate,
+                                    priority: editingTask.priority,
+                                    status: editingTask.status,
+                                    category: editingTask.category
+                                  })}
+                                  className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                  title="Save"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingTask(null)}
+                                  className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                                  title="Cancel"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
 
                       return (
                         <tr key={task.id} className={`border-b border-gray-50 hover:bg-gray-50 ${task.status === 'Completed' ? 'opacity-50' : ''}`}>
@@ -5667,12 +6057,29 @@ export default function AccountabilityTracker() {
                           </td>
                           <td className="p-2">
                             {isMyTask && (
-                              <button 
-                                onClick={() => deleteTask(task.id)}
-                                className="text-gray-300 hover:text-red-500"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
+                              <div className="flex gap-1">
+                                <button 
+                                  onClick={() => setEditingTask({
+                                    id: task.id,
+                                    task: task.task,
+                                    dueDate: task.dueDate,
+                                    priority: task.priority,
+                                    status: task.status,
+                                    category: task.category
+                                  })}
+                                  className="text-gray-400 hover:text-blue-500"
+                                  title="Edit task"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                </button>
+                                <button 
+                                  onClick={() => deleteTask(task.id)}
+                                  className="text-gray-300 hover:text-red-500"
+                                  title="Delete task"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -6441,32 +6848,106 @@ export default function AccountabilityTracker() {
                 </button>
               </div>
 
-              {/* Habit Suggestions */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              {/* Habit Suggestions - Enhanced */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100 md:col-span-2">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-amber-600" />
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-800">Habit Suggestions</h3>
-                    <p className="text-xs text-gray-400">Get AI-recommended habits</p>
+                    <h3 className="font-semibold text-gray-800">Habit Discovery Lab</h3>
+                    <p className="text-xs text-gray-400">AI-powered recommendations beyond your comfort zone</p>
                   </div>
                 </div>
+                
+                {/* Goal Input */}
                 <input 
                   type="text"
                   value={aiGoal}
                   onChange={(e) => setAiGoal(e.target.value)}
-                  placeholder="I want to get healthier..."
+                  placeholder="I want to improve my..."
                   className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3"
                 />
-                <button 
-                  onClick={() => callAI('suggest-habits', aiGoal)}
-                  disabled={aiLoading || !aiGoal.trim()}
-                  className="w-full bg-amber-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  Suggest Habits
-                </button>
+                
+                {/* Main Suggestion Buttons - Redesigned */}
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  <button 
+                    onClick={() => callAI('suggest-habits', aiGoal)}
+                    disabled={aiLoading || !aiGoal.trim()}
+                    className="bg-amber-500 text-white py-2.5 rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 flex flex-col items-center justify-center gap-1"
+                  >
+                    {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Target className="w-4 h-4" />}
+                    Goal-Based
+                  </button>
+                  <button 
+                    onClick={() => callAI('explore-new', '')}
+                    disabled={aiLoading}
+                    className="bg-purple-500 text-white py-2.5 rounded-lg text-xs font-medium hover:bg-purple-600 transition-colors disabled:opacity-50 flex flex-col items-center justify-center gap-1"
+                  >
+                    {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    Explore New
+                  </button>
+                  <button 
+                    onClick={() => callAI('lifestyle-change', '')}
+                    disabled={aiLoading}
+                    className="bg-gradient-to-r from-rose-500 to-pink-500 text-white py-2.5 rounded-lg text-xs font-medium hover:from-rose-600 hover:to-pink-600 transition-colors disabled:opacity-50 flex flex-col items-center justify-center gap-1"
+                  >
+                    {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className="w-4 h-4" />}
+                    Life Change
+                  </button>
+                  <button 
+                    onClick={() => callAI('random-challenge', '')}
+                    disabled={aiLoading}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-2.5 rounded-lg text-xs font-medium hover:from-cyan-600 hover:to-blue-600 transition-colors disabled:opacity-50 flex flex-col items-center justify-center gap-1"
+                  >
+                    {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+                    Challenge
+                  </button>
+                </div>
+                
+                {/* Enhanced Category Grid */}
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-2">Quick categories:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['💪 Fitness', '🧠 Mental', '💰 Finance', '📚 Learning', '🤝 Social', '🙏 Spiritual', '🎨 Creative', '🌱 Growth', '⚡ Productivity', '😴 Recovery'].map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => callAI('category-suggest', cat.split(' ')[1])}
+                        disabled={aiLoading}
+                        className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-600 transition-colors disabled:opacity-50 hover:scale-105"
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Trending/Unconventional Section */}
+                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3 border border-indigo-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-indigo-600" />
+                    <span className="text-xs font-semibold text-indigo-700">Outside the Box</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: '🎲 Random Habit', action: 'random-habit' },
+                      { label: '🚀 30-Day Sprint', action: '30-day-sprint' },
+                      { label: '🧪 Experiment', action: 'habit-experiment' },
+                      { label: '🎯 Micro Habits', action: 'micro-habits' },
+                      { label: '🏆 Elite Level', action: 'elite-habits' },
+                      { label: '🌍 Global Trends', action: 'trending-habits' }
+                    ].map(item => (
+                      <button
+                        key={item.action}
+                        onClick={() => callAI(item.action, '')}
+                        disabled={aiLoading}
+                        className="px-2.5 py-1.5 bg-white hover:bg-indigo-100 rounded-lg text-xs text-indigo-700 transition-colors disabled:opacity-50 border border-indigo-200 hover:scale-105"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Habit Writer */}
@@ -7339,6 +7820,96 @@ export default function AccountabilityTracker() {
                   className="flex-1 py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] disabled:opacity-50"
                 >
                   Add Task
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Non-Negotiables Modal */}
+        {showNonNegotiableModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <Lock className="w-5 h-5 text-amber-600" />
+                Add Non-Negotiable Habit
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Non-negotiables are your 3 core habits that you commit to doing no matter what. These persist across all weeks.
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Habit Name *</label>
+                  <input
+                    type="text"
+                    value={newNonNegotiable.habit}
+                    onChange={(e) => setNewNonNegotiable({ ...newNonNegotiable, habit: e.target.value })}
+                    placeholder="e.g., Morning meditation, Exercise, Reading"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Why is this important?</label>
+                  <textarea
+                    value={newNonNegotiable.description}
+                    onChange={(e) => setNewNonNegotiable({ ...newNonNegotiable, description: e.target.value })}
+                    placeholder="Remind yourself why this matters..."
+                    rows={2}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Frequency</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['Daily', 'Weekdays', 'Weekly'].map(freq => (
+                      <button
+                        key={freq}
+                        onClick={() => setNewNonNegotiable({ ...newNonNegotiable, frequency: freq })}
+                        className={`p-2 rounded-lg text-sm font-medium transition-colors ${
+                          newNonNegotiable.frequency === freq 
+                            ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-300' 
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        {freq}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Show existing non-negotiables */}
+                {nonNegotiables.filter(n => n.userId === user?.uid).length > 0 && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <p className="text-xs text-gray-500 mb-2">Your current non-negotiables ({nonNegotiables.filter(n => n.userId === user?.uid).length}/3):</p>
+                    <div className="space-y-1">
+                      {nonNegotiables.filter(n => n.userId === user?.uid).map((nn, idx) => (
+                        <div key={nn.id} className="flex items-center gap-2 text-sm text-gray-600">
+                          <span className="w-5 h-5 rounded bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                          {nn.habit}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={() => { setShowNonNegotiableModal(false); setNewNonNegotiable({ habit: '', description: '', frequency: 'Daily' }); }}
+                  className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={saveNonNegotiable}
+                  disabled={!newNonNegotiable.habit.trim() || nonNegotiables.filter(n => n.userId === user?.uid).length >= 3}
+                  className="flex-1 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Lock className="w-4 h-4" />
+                  Lock In Habit
                 </button>
               </div>
             </div>
