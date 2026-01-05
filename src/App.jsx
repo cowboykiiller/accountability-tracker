@@ -5828,85 +5828,245 @@ JSON array only:`
 
         {activeView === 'tracker' && (
           <div className="space-y-3">
-            {/* Non-Negotiables from Vision - Quick Reference */}
-            {visionData && (visionData.nonNegotiable1 || visionData.nonNegotiable2 || visionData.nonNegotiable3) && (
-              <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-500/20' : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
-                    <Lock className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                  </div>
-                  <div>
-                    <h3 className={`font-bold text-sm ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Your Non-Negotiables</h3>
-                    <p className={`text-xs ${darkMode ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Habits you committed to — no excuses</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {[visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).map((nn, idx) => {
-                    // Check if this non-negotiable matches any habit in current week
-                    // Match if: habit contains non-negotiable text OR non-negotiable contains habit text OR significant word overlap
-                    const nnLower = nn.toLowerCase();
-                    const nnWords = nnLower.split(/\s+/).filter(w => w.length > 3);
-                    const matchingHabit = currentWeekHabits.find(h => {
-                      if (h.participant !== myParticipant) return false;
-                      const habitLower = (h.habit || '').toLowerCase();
-                      // Direct substring match either direction
-                      if (habitLower.includes(nnLower.slice(0, 15)) || nnLower.includes(habitLower.slice(0, 15))) return true;
-                      // Check if any significant word from non-negotiable is in habit
-                      return nnWords.some(word => habitLower.includes(word));
-                    });
-                    const isTracked = !!matchingHabit;
-                    const completedDays = matchingHabit?.daysCompleted?.length || 0;
-                    const target = matchingHabit?.target || 5;
-                    const progress = isTracked ? Math.round((completedDays / target) * 100) : 0;
-                    
-                    return (
-                      <div 
-                        key={idx} 
-                        className={`flex items-center gap-2 p-2.5 rounded-lg transition-all ${
-                          isTracked 
-                            ? darkMode ? 'bg-green-500/20 border border-green-500/30' : 'bg-green-50 border border-green-200'
-                            : darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-200'
-                        }`}
-                      >
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          isTracked 
-                            ? progress >= 100 ? 'bg-green-500 text-white' : 'bg-amber-500 text-white'
-                            : darkMode ? 'bg-gray-600' : 'bg-gray-200'
+            {/* Non-Negotiables from Vision - PROMINENT Display */}
+            {visionData && (visionData.nonNegotiable1 || visionData.nonNegotiable2 || visionData.nonNegotiable3) && (() => {
+              // Calculate what day of the week it is (0 = Monday, 6 = Sunday)
+              const today = new Date();
+              const dayOfWeek = today.getDay();
+              const currentDayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Mon=0, Sun=6
+              const daysPassedThisWeek = currentDayIndex + 1; // Days that have passed including today
+              
+              // Process each non-negotiable
+              const nnData = [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3]
+                .filter(Boolean)
+                .map((nn, idx) => {
+                  const nnLower = nn.toLowerCase();
+                  const nnWords = nnLower.split(/\s+/).filter(w => w.length > 3);
+                  const matchingHabit = currentWeekHabits.find(h => {
+                    if (h.participant !== myParticipant) return false;
+                    const habitLower = (h.habit || '').toLowerCase();
+                    if (habitLower.includes(nnLower.slice(0, 15)) || nnLower.includes(habitLower.slice(0, 15))) return true;
+                    return nnWords.some(word => habitLower.includes(word));
+                  });
+                  
+                  const isTracked = !!matchingHabit;
+                  const completedDays = matchingHabit?.daysCompleted?.length || 0;
+                  const target = matchingHabit?.target || 5;
+                  const progress = isTracked ? Math.round((completedDays / target) * 100) : 0;
+                  
+                  // Calculate expected progress based on day of week
+                  const expectedPerDay = target / 5; // Assuming 5-day target for weekdays
+                  const expectedByNow = Math.min(target, Math.ceil(expectedPerDay * Math.min(daysPassedThisWeek, 5)));
+                  const isBehind = isTracked && completedDays < expectedByNow;
+                  const isMissed = isTracked && daysPassedThisWeek > 3 && completedDays === 0; // Missed if 3+ days and 0 done
+                  const isOnTrack = isTracked && completedDays >= expectedByNow;
+                  const isComplete = isTracked && completedDays >= target;
+                  
+                  return { nn, idx, isTracked, completedDays, target, progress, isBehind, isMissed, isOnTrack, isComplete, matchingHabit };
+                });
+              
+              // Count statuses
+              const missedCount = nnData.filter(n => n.isMissed || (!n.isTracked && daysPassedThisWeek > 2)).length;
+              const behindCount = nnData.filter(n => n.isBehind && !n.isMissed).length;
+              const onTrackCount = nnData.filter(n => n.isOnTrack || n.isComplete).length;
+              const hasIssues = missedCount > 0 || behindCount > 0;
+              
+              return (
+                <div className={`rounded-2xl overflow-hidden ${
+                  hasIssues 
+                    ? 'ring-2 ring-red-500 ring-offset-2 ' + (darkMode ? 'ring-offset-gray-900' : 'ring-offset-white')
+                    : ''
+                }`}>
+                  {/* Header - Changes color based on status */}
+                  <div className={`p-4 ${
+                    missedCount > 0 
+                      ? 'bg-gradient-to-r from-red-600 to-red-500'
+                      : behindCount > 0 
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500'
+                        : 'bg-gradient-to-r from-emerald-500 to-green-500'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          missedCount > 0 ? 'bg-white/20' : behindCount > 0 ? 'bg-white/20' : 'bg-white/20'
                         }`}>
-                          {isTracked ? (
-                            progress >= 100 ? <Check className="w-3.5 h-3.5" /> : <span className="text-xs font-bold">{completedDays}</span>
+                          {missedCount > 0 ? (
+                            <XCircle className="w-6 h-6 text-white" />
+                          ) : behindCount > 0 ? (
+                            <Flame className="w-6 h-6 text-white animate-pulse" />
                           ) : (
-                            <span className={`text-xs font-bold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{idx + 1}</span>
+                            <Lock className="w-6 h-6 text-white" />
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-medium truncate ${
-                            isTracked 
-                              ? darkMode ? 'text-green-300' : 'text-green-700'
-                              : darkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>{nn}</p>
-                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {isTracked ? `${completedDays}/${target} this week` : 'Not tracked yet'}
+                        <div>
+                          <h3 className="font-black text-white text-lg">
+                            {missedCount > 0 ? '⚠️ NON-NEGOTIABLES AT RISK' : behindCount > 0 ? '🔥 FALLING BEHIND' : '✅ NON-NEGOTIABLES'}
+                          </h3>
+                          <p className="text-white/80 text-sm">
+                            {missedCount > 0 
+                              ? `${missedCount} habit${missedCount > 1 ? 's' : ''} need${missedCount === 1 ? 's' : ''} immediate attention!`
+                              : behindCount > 0 
+                                ? `${behindCount} habit${behindCount > 1 ? 's' : ''} behind schedule`
+                                : 'Your non-negotiable habits for 2026'}
                           </p>
                         </div>
-                        {!isTracked && (
-                          <button
-                            onClick={() => {
-                              setNewHabit({ habit: nn, participant: myParticipant, target: 5, habitType: 'daily' });
-                              setShowAddHabitModal(true);
-                            }}
-                            className={`p-1 rounded ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
-                            title="Add as habit"
-                          >
-                            <Plus className={`w-3.5 h-3.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                          </button>
-                        )}
                       </div>
-                    );
-                  })}
+                      <div className="text-right">
+                        <p className="text-white/60 text-xs">Day {daysPassedThisWeek} of 7</p>
+                        <p className="text-white font-bold">{onTrackCount}/{nnData.length} on track</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Non-Negotiable Cards */}
+                  <div className={`p-4 ${darkMode ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                    <div className="space-y-3">
+                      {nnData.map(({ nn, idx, isTracked, completedDays, target, progress, isBehind, isMissed, isOnTrack, isComplete, matchingHabit }) => {
+                        const showAlert = isMissed || (!isTracked && daysPassedThisWeek > 2);
+                        const showWarning = isBehind && !isMissed;
+                        
+                        return (
+                          <div 
+                            key={idx} 
+                            className={`relative rounded-xl p-4 transition-all ${
+                              showAlert
+                                ? `${darkMode ? 'bg-red-900/40 border-2 border-red-500' : 'bg-red-50 border-2 border-red-400'} animate-pulse`
+                                : showWarning
+                                  ? darkMode ? 'bg-amber-900/30 border-2 border-amber-500/50' : 'bg-amber-50 border-2 border-amber-300'
+                                  : isComplete
+                                    ? darkMode ? 'bg-green-900/30 border border-green-500/30' : 'bg-green-50 border border-green-300'
+                                    : isTracked
+                                      ? darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-200'
+                                      : darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-gray-200'
+                            }`}
+                          >
+                            {/* Alert Badge */}
+                            {showAlert && (
+                              <div className="absolute -top-2 -right-2 px-2 py-1 bg-red-500 text-white text-xs font-black rounded-full shadow-lg animate-bounce">
+                                ⚠️ MISSED
+                              </div>
+                            )}
+                            {showWarning && (
+                              <div className="absolute -top-2 -right-2 px-2 py-1 bg-amber-500 text-white text-xs font-bold rounded-full shadow-lg">
+                                BEHIND
+                              </div>
+                            )}
+                            {isComplete && (
+                              <div className="absolute -top-2 -right-2 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full shadow-lg">
+                                ✓ DONE
+                              </div>
+                            )}
+                            
+                            <div className="flex items-start gap-4">
+                              {/* Status Icon */}
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                showAlert
+                                  ? 'bg-red-500 text-white'
+                                  : showWarning
+                                    ? 'bg-amber-500 text-white'
+                                    : isComplete
+                                      ? 'bg-green-500 text-white'
+                                      : isTracked
+                                        ? darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+                                        : darkMode ? 'bg-gray-700' : 'bg-gray-200'
+                              }`}>
+                                {showAlert ? (
+                                  <XCircle className="w-6 h-6" />
+                                ) : isComplete ? (
+                                  <CheckCircle2 className="w-6 h-6" />
+                                ) : isTracked ? (
+                                  <span className="text-lg font-black">{completedDays}</span>
+                                ) : (
+                                  <span className={`text-lg font-bold ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{idx + 1}</span>
+                                )}
+                              </div>
+                              
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <p className={`font-bold text-base mb-1 ${
+                                  showAlert
+                                    ? darkMode ? 'text-red-300' : 'text-red-700'
+                                    : showWarning
+                                      ? darkMode ? 'text-amber-300' : 'text-amber-700'
+                                      : darkMode ? 'text-white' : 'text-gray-800'
+                                }`}>
+                                  {nn}
+                                </p>
+                                
+                                {isTracked ? (
+                                  <>
+                                    {/* Progress Bar */}
+                                    <div className={`h-2 rounded-full overflow-hidden mb-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                      <div 
+                                        className={`h-full rounded-full transition-all duration-500 ${
+                                          showAlert ? 'bg-red-500' : showWarning ? 'bg-amber-500' : isComplete ? 'bg-green-500' : 'bg-blue-500'
+                                        }`}
+                                        style={{ width: `${Math.min(100, progress)}%` }}
+                                      />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        <span className="font-bold">{completedDays}</span> / {target} this week
+                                      </p>
+                                      <p className={`text-xs font-medium ${
+                                        showAlert ? 'text-red-500' : showWarning ? 'text-amber-500' : isComplete ? 'text-green-500' : darkMode ? 'text-gray-500' : 'text-gray-400'
+                                      }`}>
+                                        {isComplete ? '100% Complete!' : `${progress}%`}
+                                      </p>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="flex items-center justify-between">
+                                    <p className={`text-sm ${showAlert ? (darkMode ? 'text-red-400' : 'text-red-600') : (darkMode ? 'text-gray-500' : 'text-gray-400')}`}>
+                                      {showAlert ? '❌ Not being tracked - add it now!' : 'Not tracked yet'}
+                                    </p>
+                                    <button
+                                      onClick={() => {
+                                        setNewHabit({ habit: nn, participant: myParticipant, target: 5, habitType: 'daily' });
+                                        setShowAddHabitModal(true);
+                                      }}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                        showAlert 
+                                          ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' 
+                                          : darkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      <Plus className="w-3 h-3 inline mr-1" />
+                                      Add Habit
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Motivational message for missed */}
+                            {showAlert && (
+                              <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-red-500/30' : 'border-red-200'}`}>
+                                <p className={`text-xs ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
+                                  💪 <strong>Don't give up!</strong> Start today - every day is a fresh opportunity. You committed to this!
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Bottom CTA if issues */}
+                    {hasIssues && (
+                      <div className={`mt-4 p-3 rounded-xl ${darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'}`}>
+                        <p className={`text-sm font-bold ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+                          🚨 These are your NON-NEGOTIABLES - the habits you said you'd never skip!
+                        </p>
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-red-400/70' : 'text-red-600/70'}`}>
+                          Take action now. Your future self is counting on you.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Header with view toggle */}
             <div className="flex items-center justify-between flex-wrap gap-2">
