@@ -479,7 +479,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
   return (
   <div className={`hidden md:flex w-56 min-h-screen p-4 flex-col backdrop-blur-xl border-r transition-colors duration-300 ${
     darkMode 
-      ? 'bg-[#0d1321]/90 border-white/5' 
+      ? 'bg-gray-900 border-gray-700' 
       : 'bg-white/80 border-gray-200/50'
   }`}>
     <div className="flex items-center gap-2 mb-6">
@@ -488,7 +488,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
     </div>
     
     {/* Theme Toggle */}
-    <div className={`mb-4 p-1 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-100/80'}`}>
+    <div className={`mb-4 p-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100/80'}`}>
       <div className="flex">
         <button 
           onClick={() => setDarkMode(false)}
@@ -517,10 +517,10 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all ${
             activeView === item.id 
               ? darkMode 
-                ? 'bg-gradient-to-r from-[#1E3A5F]/80 to-[#2d4a6f]/60 text-white font-medium shadow-lg shadow-blue-500/10 border border-white/10' 
+                ? 'bg-gradient-to-r from-[#1E3A5F]/80 to-[#2d4a6f]/60 text-white font-medium shadow-lg shadow-blue-500/10 border border-gray-600' 
                 : 'bg-[#1E3A5F]/10 text-[#1E3A5F] font-medium'
               : darkMode 
-                ? 'text-gray-400 hover:bg-white/5 hover:text-gray-200' 
+                ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200' 
                 : 'text-gray-500 hover:bg-gray-100/50'
           }`}
         >
@@ -529,13 +529,13 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
       ))}
     </nav>
     {user && (
-      <div className={`pt-4 border-t ${darkMode ? 'border-white/5' : 'border-gray-200/50'}`}>
+      <div className={`pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200/50'}`}>
         <button 
           onClick={() => setActiveView('profile')}
           className={`w-full flex items-center gap-2 px-2 mb-2 p-2 rounded-xl transition-all ${
             activeView === 'profile' 
-              ? darkMode ? 'bg-white/10 border border-white/10' : 'bg-[#1E3A5F]/10'
-              : darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-100/50'
+              ? darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-[#1E3A5F]/10'
+              : darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100/50'
           }`}
         >
           {displayPhoto ? (
@@ -547,13 +547,13 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
           )}
           <div className="flex-1 min-w-0 text-left">
             <p className={`text-sm font-medium truncate ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>{displayName}</p>
-            <p className={`text-xs truncate ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{user.email}</p>
+            <p className={`text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{user.email}</p>
           </div>
         </button>
         <button 
           onClick={onSignOut} 
           className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all ${
-            darkMode ? 'text-gray-500 hover:bg-red-500/10 hover:text-red-400' : 'text-gray-500 hover:bg-gray-100/50'
+            darkMode ? 'text-gray-300 hover:bg-red-500/10 hover:text-red-400' : 'text-gray-500 hover:bg-gray-100/50'
           }`}
         >
           <LogOut className="w-4 h-4" />Sign Out
@@ -596,7 +596,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
         >
           <div className={`absolute bottom-20 left-3 right-3 rounded-2xl p-2 backdrop-blur-xl shadow-2xl ${
             darkMode 
-              ? 'bg-[#1a2332]/98 border border-white/10 shadow-black/50' 
+              ? 'bg-gray-800 border border-gray-600 shadow-black/50' 
               : 'bg-white/95 border border-gray-200'
           }`}>
             <div className="grid grid-cols-4 gap-1">
@@ -615,7 +615,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
                   className={`flex flex-col items-center py-3 px-2 rounded-xl transition-all ${
                     activeView === item.id 
                       ? darkMode ? 'bg-[#1E3A5F]/50 text-[#F5B800] border border-[#F5B800]/30' : 'bg-[#1E3A5F]/10 text-[#1E3A5F]'
-                      : darkMode ? 'text-gray-400 active:bg-white/5 active:text-gray-200' : 'text-gray-500 active:bg-gray-100'
+                      : darkMode ? 'text-gray-400 active:bg-gray-800 active:text-gray-200' : 'text-gray-500 active:bg-gray-100'
                   }`}
                 >
                   <item.icon className="w-5 h-5 mb-1" />
@@ -630,7 +630,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
       {/* Bottom nav bar */}
       <div className={`md:hidden fixed bottom-0 left-0 right-0 backdrop-blur-xl px-2 pt-2 z-50 border-t transition-colors duration-300 ${
         darkMode 
-          ? 'bg-[#0d1321]/95 border-white/5' 
+          ? 'bg-gray-900 border-gray-700' 
           : 'bg-white/90 border-gray-200/50'
       }`} style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         <div className="flex justify-around items-center">
@@ -648,7 +648,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
               className={`flex flex-col items-center py-2 px-3 rounded-xl transition-all ${
                 (item.id === 'more' && showMoreMenu) || (item.id !== 'more' && activeView === item.id)
                   ? darkMode ? 'text-[#F5B800] bg-[#F5B800]/10' : 'text-[#1E3A5F] bg-[#1E3A5F]/10'
-                  : darkMode ? 'text-gray-500 active:text-gray-300' : 'text-gray-400 active:text-[#1E3A5F]'
+                  : darkMode ? 'text-gray-300 active:text-gray-300' : 'text-gray-400 active:text-[#1E3A5F]'
               }`}
             >
               <item.icon className="w-6 h-6" />
@@ -3898,19 +3898,19 @@ JSON array only:`
     );
   }
 
-  // Glass card class helper
+  // Glass card class helper - DARK MODE FIXED
   const glassCard = darkMode 
-    ? 'bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl' 
+    ? 'bg-gray-900/90 backdrop-blur-xl border border-gray-700/50 shadow-2xl' 
     : 'bg-white/60 backdrop-blur-xl border border-white shadow-xl';
   
   const glassBg = darkMode
-    ? 'bg-gradient-to-br from-[#0a0f1a] via-[#111827] to-[#0d1321]'
+    ? 'bg-gray-950'
     : 'bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100';
 
   return (
     <div className={`flex min-h-screen transition-all duration-500 ${glassBg}`} style={{
       backgroundImage: darkMode 
-        ? 'radial-gradient(ellipse at top right, rgba(56, 189, 248, 0.08), transparent 50%), radial-gradient(ellipse at bottom left, rgba(139, 92, 246, 0.08), transparent 50%), radial-gradient(circle at 50% 50%, rgba(30, 58, 95, 0.3), transparent 70%)'
+        ? 'none'
         : 'radial-gradient(ellipse at top right, rgba(59, 130, 246, 0.2), transparent 50%), radial-gradient(ellipse at bottom left, rgba(236, 72, 153, 0.15), transparent 50%)'
     }}>
       {/* Splash Screen */}
@@ -3955,7 +3955,7 @@ JSON array only:`
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
+              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
               <h1 className={`text-lg md:text-xl font-bold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Hello, {userProfile?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Team'} 👋</h1>
             </div>
             {/* Desktop week controls */}
@@ -3975,25 +3975,25 @@ JSON array only:`
               <div className="relative" ref={calendarRef}>
                 <button onClick={() => setShowCalendar(!showCalendar)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all backdrop-blur-sm ${
                   darkMode 
-                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 hover:bg-white/10 text-white' 
+                    ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 hover:bg-gray-700 text-white' 
                     : 'bg-white/70 border border-white/50 hover:border-[#F5B800] text-gray-700'
                 }`}>
                   <CalendarDays className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-[#1E3A5F]'}`} />
                   <span className="font-medium">{currentWeek ? formatWeekString(currentWeek) : 'Select week'}</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${showCalendar ? 'rotate-180' : ''} ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                  <ChevronDown className={`w-3 h-3 transition-transform ${showCalendar ? 'rotate-180' : ''} ${darkMode ? 'text-gray-400' : 'text-gray-400'}`} />
                 </button>
                 {showCalendar && (
                   <div className={`absolute top-full right-0 mt-2 rounded-2xl p-4 shadow-2xl z-50 backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-[#1a2332]/98 border border-white/10 shadow-black/50' 
+                      ? 'bg-gray-800 border border-gray-600 shadow-black/50' 
                       : 'bg-white/90 border border-gray-200'
                   }`} style={{ minWidth: '300px' }}>
                     <div className="flex items-center justify-between mb-3">
-                      <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+                      <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
                       <span className={`font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>{new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                      <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
+                      <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
                     </div>
-                    <div className="grid grid-cols-7 gap-1 text-center mb-2">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} className={`text-xs font-medium py-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{d}</div>)}</div>
+                    <div className="grid grid-cols-7 gap-1 text-center mb-2">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} className={`text-xs font-medium py-1 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{d}</div>)}</div>
                     <div className="grid grid-cols-7 gap-1">{calendarDays.map((date, i) => {
                       if (!date) return <div key={i} className="w-9 h-9" />;
                       const weekStr = getWeekStartFromDate(date);
@@ -4006,22 +4006,22 @@ JSON array only:`
                           : hasData 
                             ? isMonday 
                               ? darkMode ? 'bg-[#1E3A5F]/50 text-[#F5B800] hover:bg-[#F5B800] hover:text-gray-900' : 'bg-[#EBE6D3] text-[#0F2940] hover:bg-[#F5B800]' 
-                              : darkMode ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
-                            : darkMode ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
+                              : darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
+                            : darkMode ? 'text-gray-300 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
                       }`}>{date.getDate()}</button>;
                     })}</div>
-                    <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-white/10' : 'border-gray-100'}`}><p className={`text-xs text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Click any date to jump to that week</p></div>
+                    <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-gray-600' : 'border-gray-100'}`}><p className={`text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Click any date to jump to that week</p></div>
                   </div>
                 )}
               </div>
               <button onClick={prevWeek} disabled={safeWeekIndex === 0} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 hover:bg-white/10' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 hover:bg-gray-700' 
                   : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
               }`}><ChevronLeft className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
               <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className={`p-2 rounded-xl transition-all disabled:opacity-50 backdrop-blur-sm ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 hover:bg-white/10' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 hover:bg-gray-700' 
                   : 'bg-white/70 border border-white/50 hover:border-[#F5B800]'
               }`}><ChevronRight className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} /></button>
             </div>
@@ -4031,7 +4031,7 @@ JSON array only:`
           <div className="md:hidden flex items-center gap-2">
             <button onClick={prevWeek} disabled={safeWeekIndex === 0} className={`p-2.5 rounded-xl transition-all disabled:opacity-30 ${
               darkMode 
-                ? 'bg-white/10 active:bg-white/20' 
+                ? 'bg-gray-700 active:bg-gray-500' 
                 : 'bg-white/80 active:bg-white'
             }`}>
               <ChevronLeft className={`w-5 h-5 ${darkMode ? 'text-white' : 'text-gray-700'}`} />
@@ -4040,7 +4040,7 @@ JSON array only:`
               onClick={() => setShowCalendar(!showCalendar)} 
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition-all ${
                 darkMode 
-                  ? 'bg-white/10 active:bg-white/20' 
+                  ? 'bg-gray-700 active:bg-gray-500' 
                   : 'bg-white/80 active:bg-white'
               }`}
             >
@@ -4063,7 +4063,7 @@ JSON array only:`
             )}
             <button onClick={nextWeek} disabled={safeWeekIndex === ALL_WEEKS.length - 1} className={`p-2.5 rounded-xl transition-all disabled:opacity-30 ${
               darkMode 
-                ? 'bg-white/10 active:bg-white/20' 
+                ? 'bg-gray-700 active:bg-gray-500' 
                 : 'bg-white/80 active:bg-white'
             }`}>
               <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-white' : 'text-gray-700'}`} />
@@ -4075,23 +4075,23 @@ JSON array only:`
             <div className="md:hidden mt-3">
               <div className={`rounded-2xl p-4 backdrop-blur-xl ${
                 darkMode 
-                  ? 'bg-gray-800/95 border border-white/10' 
+                  ? 'bg-gray-800/95 border border-gray-600' 
                   : 'bg-white/95 border border-gray-200'
               }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-gray-100 active:bg-gray-200'}`}>
+                  <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700 active:bg-gray-500' : 'hover:bg-gray-100 active:bg-gray-200'}`}>
                     <ChevronLeft className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
                   </button>
                   <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                     {new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </span>
-                  <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-gray-100 active:bg-gray-200'}`}>
+                  <button onClick={() => setCalendarMonth(prev => { const d = new Date(prev.year, prev.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700 active:bg-gray-500' : 'hover:bg-gray-100 active:bg-gray-200'}`}>
                     <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
                   </button>
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-center mb-2">
                   {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-                    <div key={i} className={`text-xs font-medium py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{d}</div>
+                    <div key={i} className={`text-xs font-medium py-2 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{d}</div>
                   ))}
                 </div>
                 <div className="grid grid-cols-7 gap-1">
@@ -4112,7 +4112,7 @@ JSON array only:`
                             : hasData 
                               ? isMonday 
                                 ? darkMode ? 'bg-white/15 text-white' : 'bg-[#EBE6D3] text-[#0F2940]' 
-                                : darkMode ? 'text-gray-300 active:bg-white/10' : 'text-gray-700 active:bg-gray-100'
+                                : darkMode ? 'text-gray-300 active:bg-gray-700' : 'text-gray-700 active:bg-gray-100'
                               : darkMode ? 'text-gray-700' : 'text-gray-300'
                         }`}
                       >
@@ -4140,7 +4140,7 @@ JSON array only:`
                   <button 
                     onClick={() => setQuotesExpanded(!quotesExpanded)}
                     className={`w-full p-3 flex items-center justify-between text-left transition-colors ${
-                      darkMode ? 'hover:bg-white/5' : 'hover:bg-amber-100/30'
+                      darkMode ? 'hover:bg-gray-800' : 'hover:bg-amber-100/30'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -4158,7 +4158,7 @@ JSON array only:`
                   {quotesExpanded && (
                     <div className={`px-3 pb-3 border-t ${darkMode ? 'border-amber-500/20' : 'border-amber-200/50'}`}>
                       <blockquote className={`text-sm font-medium italic mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>"{currentQuote.quote}"</blockquote>
-                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>— {currentQuote.author}{currentQuote.authorTitle ? `, ${currentQuote.authorTitle}` : ''}</p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>— {currentQuote.author}{currentQuote.authorTitle ? `, ${currentQuote.authorTitle}` : ''}</p>
                     </div>
                   )}
                 </div>
@@ -4175,7 +4175,7 @@ JSON array only:`
                         scorecardRange === k 
                           ? 'bg-[#1E3A5F] text-white shadow-lg' 
                           : darkMode 
-                            ? 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10' 
+                            ? 'bg-gray-800 text-gray-400 border border-gray-600 hover:bg-gray-700' 
                             : 'bg-white/70 text-gray-600 border border-white/50 hover:border-[#F5B800]'
                       }`}
                     >
@@ -4183,13 +4183,13 @@ JSON array only:`
                     </button>
                   ))}
                 </div>
-                <div className={`flex gap-1 rounded-xl p-1 backdrop-blur-sm ${darkMode ? 'bg-white/5' : 'bg-gray-100/80'}`}>
+                <div className={`flex gap-1 rounded-xl p-1 backdrop-blur-sm ${darkMode ? 'bg-gray-800' : 'bg-gray-100/80'}`}>
                   <button 
                     onClick={() => setDashboardView('personal')} 
                     className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
                       dashboardView === 'personal' 
-                        ? darkMode ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
-                        : darkMode ? 'text-gray-500' : 'text-gray-600'
+                        ? darkMode ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
+                        : darkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}
                   >
                     My Stats
@@ -4198,8 +4198,8 @@ JSON array only:`
                     onClick={() => setDashboardView('team')} 
                     className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
                       dashboardView === 'team' 
-                        ? darkMode ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
-                        : darkMode ? 'text-gray-500' : 'text-gray-600'
+                        ? darkMode ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
+                        : darkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}
                   >
                     Team
@@ -4213,7 +4213,7 @@ JSON array only:`
                   onClick={() => setShowHabitBreakdown('completed')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' 
+                      ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' 
                       : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
@@ -4226,43 +4226,43 @@ JSON array only:`
                     )}
                   </div>
                   <p className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.rate}%</p>
-                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Completion</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Completion</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('total')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' 
+                      ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' 
                       : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
                   <CheckCircle2 className="w-5 h-5 text-blue-500" />
                   <p className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.total}</p>
-                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Total Habits</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total Habits</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('exceeded')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' 
+                      ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' 
                       : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
                   <Award className="w-5 h-5 text-green-500" />
                   <p className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.exceeded}</p>
-                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Exceeded</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Exceeded</p>
                 </button>
                 <button 
                   onClick={() => setShowHabitBreakdown('missed')}
                   className={`rounded-2xl p-3 text-left transition-all backdrop-blur-xl ${
                     darkMode 
-                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' 
+                      ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' 
                       : 'bg-white/70 border border-white/50 active:bg-white/90'
                   }`}
                 >
                   <XCircle className="w-5 h-5 text-red-500" />
                   <p className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.missed}</p>
-                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Missed</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Missed</p>
                 </button>
                 {dashboardView === 'personal' && (
                   <div className={`rounded-2xl p-3 col-span-2 md:col-span-1 backdrop-blur-xl ${
@@ -4284,12 +4284,12 @@ JSON array only:`
               {/* Week at a Glance - Redesigned for Weekly Goals */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Week at a Glance</h3>
-                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{currentWeek ? formatWeekString(currentWeek) : ''}</span>
+                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{currentWeek ? formatWeekString(currentWeek) : ''}</span>
                 </div>
                 
                 {(() => {
@@ -4379,7 +4379,7 @@ JSON array only:`
                           </svg>
                           <div className="absolute inset-0 flex flex-col items-center justify-center">
                             <span className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{weeklyPct}%</span>
-                            <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                               {totalCompleted}/{totalTarget}
                             </span>
                           </div>
@@ -4438,9 +4438,9 @@ JSON array only:`
                         </div>
                         
                         {/* Compact Habit List */}
-                        <div className={`rounded-xl p-2 max-h-36 overflow-y-auto ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                        <div className={`rounded-xl p-2 max-h-36 overflow-y-auto ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
                           {habitsToShow.length === 0 ? (
-                            <p className={`text-xs text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No habits this week</p>
+                            <p className={`text-xs text-center py-4 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>No habits this week</p>
                           ) : (
                             <div className="space-y-1">
                               {habitsToShow.map(h => {
@@ -4490,7 +4490,7 @@ JSON array only:`
                                       st === 'On Track' ? 'text-blue-500' :
                                       st === 'At Risk' ? 'text-amber-500' :
                                       st === 'Missed' ? 'text-red-500' :
-                                      darkMode ? 'text-gray-500' : 'text-gray-400'
+                                      darkMode ? 'text-gray-400' : 'text-gray-400'
                                     }`}>
                                       {isPercentage 
                                         ? (currentPct !== null ? `${currentPct}%` : '—') 
@@ -4505,7 +4505,7 @@ JSON array only:`
                         </div>
                         
                         {/* Motivational message based on progress */}
-                        <div className={`text-xs text-center py-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <div className={`text-xs text-center py-1 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                           {weeklyPct >= 100 ? '🎉 Perfect week! Keep it up!' :
                            weeklyPct >= 80 ? '🔥 Crushing it! Almost there!' :
                            weeklyPct >= 60 ? '💪 Good progress! Push through!' :
@@ -4523,7 +4523,7 @@ JSON array only:`
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className={`md:col-span-2 rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                   darkMode 
-                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                    ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                     : 'bg-white/70 border border-white/50'
                 }`}>
                   <h3 className={`font-semibold text-sm mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Completion Trend ({scorecardRange === 'week' ? 'Week' : scorecardRange === '4weeks' ? '4 Weeks' : scorecardRange === 'quarter' ? 'Quarter' : 'All Time'})</h3>
@@ -4540,7 +4540,7 @@ JSON array only:`
                 </div>
                 <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                   darkMode 
-                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                    ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                     : 'bg-white/70 border border-white/50'
                 }`}>
                   <h3 className={`font-semibold text-sm mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Status</h3>
@@ -4554,7 +4554,7 @@ JSON array only:`
               {/* Participant Performance - with AI summaries - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center justify-between mb-3">
@@ -4572,7 +4572,7 @@ JSON array only:`
                   const profile = getProfileByParticipant(p.name);
                   const summary = participantSummaries[p.name];
                   return (
-                  <div key={p.name} className={`p-2 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-50/80'}`}>
+                  <div key={p.name} className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-50/80'}`}>
                     <div className="flex items-center gap-2 mb-1">
                       <button onClick={() => openProfileView(p.name)} className="flex items-center gap-2 hover:opacity-80">
                         {profile?.photoURL ? (
@@ -4582,7 +4582,7 @@ JSON array only:`
                         )}
                         <span className={`text-xs font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{p.name}</span>
                       </button>
-                      <div className={`flex-1 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
+                      <div className={`flex-1 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
                         <div className="h-full rounded-full transition-all" style={{ width: `${p.rate}%`, backgroundColor: p.color }} />
                       </div>
                       <div className="text-xs font-bold" style={{ color: p.color }}>{p.rate}%</div>
@@ -4597,7 +4597,7 @@ JSON array only:`
               {/* Recent Activity - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center justify-between mb-3">
@@ -4608,7 +4608,7 @@ JSON array only:`
                   const authorProfile = getProfileByParticipant(post.author);
                   const displayPhoto = authorProfile?.photoURL || post.authorPhoto;
                   return (
-                  <div key={post.id} className={`flex gap-2 p-2 rounded-xl mb-2 ${darkMode ? 'bg-white/5' : 'bg-gray-50/80'}`}>
+                  <div key={post.id} className={`flex gap-2 p-2 rounded-xl mb-2 ${darkMode ? 'bg-gray-800' : 'bg-gray-50/80'}`}>
                     <button onClick={() => openProfileView(post.author)}>
                       {displayPhoto ? <img src={displayPhoto} className="w-6 h-6 rounded-full object-cover hover:ring-2 hover:ring-[#F5B800]" alt="" /> : <div className="w-6 h-6 rounded-full bg-[#1E3A5F] text-white text-xs flex items-center justify-center">{post.author?.[0]}</div>}
                     </button>
@@ -4618,7 +4618,7 @@ JSON array only:`
                     </div>
                   </div>
                 );})}
-                {posts.length === 0 && <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No posts yet</p>}
+                {posts.length === 0 && <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>No posts yet</p>}
               </div>
             </div>
             
@@ -4627,7 +4627,7 @@ JSON array only:`
               {/* Leaderboard - Glass dark */}
               <div className={`rounded-2xl p-4 text-white backdrop-blur-xl ${
                 darkMode 
-                  ? 'bg-gradient-to-br from-[#1E3A5F]/80 to-[#0F2940]/80 border border-white/10' 
+                  ? 'bg-gradient-to-br from-[#1E3A5F]/80 to-[#0F2940]/80 border border-gray-600' 
                   : 'bg-gradient-to-br from-[#1E3A5F] to-[#0F2940]'
               }`}>
                 <div className="flex items-center gap-2 mb-3">
@@ -4638,7 +4638,7 @@ JSON array only:`
                   {leaderboard.map((p, i) => {
                     const profile = getProfileByParticipant(p.name);
                     return (
-                    <button key={p.name} onClick={() => openProfileView(p.name)} className="w-full flex items-center gap-2 hover:bg-white/10 rounded-xl p-1 -m-1 transition-colors">
+                    <button key={p.name} onClick={() => openProfileView(p.name)} className="w-full flex items-center gap-2 hover:bg-gray-700 rounded-xl p-1 -m-1 transition-colors">
                       {profile?.photoURL ? (
                         <img src={profile.photoURL} alt="" className="w-6 h-6 rounded-full object-cover ring-2 ring-white/20" />
                       ) : (
@@ -4653,7 +4653,7 @@ JSON array only:`
                     </button>
                   );})}
                 </div>
-                <button onClick={() => setActiveView('compete')} className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-medium transition-colors backdrop-blur-sm">
+                <button onClick={() => setActiveView('compete')} className="w-full mt-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-xl text-xs font-medium transition-colors backdrop-blur-sm">
                   View Challenges →
                 </button>
               </div>
@@ -4704,7 +4704,7 @@ JSON array only:`
                   ) : (
                     nonNegotiables.filter(n => n.userId === user?.uid).map((nn, idx) => (
                       <div key={nn.id} className={`flex items-center gap-2 p-2.5 rounded-xl group transition-colors ${
-                        darkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-white/60 hover:bg-white/80'
+                        darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white/60 hover:bg-white/80'
                       }`}>
                         <button
                           onClick={() => updateNonNegotiableStreak(nn.id, true)}
@@ -4720,7 +4720,7 @@ JSON array only:`
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{nn.habit}</p>
                           <div className="flex items-center gap-2">
-                            <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{nn.frequency}</p>
+                            <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{nn.frequency}</p>
                             {nn.streak > 0 && (
                               <div className="flex items-center gap-0.5">
                                 <Flame className="w-2.5 h-2.5 text-orange-500" />
@@ -4733,7 +4733,7 @@ JSON array only:`
                           <button 
                             onClick={() => updateNonNegotiableStreak(nn.id, false)}
                             className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
-                              darkMode ? 'text-gray-500 hover:text-orange-400 hover:bg-orange-500/20' : 'text-gray-400 hover:text-orange-500 hover:bg-orange-100'
+                              darkMode ? 'text-gray-300 hover:text-orange-400 hover:bg-orange-500/20' : 'text-gray-400 hover:text-orange-500 hover:bg-orange-100'
                             }`}
                             title="Reset streak"
                           >
@@ -4742,7 +4742,7 @@ JSON array only:`
                           <button 
                             onClick={() => deleteNonNegotiable(nn.id)}
                             className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
-                              darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/20' : 'text-gray-400 hover:text-red-500 hover:bg-red-100'
+                              darkMode ? 'text-gray-300 hover:text-red-400 hover:bg-red-500/20' : 'text-gray-400 hover:text-red-500 hover:bg-red-100'
                             }`}
                             title="Remove"
                           >
@@ -4758,7 +4758,7 @@ JSON array only:`
               {/* Today's Tasks - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center justify-between mb-3">
@@ -4779,11 +4779,11 @@ JSON array only:`
                     const topTasks = myTasks.slice(0, 5);
                     
                     if (topTasks.length === 0) {
-                      return <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No pending tasks 🎉</p>;
+                      return <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>No pending tasks 🎉</p>;
                     }
                     
                     return topTasks.map(task => (
-                      <div key={task.id} className={`flex items-center gap-2 p-2 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-50/80'}`}>
+                      <div key={task.id} className={`flex items-center gap-2 p-2 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-50/80'}`}>
                         <button 
                           onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
                           className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
@@ -4807,7 +4807,7 @@ JSON array only:`
               {/* Streaks - compact - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center gap-2 mb-3">
@@ -4818,7 +4818,7 @@ JSON array only:`
                   {allParticipants.map(p => {
                     const profile = getProfileByParticipant(p);
                     return (
-                    <button key={p} onClick={() => openProfileView(p)} className={`w-full flex items-center gap-2 rounded-xl p-1 -m-1 transition-colors ${darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
+                    <button key={p} onClick={() => openProfileView(p)} className={`w-full flex items-center gap-2 rounded-xl p-1 -m-1 transition-colors ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
                       {profile?.photoURL ? (
                         <img src={profile.photoURL} alt="" className="w-5 h-5 rounded-full object-cover" />
                       ) : (
@@ -4834,7 +4834,7 @@ JSON array only:`
               {/* Active Challenges Preview - Glass */}
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                   : 'bg-white/70 border border-white/50'
               }`}>
                 <div className="flex items-center gap-2 mb-3">
@@ -4849,7 +4849,7 @@ JSON array only:`
                   </div>
                 ))}
                 {bets.filter(b => b.status === 'accepted').length === 0 && (
-                  <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No active challenges</p>
+                  <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>No active challenges</p>
                 )}
                 <button onClick={() => setActiveView('compete')} className={`w-full mt-2 py-1.5 rounded-xl text-xs font-medium transition-colors ${
                   darkMode 
@@ -4869,14 +4869,14 @@ JSON array only:`
             {/* Create Post */}
             <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
               darkMode 
-                ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                 : 'bg-white/70 border border-white/50'
             }`}>
               <div className="flex gap-3">
                 {(userProfile?.photoURL || user?.photoURL) ? (
                   <img src={userProfile?.photoURL || user?.photoURL} className="w-10 h-10 rounded-full object-cover ring-2 ring-white/20" alt="" />
                 ) : (
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${darkMode ? 'bg-white/10 text-white' : 'bg-[#1E3A5F] text-white'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-[#1E3A5F] text-white'}`}>
                     {user?.displayName?.[0] || '?'}
                   </div>
                 )}
@@ -4885,7 +4885,7 @@ JSON array only:`
                   <div className="flex gap-1 mb-2">
                     <button 
                       onClick={() => applyFormat('bold')}
-                      className={`px-2 py-1 rounded text-xs font-bold transition-colors ${darkMode ? 'bg-white/10 hover:bg-white/20 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}
+                      className={`px-2 py-1 rounded text-xs font-bold transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}
                       title="Bold"
                     >
                       B
@@ -4959,7 +4959,7 @@ JSON array only:`
               const authorProfile = getProfileByParticipant(post.author);
               const displayPhoto = authorProfile?.photoURL || post.authorPhoto;
               return (
-              <div key={post.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div key={post.id} className={`rounded-xl border overflow-hidden ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 {/* Post Header */}
                 <div className="p-4 pb-0">
                   <div className="flex items-start gap-3">
@@ -4974,13 +4974,13 @@ JSON array only:`
                     </button>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <button onClick={() => openProfileView(post.author)} className="font-semibold text-gray-800 hover:text-[#1E3A5F] hover:underline">{post.author}</button>
-                        <span className="text-xs text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</span>
+                        <button onClick={() => openProfileView(post.author)} className={`font-semibold hover:underline ${darkMode ? 'text-white hover:text-[#F5B800]' : 'text-gray-800 hover:text-[#1E3A5F]'}`}>{post.author}</button>
+                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{new Date(post.createdAt).toLocaleDateString()}</span>
                       </div>
-                      <div className="text-gray-700 mt-1 whitespace-pre-wrap">{renderFormattedText(post.content)}</div>
+                      <div className={`mt-1 whitespace-pre-wrap ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{renderFormattedText(post.content)}</div>
                     </div>
                     {post.authorId === user?.uid && (
-                      <button onClick={() => deletePost(post.id)} className="text-gray-300 hover:text-red-400">
+                      <button onClick={() => deletePost(post.id)} className={`${darkMode ? 'text-gray-500 hover:text-red-400' : 'text-gray-300 hover:text-red-400'}`}>
                         <Trash2 className="w-4 h-4" />
                       </button>
                     )}
@@ -4995,7 +4995,7 @@ JSON array only:`
                 )}
                 
                 {/* Reactions */}
-                <div className="px-4 py-3 border-t border-gray-100 mt-3">
+                <div className={`px-4 py-3 border-t mt-3 ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
                   <div className="flex items-center gap-1 flex-wrap">
                     {REACTIONS.map(emoji => {
                       const count = post.reactions?.[emoji]?.length || 0;
@@ -5004,10 +5004,10 @@ JSON array only:`
                         <button
                           key={emoji}
                           onClick={() => addReaction(post.id, emoji)}
-                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm transition-colors ${hasReacted ? 'bg-[#F5B800]/20 border border-[#F5B800]' : 'bg-gray-100 hover:bg-gray-200'}`}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm transition-colors ${hasReacted ? 'bg-[#F5B800]/20 border border-[#F5B800]' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                         >
                           <span>{emoji}</span>
-                          {count > 0 && <span className="text-xs text-gray-600">{count}</span>}
+                          {count > 0 && <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{count}</span>}
                         </button>
                       );
                     })}
@@ -5065,7 +5065,7 @@ JSON array only:`
             );})}
             
             {posts.length === 0 && (
-              <div className="bg-white rounded-xl p-8 border border-gray-100 text-center">
+              <div className={`rounded-xl p-8 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500">No posts yet. Be the first to share!</p>
               </div>
@@ -5107,7 +5107,7 @@ JSON array only:`
                 {leaderboard.map((p, i) => {
                   const profile = getProfileByParticipant(p.name);
                   return (
-                  <div key={p.name} className={`relative rounded-xl p-4 cursor-pointer hover:scale-[1.02] transition-transform ${i === 0 ? 'bg-gradient-to-br from-[#F5B800] to-amber-600 text-[#1E3A5F]' : 'bg-white/10'}`} onClick={() => openProfileView(p.name)}>
+                  <div key={p.name} className={`relative rounded-xl p-4 cursor-pointer hover:scale-[1.02] transition-transform ${i === 0 ? 'bg-gradient-to-br from-[#F5B800] to-amber-600 text-[#1E3A5F]' : 'bg-gray-700'}`} onClick={() => openProfileView(p.name)}>
                     {i === 0 && (
                       <div className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg">
                         <Crown className="w-5 h-5 text-[#F5B800]" />
@@ -5142,7 +5142,7 @@ JSON array only:`
             {/* Active Challenges */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Pending Challenges */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <Gift className="w-5 h-5 text-purple-500" />
                   Pending Challenges
@@ -5249,7 +5249,7 @@ JSON array only:`
               </div>
               
               {/* Active Challenges */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-yellow-500" />
                   Active Challenges
@@ -5349,7 +5349,7 @@ JSON array only:`
             
             {/* Completed Challenges */}
             {bets.filter(b => b.status === 'completed').length > 0 && (
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <PartyPopper className="w-5 h-5 text-pink-500" />
                   Completed Challenges
@@ -5425,10 +5425,10 @@ JSON array only:`
                   </div>
                   
                   {/* Header */}
-                  <div className="relative p-6 pb-4 border-b border-white/10">
+                  <div className="relative p-6 pb-4 border-b border-gray-600">
                     <button 
                       onClick={() => { setShowNewBet(false); setNewBet({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false, allowMultipleWinners: false }); setChallengeSuggestions([]); setPrizeSuggestions([]); }}
-                      className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                      className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
                     >
                       <X className="w-4 h-4 text-white" />
                     </button>
@@ -5450,14 +5450,14 @@ JSON array only:`
                       <div className="flex gap-2">
                         <button
                           onClick={() => setNewBet({ ...newBet, isGroup: false, challenged: '', allowMultipleWinners: false })}
-                          className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${!newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                          className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${!newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-gray-700 text-white/70 hover:bg-gray-600'}`}
                         >
                           <Swords className="w-4 h-4" />
                           1 vs 1 Duel
                         </button>
                         <button
                           onClick={() => setNewBet({ ...newBet, isGroup: true, challenged: [] })}
-                          className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                          className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-gray-700 text-white/70 hover:bg-gray-600'}`}
                         >
                           <Users className="w-4 h-4" />
                           Group Battle
@@ -5492,7 +5492,7 @@ JSON array only:`
                                   setNewBet({ ...newBet, challenged: p });
                                 }
                               }}
-                              className={`p-3 rounded-xl transition-all flex flex-col items-center gap-2 ${isSelected ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/30 scale-105' : 'bg-white/10 hover:bg-white/20'}`}
+                              className={`p-3 rounded-xl transition-all flex flex-col items-center gap-2 ${isSelected ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/30 scale-105' : 'bg-gray-700 hover:bg-gray-600'}`}
                             >
                               <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${isSelected ? 'bg-white/30' : 'bg-white/20'}`}>
                                 {photo ? (
@@ -5527,7 +5527,7 @@ JSON array only:`
                         value={newBet.goal}
                         onChange={(e) => setNewBet({ ...newBet, goal: e.target.value })}
                         placeholder="e.g., First to 7 days of 100% completion wins"
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-purple-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
                       />
                       
                       {/* AI Challenge Suggestions */}
@@ -5537,7 +5537,7 @@ JSON array only:`
                             <button
                               key={idx}
                               onClick={() => setNewBet({ ...newBet, goal: suggestion })}
-                              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${newBet.goal === suggestion ? 'bg-purple-500/40 text-white border border-purple-400' : 'bg-white/5 text-white/70 hover:bg-white/10'}`}
+                              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${newBet.goal === suggestion ? 'bg-purple-500/40 text-white border border-purple-400' : 'bg-gray-800 text-white/70 hover:bg-gray-700'}`}
                             >
                               {suggestion}
                             </button>
@@ -5564,7 +5564,7 @@ JSON array only:`
                         value={newBet.reward}
                         onChange={(e) => setNewBet({ ...newBet, reward: e.target.value })}
                         placeholder="Bragging rights, coffee, $10..."
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
                       />
                       
                       {/* AI Prize Suggestions */}
@@ -5574,7 +5574,7 @@ JSON array only:`
                             <button
                               key={idx}
                               onClick={() => setNewBet({ ...newBet, reward: suggestion })}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${newBet.reward === suggestion ? 'bg-amber-500/40 text-white border border-amber-400' : 'bg-white/5 text-white/70 hover:bg-white/10'}`}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${newBet.reward === suggestion ? 'bg-amber-500/40 text-white border border-amber-400' : 'bg-gray-800 text-white/70 hover:bg-gray-700'}`}
                             >
                               {suggestion}
                             </button>
@@ -5591,7 +5591,7 @@ JSON array only:`
                           type="date"
                           value={newBet.deadline}
                           onChange={(e) => setNewBet({ ...newBet, deadline: e.target.value })}
-                          className="w-full bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl px-4 py-3 text-white outline-none transition-colors"
+                          className="w-full bg-gray-700 border-2 border-gray-600 focus:border-purple-400 rounded-xl px-4 py-3 text-white outline-none transition-colors"
                         />
                       </div>
                       
@@ -5601,7 +5601,7 @@ JSON array only:`
                           <label className="text-purple-300 text-sm font-medium block mb-2">🎖️ Winners</label>
                           <button
                             onClick={() => setNewBet({ ...newBet, allowMultipleWinners: !newBet.allowMultipleWinners })}
-                            className={`w-full py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.allowMultipleWinners ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                            className={`w-full py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.allowMultipleWinners ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gray-700 text-white/70 hover:bg-gray-600'}`}
                           >
                             <Users className="w-4 h-4" />
                             {newBet.allowMultipleWinners ? 'Multi-Winner' : 'Single Winner'}
@@ -5622,7 +5622,7 @@ JSON array only:`
                           <button
                             key={opt.label}
                             onClick={() => setNewBet({ ...newBet, deadline: date })}
-                            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${newBet.deadline === date ? 'bg-purple-500 text-white' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
+                            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${newBet.deadline === date ? 'bg-purple-500 text-white' : 'bg-gray-700 text-white/60 hover:bg-gray-600'}`}
                           >
                             {opt.label}
                           </button>
@@ -5632,7 +5632,7 @@ JSON array only:`
                   </div>
                   
                   {/* Send Challenge Button */}
-                  <div className="relative p-6 pt-4 border-t border-white/10">
+                  <div className="relative p-6 pt-4 border-t border-gray-600">
                     <button 
                       onClick={createBet}
                       disabled={!(newBet.isGroup ? (Array.isArray(newBet.challenged) && newBet.challenged.length > 0) : newBet.challenged) || !newBet.goal}
@@ -5705,7 +5705,7 @@ JSON array only:`
                   </div>
                   
                   {/* Challenge Details */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-white/20 text-left">
+                  <div className="bg-gray-700 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-gray-600 text-left">
                     <div className="mb-4">
                       <p className="text-white/50 text-xs uppercase tracking-wider mb-1">The Challenge</p>
                       <p className="text-white text-xl font-bold">{showIncomingChallenge.goal}</p>
@@ -5726,7 +5726,7 @@ JSON array only:`
                   <div className="flex gap-4">
                     <button
                       onClick={() => declineBet(showIncomingChallenge.id)}
-                      className="flex-1 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                      className="flex-1 py-4 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
                     >
                       <X className="w-5 h-5" />
                       Decline
@@ -5753,7 +5753,7 @@ JSON array only:`
             {/* Edit Challenge Modal */}
             {editingBet && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+                <div className={`rounded-2xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800 text-white" : "bg-white"}`}>
                   <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <Wand2 className="w-5 h-5 text-purple-600" />
                     Edit Challenge
@@ -5837,13 +5837,26 @@ JSON array only:`
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {[visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).map((nn, idx) => {
-                    const nnLower = nn.toLowerCase();
-                    const nnWords = nnLower.split(/\s+/).filter(w => w.length > 3);
+                    const nnLower = nn.toLowerCase().trim();
                     const matchingHabit = currentWeekHabits.find(h => {
                       if (h.participant !== myParticipant) return false;
-                      const habitLower = (h.habit || '').toLowerCase();
-                      if (habitLower.includes(nnLower.slice(0, 15)) || nnLower.includes(habitLower.slice(0, 15))) return true;
-                      return nnWords.some(word => habitLower.includes(word));
+                      const habitLower = (h.habit || '').toLowerCase().trim();
+                      // Exact match
+                      if (habitLower === nnLower) return true;
+                      // Habit starts with non-negotiable or vice versa
+                      const shorter = habitLower.length < nnLower.length ? habitLower : nnLower;
+                      const longer = habitLower.length < nnLower.length ? nnLower : habitLower;
+                      if (longer.startsWith(shorter) && shorter.length >= longer.length * 0.5) return true;
+                      // Check if first significant word matches exactly
+                      const habitFirstWord = habitLower.split(/\s+/)[0];
+                      const nnFirstWord = nnLower.split(/\s+/)[0];
+                      if (habitFirstWord.length > 3 && habitFirstWord === nnFirstWord) {
+                        const habitWords = habitLower.split(/\s+/).filter(w => w.length > 2);
+                        const nnWords = nnLower.split(/\s+/).filter(w => w.length > 2);
+                        const matchCount = habitWords.filter(hw => nnWords.some(nw => nw === hw || nw.includes(hw) || hw.includes(nw))).length;
+                        return matchCount >= 2;
+                      }
+                      return false;
                     });
                     const isTracked = !!matchingHabit;
                     const completedDays = matchingHabit?.daysCompleted?.length || 0;
@@ -5884,7 +5897,7 @@ JSON array only:`
                               setNewHabit({ habit: nn, participant: myParticipant, target: 5, habitType: 'daily' });
                               setShowAddHabitModal(true);
                             }}
-                            className={`ml-1 p-0.5 rounded hover:bg-white/20`}
+                            className={`ml-1 p-0.5 rounded hover:bg-gray-600`}
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -5898,7 +5911,7 @@ JSON array only:`
 
             {/* Header with view toggle */}
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className={`flex gap-1 rounded-xl p-1 ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
+              <div className={`flex gap-1 rounded-xl p-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                 <button 
                   onClick={() => setSelectedParticipant(myParticipant)} 
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -5931,9 +5944,9 @@ JSON array only:`
             
             {/* No habits - Show AI suggestions */}
             {currentWeekHabits.length === 0 ? (
-              <div className={`rounded-xl p-6 ${darkMode ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' : 'bg-white border border-gray-100'}`}>
+              <div className={`rounded-xl p-6 ${darkMode ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' : 'bg-white border border-gray-100'}`}>
                 <div className="text-center mb-6">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-white/10' : 'bg-[#F5F3E8]'}`}>
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-gray-700' : 'bg-[#F5F3E8]'}`}>
                     <Calendar className={`w-8 h-8 ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`} />
                   </div>
                   <h3 className={`text-lg font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Start Your Week Fresh!</h3>
@@ -5999,7 +6012,7 @@ JSON array only:`
                   <div className={`flex items-center justify-between p-3 rounded-xl mb-2 ${
                     editingPastWeek 
                       ? darkMode ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
-                      : darkMode ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' : 'bg-gray-50 border border-gray-200'
+                      : darkMode ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' : 'bg-gray-50 border border-gray-200'
                   }`}>
                     <div className="flex items-center gap-2">
                       {editingPastWeek ? (
@@ -6009,7 +6022,7 @@ JSON array only:`
                         </>
                       ) : (
                         <>
-                          <Lock className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <Lock className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`} />
                           <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>This week is complete and locked</span>
                         </>
                       )}
@@ -6019,7 +6032,7 @@ JSON array only:`
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         editingPastWeek 
                           ? 'bg-amber-500 text-white active:bg-amber-600' 
-                          : darkMode ? 'bg-white/10 text-white active:bg-white/20' : 'bg-white text-gray-600 border border-gray-300 active:bg-gray-100'
+                          : darkMode ? 'bg-gray-700 text-white active:bg-gray-500' : 'bg-white text-gray-600 border border-gray-300 active:bg-gray-100'
                       }`}
                     >
                       {editingPastWeek ? 'Done Editing' : 'Edit Week'}
@@ -6064,7 +6077,7 @@ JSON array only:`
                         <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${
                           habit.added 
                             ? darkMode ? 'bg-green-500/20' : 'bg-green-100'
-                            : darkMode ? 'bg-white/5' : 'bg-white'
+                            : darkMode ? 'bg-gray-800' : 'bg-white'
                         }`}>
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-medium truncate ${
@@ -6072,7 +6085,7 @@ JSON array only:`
                                 ? darkMode ? 'text-green-400' : 'text-green-700'
                                 : darkMode ? 'text-white' : 'text-gray-800'
                             }`}>{habit.habit}</p>
-                            <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{habit.target} days</p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{habit.target} days</p>
                           </div>
                           {habit.added ? (
                             <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
@@ -6089,33 +6102,47 @@ JSON array only:`
                 
                 {/* Compact Habit Table - Desktop */}
                 <div className={`hidden md:block rounded-xl border overflow-hidden ${
-                  darkMode ? 'bg-[#1a2332]/60 border-white/5' : 'bg-white border-gray-100'
+                  darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
                 }`}>
                   <table className="w-full">
                     <thead>
-                      <tr className={`border-b ${darkMode ? 'bg-[#0d1321]/50 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
-                        <th className="text-left p-2 pl-3 text-xs font-semibold text-gray-500 w-8"></th>
-                        <th className={`text-left p-2 text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Habit</th>
-                        <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'} w-12`}>Status</th>
+                      <tr className={`border-b ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-100'}`}>
+                        <th className={`text-left p-2 pl-3 text-xs font-semibold w-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}></th>
+                        <th className={`text-left p-2 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Habit</th>
+                        <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'} w-12`}>Status</th>
                         {DAYS.map(d => (
-                          <th key={d} className={`text-center p-1 text-xs font-semibold ${darkMode ? 'text-gray-500' : 'text-gray-500'} w-8`}>{d[0]}</th>
+                          <th key={d} className={`text-center p-1 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-500'} w-8`}>{d[0]}</th>
                         ))}
-                        <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'} w-16`}>Progress</th>
+                        <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'} w-16`}>Progress</th>
                         <th className="w-16"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {(() => {
-                        // Check which habits match non-negotiables
+                        // Check which habits match non-negotiables - STRICT matching
                         const nonNegotiablesList = visionData ? [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean) : [];
                         const isNonNegotiable = (habit) => {
                           if (!habit || nonNegotiablesList.length === 0) return false;
-                          const habitLower = (habit.habit || '').toLowerCase();
+                          const habitLower = (habit.habit || '').toLowerCase().trim();
                           return nonNegotiablesList.some(nn => {
-                            const nnLower = nn.toLowerCase();
-                            const nnWords = nnLower.split(/\s+/).filter(w => w.length > 3);
-                            if (habitLower.includes(nnLower.slice(0, 15)) || nnLower.includes(habitLower.slice(0, 15))) return true;
-                            return nnWords.some(word => habitLower.includes(word));
+                            const nnLower = nn.toLowerCase().trim();
+                            // Exact match
+                            if (habitLower === nnLower) return true;
+                            // Habit starts with non-negotiable or vice versa (at least 80% of shorter one)
+                            const shorter = habitLower.length < nnLower.length ? habitLower : nnLower;
+                            const longer = habitLower.length < nnLower.length ? nnLower : habitLower;
+                            if (longer.startsWith(shorter) && shorter.length >= longer.length * 0.5) return true;
+                            // Check if first significant word matches exactly
+                            const habitFirstWord = habitLower.split(/\s+/)[0];
+                            const nnFirstWord = nnLower.split(/\s+/)[0];
+                            if (habitFirstWord.length > 3 && habitFirstWord === nnFirstWord) {
+                              // First word matches, check if at least one more word matches
+                              const habitWords = habitLower.split(/\s+/).filter(w => w.length > 2);
+                              const nnWords = nnLower.split(/\s+/).filter(w => w.length > 2);
+                              const matchCount = habitWords.filter(hw => nnWords.some(nw => nw === hw || nw.includes(hw) || hw.includes(nw))).length;
+                              return matchCount >= 2;
+                            }
+                            return false;
                           });
                         };
                         
@@ -6146,7 +6173,7 @@ JSON array only:`
                           
                           if (isEditing && canEdit) {
                             return (
-                              <tr key={h.id} className={`border-b ${darkMode ? 'border-white/10 bg-blue-500/10' : 'border-gray-50 bg-blue-50'}`}>
+                              <tr key={h.id} className={`border-b ${darkMode ? 'border-gray-600 bg-blue-500/10' : 'border-gray-50 bg-blue-50'}`}>
                                 <td colSpan="11" className="p-3">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <input
@@ -6154,7 +6181,7 @@ JSON array only:`
                                       value={editingHabit.habit}
                                       onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
                                       className={`flex-1 min-w-[200px] border rounded px-2 py-1 text-sm focus:outline-none ${
-                                        darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200 focus:border-[#F5B800]'
+                                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200 focus:border-[#F5B800]'
                                       }`}
                                     />
                                     {isPercentage ? (
@@ -6165,7 +6192,7 @@ JSON array only:`
                                           max="100"
                                           value={editingHabit.target}
                                           onChange={(e) => setEditingHabit({ ...editingHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })}
-                                          className={`w-16 border rounded px-2 py-1 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'}`}
+                                          className={`w-16 border rounded px-2 py-1 text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'}`}
                                         />
                                         <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>%</span>
                                       </div>
@@ -6173,13 +6200,13 @@ JSON array only:`
                                       <select
                                         value={editingHabit.target}
                                         onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                                        className={`border rounded px-2 py-1 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'}`}
+                                        className={`border rounded px-2 py-1 text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'}`}
                                       >
                                         {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}d</option>)}
                                       </select>
                                     )}
                                     <button onClick={updateHabit} className="px-3 py-1 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600">Save</button>
-                                    <button onClick={() => setEditingHabit(null)} className={`px-3 py-1 rounded text-sm ${darkMode ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
+                                    <button onClick={() => setEditingHabit(null)} className={`px-3 py-1 rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
                                   </div>
                                 </td>
                               </tr>
@@ -6192,16 +6219,16 @@ JSON array only:`
                                 ? darkMode 
                                   ? 'border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-500/5' 
                                   : 'border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/50'
-                                : darkMode ? 'border-white/5 hover:bg-white/5' : 'border-gray-50 hover:bg-gray-50'
+                                : darkMode ? 'border-gray-700 hover:bg-gray-800' : 'border-gray-50 hover:bg-gray-50'
                             } ${!isMyHabit ? 'opacity-60' : ''}`}>
                               {/* Move arrows */}
                               <td className="p-1 pl-2">
                                 {canEdit && (
                                   <div className="flex flex-col">
-                                    <button onClick={() => moveHabit(h.id, 'up')} disabled={myHabitIndex === 0} className={`${darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'} disabled:opacity-30`}>
+                                    <button onClick={() => moveHabit(h.id, 'up')} disabled={myHabitIndex === 0} className={`${darkMode ? 'text-gray-300 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'} disabled:opacity-30`}>
                                       <ChevronUp className="w-3 h-3" />
                                     </button>
-                                    <button onClick={() => moveHabit(h.id, 'down')} disabled={myHabitIndex === myHabitsOnly.length - 1} className={`${darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'} disabled:opacity-30`}>
+                                    <button onClick={() => moveHabit(h.id, 'down')} disabled={myHabitIndex === myHabitsOnly.length - 1} className={`${darkMode ? 'text-gray-300 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'} disabled:opacity-30`}>
                                       <ChevronDown className="w-3 h-3" />
                                     </button>
                                   </div>
@@ -6214,7 +6241,7 @@ JSON array only:`
                                   {isPercentage && !habitIsNN && <span className="text-xs">📊</span>}
                                   <span className={`text-sm font-medium truncate max-w-[200px] ${habitIsNN ? (darkMode ? 'text-amber-300' : 'text-amber-800') : (darkMode ? 'text-white' : 'text-gray-800')}`} title={h.habit}>{h.habit}</span>
                                   {selectedParticipant === 'All' && (
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'text-gray-500 bg-white/10' : 'text-gray-400 bg-gray-100'}`}>{h.participant}</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'text-gray-300 bg-gray-700' : 'text-gray-400 bg-gray-100'}`}>{h.participant}</span>
                                   )}
                                 </div>
                               </td>
@@ -6296,8 +6323,8 @@ JSON array only:`
                                             : isToday
                                               ? 'border-[#F5B800] bg-amber-50'
                                               : canEdit 
-                                                ? darkMode ? 'border-gray-600 hover:border-green-400 bg-white/5' : 'border-gray-300 hover:border-green-400 bg-white'
-                                                : darkMode ? 'border-gray-700 bg-white/5' : 'border-gray-200 bg-gray-50'
+                                                ? darkMode ? 'border-gray-600 hover:border-green-400 bg-gray-800' : 'border-gray-300 hover:border-green-400 bg-white'
+                                                : darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                                         }`}
                                       >
                                         {isCompleted && <Check className="w-4 h-4" />}
@@ -6309,10 +6336,10 @@ JSON array only:`
                               {/* Progress */}
                               <td className="p-1">
                                 <div className="flex items-center gap-1">
-                                  <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
+                                  <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                                     <div className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(progressPct, 100)}%` }}></div>
                                   </div>
-                                  <span className={`text-[10px] w-10 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                  <span className={`text-[10px] w-10 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                                     {isPercentage ? `${currentPct}%` : `${(h.daysCompleted || []).length}/${h.target}`}
                                   </span>
                                 </div>
@@ -6341,16 +6368,30 @@ JSON array only:`
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-2">
                   {(() => {
-                    // Check which habits match non-negotiables
+                    // Check which habits match non-negotiables - STRICT matching
                     const nonNegotiablesList = visionData ? [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean) : [];
                     const isNonNegotiable = (habit) => {
                       if (!habit || nonNegotiablesList.length === 0) return false;
-                      const habitLower = (habit.habit || '').toLowerCase();
+                      const habitLower = (habit.habit || '').toLowerCase().trim();
                       return nonNegotiablesList.some(nn => {
-                        const nnLower = nn.toLowerCase();
-                        const nnWords = nnLower.split(/\s+/).filter(w => w.length > 3);
-                        if (habitLower.includes(nnLower.slice(0, 15)) || nnLower.includes(habitLower.slice(0, 15))) return true;
-                        return nnWords.some(word => habitLower.includes(word));
+                        const nnLower = nn.toLowerCase().trim();
+                        // Exact match
+                        if (habitLower === nnLower) return true;
+                        // Habit starts with non-negotiable or vice versa (at least 80% of shorter one)
+                        const shorter = habitLower.length < nnLower.length ? habitLower : nnLower;
+                        const longer = habitLower.length < nnLower.length ? nnLower : habitLower;
+                        if (longer.startsWith(shorter) && shorter.length >= longer.length * 0.5) return true;
+                        // Check if first significant word matches exactly
+                        const habitFirstWord = habitLower.split(/\s+/)[0];
+                        const nnFirstWord = nnLower.split(/\s+/)[0];
+                        if (habitFirstWord.length > 3 && habitFirstWord === nnFirstWord) {
+                          // First word matches, check if at least one more word matches
+                          const habitWords = habitLower.split(/\s+/).filter(w => w.length > 2);
+                          const nnWords = nnLower.split(/\s+/).filter(w => w.length > 2);
+                          const matchCount = habitWords.filter(hw => nnWords.some(nw => nw === hw || nw.includes(hw) || hw.includes(nw))).length;
+                          return matchCount >= 2;
+                        }
+                        return false;
                       });
                     };
                     
@@ -6386,7 +6427,7 @@ JSON array only:`
                               type="text"
                               value={editingHabit.habit}
                               onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
-                              className={`w-full rounded-lg px-3 py-2 text-sm mb-2 ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border focus:outline-none`}
+                              className={`w-full rounded-lg px-3 py-2 text-sm mb-2 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'} border focus:outline-none`}
                             />
                             <div className="flex items-center gap-2">
                               {isPercentage ? (
@@ -6397,7 +6438,7 @@ JSON array only:`
                                     max="100"
                                     value={editingHabit.target}
                                     onChange={(e) => setEditingHabit({ ...editingHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })}
-                                    className={`w-16 rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border`}
+                                    className={`w-16 rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'} border`}
                                   />
                                   <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>% target</span>
                                 </div>
@@ -6405,13 +6446,13 @@ JSON array only:`
                                 <select
                                   value={editingHabit.target}
                                   onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                                  className={`rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-gray-200'} border`}
+                                  className={`rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'} border`}
                                 >
                                   {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} times</option>)}
                                 </select>
                               )}
                               <button onClick={updateHabit} className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium">Save</button>
-                              <button onClick={() => setEditingHabit(null)} className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
+                              <button onClick={() => setEditingHabit(null)} className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
                             </div>
                           </div>
                         );
@@ -6426,7 +6467,7 @@ JSON array only:`
                                 ? 'bg-gradient-to-r from-amber-500/15 to-orange-500/10 border border-amber-500/30'
                                 : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'
                               : darkMode 
-                                ? `bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 ${!isMyHabit ? 'opacity-50' : ''}` 
+                                ? `bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 ${!isMyHabit ? 'opacity-50' : ''}` 
                                 : `bg-white border border-gray-100 ${!isMyHabit ? 'opacity-60' : ''}`
                           }`}
                         >
@@ -6439,7 +6480,7 @@ JSON array only:`
                                 <p className={`text-sm font-medium ${habitIsNN ? (darkMode ? 'text-amber-300' : 'text-amber-800') : (darkMode ? 'text-white' : 'text-gray-800')}`}>{h.habit}</p>
                               </div>
                               {selectedParticipant === 'All' && (
-                                <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.participant}</span>
+                                <span className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{h.participant}</span>
                               )}
                             </div>
                             <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${darkMode ? cfg.darkBg : cfg.bgColor} ${darkMode ? cfg.darkText : cfg.textColor}`}>
@@ -6449,7 +6490,7 @@ JSON array only:`
                           
                           {/* Days row OR Percentage instances */}
                           {isPercentage ? (
-                            <div className={`py-3 mb-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                            <div className={`py-3 mb-2 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
                               {/* Instance circles */}
                               <div className="flex items-center justify-center gap-2 flex-wrap px-2 mb-2">
                                 {instances.map((inst) => (
@@ -6468,7 +6509,7 @@ JSON array only:`
                                   </button>
                                 ))}
                                 {instances.length === 0 && (
-                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                                     No entries yet
                                   </span>
                                 )}
@@ -6511,7 +6552,7 @@ JSON array only:`
                               
                               {/* Long press hint */}
                               {canEdit && instances.length > 0 && (
-                                <p className={`text-[10px] text-center mt-2 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                                <p className={`text-[10px] text-center mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-400'}`}>
                                   Tap to toggle • Long press to remove
                                 </p>
                               )}
@@ -6535,12 +6576,12 @@ JSON array only:`
                                         : isToday
                                           ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
                                           : darkMode 
-                                            ? canEdit ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 active:bg-white/10' : 'bg-white/5 border border-white/5'
+                                            ? canEdit ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' : 'bg-gray-800 border border-gray-700'
                                             : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
                                     }`}
                                   >
                                     <span className={`text-[10px] font-medium ${
-                                      isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-500' : 'text-gray-400'
+                                      isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-400' : 'text-gray-400'
                                     }`}>
                                       {d[0]}
                                     </span>
@@ -6560,13 +6601,13 @@ JSON array only:`
                           {/* Footer: Progress + Actions */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-1">
-                              <div className={`flex-1 h-1.5 rounded-full overflow-hidden max-w-[120px] ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
+                              <div className={`flex-1 h-1.5 rounded-full overflow-hidden max-w-[120px] ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                                 <div 
                                   className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} 
                                   style={{ width: `${Math.min(progressPct, 100)}%` }}
                                 />
                               </div>
-                              <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                                 {isPercentage ? (instances.length > 0 ? `${currentPct}% of ${h.target}%` : `Target: ${h.target}%`) : `${(h.daysCompleted || []).length}/${h.target}`}
                               </span>
                             </div>
@@ -6658,19 +6699,19 @@ JSON array only:`
               
               return (
                 <div className="grid grid-cols-4 gap-2">
-                  <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                  <div className={`rounded-lg p-2 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                     <p className="text-xl font-bold text-[#1E3A5F]">{monthHabits.length}</p>
                     <p className="text-[10px] text-gray-500">Habits</p>
                   </div>
-                  <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                  <div className={`rounded-lg p-2 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                     <p className="text-xl font-bold text-green-600">{totalCompleted}</p>
                     <p className="text-[10px] text-gray-500">Done</p>
                   </div>
-                  <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                  <div className={`rounded-lg p-2 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                     <p className="text-xl font-bold text-purple-600">{totalTarget}</p>
                     <p className="text-[10px] text-gray-500">Target</p>
                   </div>
-                  <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                  <div className={`rounded-lg p-2 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                     <div className="w-full bg-gray-200 rounded-full h-1.5 mb-0.5">
                       <div className={`h-1.5 rounded-full ${progressPct >= 80 ? 'bg-green-500' : progressPct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${progressPct}%` }}></div>
                     </div>
@@ -6681,7 +6722,7 @@ JSON array only:`
             })()}
 
             {/* Monthly Grid - Grouped by habit name */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+            <div className={`rounded-xl border overflow-x-auto ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-50">
@@ -6995,7 +7036,7 @@ JSON array only:`
             </div>
 
             {/* Task List */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className={`rounded-xl border overflow-hidden ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
@@ -7215,7 +7256,7 @@ JSON array only:`
               const rate = pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0;
               const profile = getProfileByParticipant(p);
               return (
-                <div key={p} className="bg-white rounded-xl p-4 border border-gray-100">
+                <div key={p} className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <div className="flex items-center justify-between mb-3">
                     <button onClick={() => openProfileView(p)} className="flex items-center gap-3 hover:opacity-80">
                       {profile?.photoURL ? (
@@ -7268,14 +7309,14 @@ JSON array only:`
             {/* Modal */}
             <div className={`relative w-full max-w-md rounded-2xl p-5 shadow-2xl ${
               darkMode 
-                ? 'bg-gradient-to-br from-[#1a2332] to-[#0d1321] border border-white/10 shadow-black/50' 
+                ? 'bg-gray-800 border border-gray-600 shadow-black/50' 
                 : 'bg-white'
             }`}>
               {/* Close button */}
               <button 
                 onClick={() => setShowAddHabitModal(false)}
                 className={`absolute top-4 right-4 p-1 rounded-lg transition-colors ${
-                  darkMode ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200' : 'text-gray-400 hover:bg-gray-100'
+                  darkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-200' : 'text-gray-400 hover:bg-gray-100'
                 }`}
               >
                 <X className="w-5 h-5" />
@@ -7286,7 +7327,7 @@ JSON array only:`
               </h2>
               
               {/* Single/Bulk toggle */}
-              <div className={`flex gap-2 mb-4 p-1 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+              <div className={`flex gap-2 mb-4 p-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                 {['single', 'bulk'].map(m => (
                   <button 
                     key={m} 
@@ -7310,7 +7351,7 @@ JSON array only:`
                     onChange={(e) => setNewHabit({ ...newHabit, habit: e.target.value })} 
                     className={`w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                       darkMode 
-                        ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
+                        ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
                         : 'bg-gray-50 border border-gray-200 text-gray-800'
                     }`} 
                     placeholder="What habit do you want to track?" 
@@ -7320,7 +7361,7 @@ JSON array only:`
                   {/* Habit Type Toggle */}
                   <div>
                     <label className={`text-xs font-medium mb-1.5 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Tracking Type</label>
-                    <div className={`flex gap-2 p-1 rounded-xl ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                    <div className={`flex gap-2 p-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                       <button 
                         onClick={() => setNewHabit({ ...newHabit, habitType: 'daily', target: 5 })}
                         className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -7358,11 +7399,11 @@ JSON array only:`
                           onChange={(e) => setNewHabit({ ...newHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })} 
                           className={`w-full rounded-xl px-3 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                             darkMode 
-                              ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white' 
+                              ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 text-white' 
                               : 'bg-gray-50 border border-gray-200 text-gray-800'
                           }`}
                         />
-                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>%</span>
+                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>%</span>
                       </div>
                     ) : (
                       <select 
@@ -7370,7 +7411,7 @@ JSON array only:`
                         onChange={(e) => setNewHabit({ ...newHabit, target: e.target.value })} 
                         className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                           darkMode 
-                            ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white' 
+                            ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 text-white' 
                             : 'bg-gray-50 border border-gray-200 text-gray-800'
                         }`}
                       >
@@ -7381,7 +7422,7 @@ JSON array only:`
                   
                   {/* Example hint for percentage */}
                   {newHabit.habitType === 'percentage' && (
-                    <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                       💡 Track each attempt individually (✓/✗) and get automatic percentage. Example: 3 successes out of 5 trades = 60%
                     </p>
                   )}
@@ -7401,7 +7442,7 @@ JSON array only:`
                     onChange={(e) => setBulkHabits(e.target.value)} 
                     className={`w-full rounded-xl px-4 py-3 text-sm h-32 focus:outline-none focus:ring-2 focus:ring-[#F5B800] resize-none ${
                       darkMode 
-                        ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
+                        ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
                         : 'bg-gray-50 border border-gray-200 text-gray-800'
                     }`} 
                     placeholder="Enter one habit per line...&#10;Example:&#10;Exercise 30 minutes&#10;Read for 20 minutes&#10;Meditate"
@@ -7414,7 +7455,7 @@ JSON array only:`
                       onChange={(e) => setBulkTarget(e.target.value)} 
                       className={`w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F5B800] ${
                         darkMode 
-                          ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white' 
+                          ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 text-white' 
                           : 'bg-gray-50 border border-gray-200 text-gray-800'
                       }`}
                     >
@@ -7445,14 +7486,14 @@ JSON array only:`
             {/* Modal */}
             <div className={`relative w-full max-w-md rounded-2xl p-5 shadow-2xl ${
               darkMode 
-                ? 'bg-gradient-to-br from-[#1a2332] to-[#0d1321] border border-white/10 shadow-black/50' 
+                ? 'bg-gray-800 border border-gray-600 shadow-black/50' 
                 : 'bg-white'
             }`}>
               {/* Close button */}
               <button 
                 onClick={() => setShowQuoteModal(false)}
                 className={`absolute top-4 right-4 p-1 rounded-lg transition-colors ${
-                  darkMode ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200' : 'text-gray-400 hover:bg-gray-100'
+                  darkMode ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-200' : 'text-gray-400 hover:bg-gray-100'
                 }`}
               >
                 <X className="w-5 h-5" />
@@ -7494,12 +7535,12 @@ JSON array only:`
                             ? 'bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] text-white ring-2 ring-[#F5B800]/50' 
                             : 'bg-[#1E3A5F] text-white ring-2 ring-[#F5B800]'
                           : darkMode
-                            ? 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/5'
+                            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
                             : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                       }`}
                     >
                       <div className="font-medium text-sm">{type.label}</div>
-                      <div className={`text-xs ${quoteThemeType === type.value ? 'text-white/70' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <div className={`text-xs ${quoteThemeType === type.value ? 'text-white/70' : darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                         {type.desc}
                       </div>
                     </button>
@@ -7510,7 +7551,7 @@ JSON array only:`
               {/* Custom Direction */}
               <div className="mb-5">
                 <label className={`text-xs font-medium mb-2 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Custom Direction <span className={darkMode ? 'text-gray-600' : 'text-gray-400'}>(optional)</span>
+                  Custom Direction <span className={darkMode ? 'text-gray-300' : 'text-gray-400'}>(optional)</span>
                 </label>
                 <textarea
                   value={quoteCustomDirection}
@@ -7518,7 +7559,7 @@ JSON array only:`
                   placeholder="E.g., 'Something about perseverance during hard times' or 'A quote from an athlete about dedication'"
                   className={`w-full rounded-xl px-4 py-3 text-sm h-20 focus:outline-none focus:ring-2 focus:ring-[#F5B800] resize-none ${
                     darkMode 
-                      ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
+                      ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 text-white placeholder-gray-500' 
                       : 'bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400'
                   }`}
                 />
@@ -7530,7 +7571,7 @@ JSON array only:`
                   onClick={() => setShowQuoteModal(false)}
                   className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${
                     darkMode 
-                      ? 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/5' 
+                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700' 
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -7566,7 +7607,7 @@ JSON array only:`
               {/* Radar Chart - Life Balance - Glass */}
               <div className={`rounded-2xl p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                   : 'bg-white/60 border border-white shadow-xl'
               }`}>
                 <h3 className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance</h3>
@@ -7613,12 +7654,12 @@ JSON array only:`
                 {/* GitHub-style Heatmap - Glass */}
                 <div className={`rounded-2xl p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
                   darkMode 
-                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                    ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                     : 'bg-white/60 border border-white shadow-xl'
                 }`}>
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Heatmap</p>
+                      <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Heatmap</p>
                       <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Activity</h3>
                     </div>
                     <span className="text-emerald-500 text-sm font-medium">
@@ -7649,7 +7690,7 @@ JSON array only:`
                     
                     if (weeks.length === 0) {
                       return (
-                        <div className={`flex items-center justify-center py-8 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <div className={`flex items-center justify-center py-8 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                           No habit data yet. Start tracking to see your activity!
                         </div>
                       );
@@ -7671,7 +7712,7 @@ JSON array only:`
                         {/* Day labels - vertical on left */}
                         <div className="flex flex-col gap-1 pt-5">
                           {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-                            <div key={i} className={`w-4 h-4 flex items-center justify-center text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                            <div key={i} className={`w-4 h-4 flex items-center justify-center text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                               {i % 2 === 0 ? d : ''}
                             </div>
                           ))}
@@ -7682,7 +7723,7 @@ JSON array only:`
                           {/* Month labels */}
                           <div className="flex gap-1 mb-1">
                             {monthLabels.map((label, idx) => (
-                              <div key={idx} className={`w-4 text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              <div key={idx} className={`w-4 text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                                 {label || ''}
                               </div>
                             ))}
@@ -7734,7 +7775,7 @@ JSON array only:`
                   })()}
                   
                   {/* Legend */}
-                  <div className={`flex items-center justify-end gap-1 mt-3 text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <div className={`flex items-center justify-end gap-1 mt-3 text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                     <span>Less</span>
                     <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-gray-700/50' : 'bg-gray-200'}`}></div>
                     <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200'}`}></div>
@@ -7748,7 +7789,7 @@ JSON array only:`
                 {/* Life Score - Glass */}
                 <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
                   darkMode 
-                    ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                    ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                     : 'bg-white/60 border border-white shadow-xl'
                 }`}>
                   <h3 className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Your Accountability Score</h3>
@@ -7766,7 +7807,7 @@ JSON array only:`
                       </div>
                       <div className="absolute -left-2 bottom-0 w-1 h-full bg-gradient-to-t from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
                     </div>
-                    <div className={`text-xs pb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <div className={`text-xs pb-2 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
                       <p>Completion + Streaks + Challenges</p>
                     </div>
                   </div>
@@ -7777,12 +7818,12 @@ JSON array only:`
             {/* Monthly Progress Bars - Glass */}
             <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
               darkMode 
-                ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                 : 'bg-white/60 border border-white shadow-xl'
             }`}>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Your Progress</p>
+                  <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Your Progress</p>
                   <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Monthly Trend</h3>
                 </div>
               </div>
@@ -7820,7 +7861,7 @@ JSON array only:`
                             style={{ height: `${rate}%` }}
                           ></div>
                         </div>
-                        <span className={`text-xs ${isCurrentMonth ? darkMode ? 'text-white font-medium' : 'text-blue-600 font-medium' : darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{m.month}</span>
+                        <span className={`text-xs ${isCurrentMonth ? darkMode ? 'text-white font-medium' : 'text-blue-600 font-medium' : darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{m.month}</span>
                       </div>
                     );
                   });
@@ -7851,7 +7892,7 @@ JSON array only:`
               {/* Top Performing Habits - Glass */}
               <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
                 darkMode 
-                  ? 'bg-[#1a2332]/80 border border-white/5 shadow-xl shadow-black/20' 
+                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                   : 'bg-white/60 border border-white shadow-xl'
               }`}>
                 <h3 className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits</h3>
@@ -7915,7 +7956,7 @@ JSON array only:`
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Weekly Feedback */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                     <MessageCircle className="w-5 h-5 text-blue-600" />
@@ -7943,7 +7984,7 @@ JSON array only:`
               </div>
 
               {/* Team Insights */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
                     <Lightbulb className="w-5 h-5 text-emerald-600" />
@@ -8067,7 +8108,7 @@ JSON array only:`
               </div>
 
               {/* Habit Writer */}
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-10 h-10 rounded-xl bg-[#F5F3E8] flex items-center justify-center">
                     <Wand2 className="w-5 h-5 text-[#162D4D]" />
@@ -8097,7 +8138,7 @@ JSON array only:`
 
             {/* AI Response */}
             {(aiResponse || aiLoading) && (
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] flex items-center justify-center">
                     <Sparkles className="w-4 h-4 text-white" />
@@ -8370,19 +8411,19 @@ JSON array only:`
                   </div>
                   
                   {/* Biggest Goal */}
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100 md:col-span-2">
+                  <div className={`rounded-2xl p-5 border md:col-span-2 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <Target className="w-5 h-5 text-[#1E3A5F]" />
-                      <p className="text-xs uppercase tracking-wider text-gray-500">Biggest Goal for 2026</p>
+                      <Target className={`w-5 h-5 ${darkMode ? 'text-[#F5B800]' : 'text-[#1E3A5F]'}`} />
+                      <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Biggest Goal for 2026</p>
                     </div>
-                    <p className="text-gray-800 font-medium">{visionData.biggestGoal || 'Not set yet'}</p>
+                    <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{visionData.biggestGoal || 'Not set yet'}</p>
                   </div>
                 </div>
 
                 {/* Domain Scores */}
-                <div className="bg-white rounded-2xl p-5 border border-gray-100">
-                  <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-[#1E3A5F]" />
+                <div className={`rounded-xl p-5 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
+                  <h3 className={`font-semibold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    <BarChart3 className={`w-5 h-5 ${darkMode ? 'text-[#F5B800]' : 'text-[#1E3A5F]'}`} />
                     Life Domain Scores
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -8406,50 +8447,50 @@ JSON array only:`
                 </div>
 
                 {/* Non-Negotiables */}
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 border border-amber-200">
-                  <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
+                <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30' : 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200'}`}>
+                  <h3 className={`font-semibold mb-3 flex items-center gap-2 ${darkMode ? 'text-amber-400' : 'text-amber-800'}`}>
                     <Lock className="w-5 h-5" />
                     My 3 Non-Negotiables for 2026
                   </h3>
                   <div className="space-y-2">
                     {[visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).map((nn, idx) => (
-                      <div key={idx} className="flex items-center gap-3 bg-white/60 p-3 rounded-xl">
-                        <div className="w-8 h-8 rounded-lg bg-amber-200 flex items-center justify-center font-bold text-amber-700">{idx + 1}</div>
-                        <p className="text-gray-800 font-medium">{nn}</p>
+                      <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-800/60' : 'bg-white/60'}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${darkMode ? 'bg-amber-500/30 text-amber-400' : 'bg-amber-200 text-amber-700'}`}>{idx + 1}</div>
+                        <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{nn}</p>
                       </div>
                     ))}
                     {![visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).length && (
-                      <p className="text-amber-600 text-sm">No non-negotiables set yet</p>
+                      <p className={`text-sm ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>No non-negotiables set yet</p>
                     )}
                   </div>
                 </div>
 
                 {/* Strategy & Support */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100">
-                    <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <div className={`rounded-xl p-5 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
+                    <h3 className={`font-semibold mb-2 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                       <Zap className="w-5 h-5 text-purple-500" />
                       My Success Strategy
                     </h3>
-                    <p className="text-gray-600 text-sm">{visionData.overcomeStrategy || 'Not defined yet'}</p>
+                    <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{visionData.overcomeStrategy || 'Not defined yet'}</p>
                   </div>
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100">
-                    <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <div className={`rounded-xl p-5 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
+                    <h3 className={`font-semibold mb-2 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                       <Heart className="w-5 h-5 text-red-500" />
                       Accountability Partner
                     </h3>
-                    <p className="text-gray-600 text-sm">{visionData.supportPerson || 'Not set yet'}</p>
+                    <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{visionData.supportPerson || 'Not set yet'}</p>
                   </div>
                 </div>
 
                 {/* Letter to Self Preview */}
                 {visionData.letterToSelf && (
-                  <div className="bg-gradient-to-br from-gray-50 to-slate-100 rounded-2xl p-5 border border-gray-200">
-                    <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                      <MessageCircle className="w-5 h-5 text-gray-500" />
+                  <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700' : 'bg-gradient-to-br from-gray-50 to-slate-100 border-gray-200'}`}>
+                    <h3 className={`font-semibold mb-2 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      <MessageCircle className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                       Letter to My Future Self
                     </h3>
-                    <p className="text-gray-600 text-sm italic line-clamp-3">"{visionData.letterToSelf}"</p>
+                    <p className={`text-sm italic line-clamp-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>"{visionData.letterToSelf}"</p>
                   </div>
                 )}
 
@@ -8703,7 +8744,7 @@ JSON array only:`
                     <img 
                       src={profilePhotoPreview || userProfile?.photoURL || user?.photoURL} 
                       alt="" 
-                      className="w-28 h-28 rounded-full border-4 border-white/20 object-cover" 
+                      className="w-28 h-28 rounded-full border-4 border-gray-600 object-cover" 
                     />
                   ) : (
                     <div className="w-28 h-28 rounded-full bg-white/20 flex items-center justify-center">
@@ -8770,7 +8811,7 @@ JSON array only:`
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Profile Settings - Left Column */}
               <div className="md:col-span-2 space-y-4">
-                <div className="bg-white rounded-xl p-6 border border-gray-100">
+                <div className={`rounded-xl p-6 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <Edit3 className="w-5 h-5 text-[#1E3A5F]" />
                     Edit Profile
@@ -8853,7 +8894,7 @@ JSON array only:`
                 </div>
                 
                 {/* Active Challenges */}
-                <div className="bg-white rounded-xl p-6 border border-gray-100">
+                <div className={`rounded-xl p-6 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <Swords className="w-5 h-5 text-purple-500" />
                     Active Challenges
@@ -8892,7 +8933,7 @@ JSON array only:`
               {/* Right Sidebar */}
               <div className="space-y-4">
                 {/* Challenge Stats */}
-                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <h3 className="font-semibold text-gray-800 mb-3 text-sm">Challenge Record</h3>
                   {(() => {
                     const wonChallenges = bets.filter(b => 
@@ -8920,7 +8961,7 @@ JSON array only:`
                 </div>
                 
                 {/* Team Members */}
-                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <h3 className="font-semibold text-gray-800 mb-3 text-sm">Team Members</h3>
                   <div className="space-y-2">
                     {allParticipants.map(p => {
@@ -8950,7 +8991,7 @@ JSON array only:`
                 </div>
                 
                 {/* Account Actions */}
-                <div className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <button
                     onClick={handleSignOut}
                     className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition-colors"
@@ -8965,7 +9006,7 @@ JSON array only:`
             {/* Add New Participant Modal */}
             {showAddParticipant && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+                <div className={`rounded-2xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800 text-white" : "bg-white"}`}>
                   <h3 className="text-lg font-bold text-gray-800 mb-4">Add New Participant</h3>
                   <p className="text-sm text-gray-500 mb-4">Create a new participant name for the habit tracker</p>
                   
@@ -9001,19 +9042,19 @@ JSON array only:`
         {/* Profile Viewing Modal - for viewing other participants */}
         {viewingProfile && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl w-full max-w-2xl my-8">
+            <div className={`rounded-2xl w-full max-w-2xl my-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               {/* Modal Header */}
               <div className="bg-gradient-to-br from-[#1E3A5F] to-[#0F2940] rounded-t-2xl p-6 text-white relative">
                 <button 
                   onClick={() => setViewingProfile(null)}
-                  className="absolute top-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors"
+                  className="absolute top-4 right-4 w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
                 
                 <div className="flex items-center gap-4">
                   {viewingProfile.photoURL ? (
-                    <img src={viewingProfile.photoURL} alt="" className="w-20 h-20 rounded-full border-4 border-white/20 object-cover" />
+                    <img src={viewingProfile.photoURL} alt="" className="w-20 h-20 rounded-full border-4 border-gray-600 object-cover" />
                   ) : (
                     <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
                       <span className="text-3xl font-bold">{viewingProfile.participantName?.[0] || '?'}</span>
@@ -9067,22 +9108,22 @@ JSON array only:`
                 {/* Bio */}
                 {viewingProfile.bio && (
                   <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">About</h4>
-                    <p className="text-gray-600 text-sm bg-gray-50 rounded-lg p-3">{viewingProfile.bio}</p>
+                    <h4 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>About</h4>
+                    <p className={`text-sm rounded-lg p-3 ${darkMode ? 'text-gray-300 bg-gray-700' : 'text-gray-600 bg-gray-50'}`}>{viewingProfile.bio}</p>
                   </div>
                 )}
                 
                 {/* Goals */}
                 {viewingProfile.goals && (
                   <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Goals & Motivations</h4>
-                    <p className="text-gray-600 text-sm bg-gray-50 rounded-lg p-3">{viewingProfile.goals}</p>
+                    <h4 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Goals & Motivations</h4>
+                    <p className={`text-sm rounded-lg p-3 ${darkMode ? 'text-gray-300 bg-gray-700' : 'text-gray-600 bg-gray-50'}`}>{viewingProfile.goals}</p>
                   </div>
                 )}
                 
                 {/* Active Challenges */}
                 <div className="mb-6">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Active Challenges</h4>
+                  <h4 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Active Challenges</h4>
                   {(() => {
                     const theirChallenges = bets.filter(b => 
                       (b.status === 'pending' || b.status === 'accepted') &&
@@ -9091,14 +9132,14 @@ JSON array only:`
                     return theirChallenges.length > 0 ? (
                       <div className="space-y-2">
                         {theirChallenges.map(bet => (
-                          <div key={bet.id} className="p-3 bg-purple-50 rounded-lg text-sm">
+                          <div key={bet.id} className={`p-3 rounded-lg text-sm ${darkMode ? 'bg-purple-500/20' : 'bg-purple-50'}`}>
                             <div className="flex items-center gap-2">
                               <Swords className="w-4 h-4 text-purple-500" />
-                              <span className="font-medium">{bet.challenger}</span>
+                              <span className={`font-medium ${darkMode ? 'text-white' : ''}`}>{bet.challenger}</span>
                               <span className="text-gray-400">vs</span>
-                              <span className="font-medium">{Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</span>
+                              <span className={`font-medium ${darkMode ? 'text-white' : ''}`}>{Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</span>
                             </div>
-                            <p className="text-gray-600 mt-1">{bet.goal}</p>
+                            <p className={`mt-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{bet.goal}</p>
                           </div>
                         ))}
                       </div>
@@ -9158,7 +9199,7 @@ JSON array only:`
         {/* Add Task Modal */}
         {showAddTask && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <div className={`rounded-2xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800 text-white" : "bg-white"}`}>
               <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Target className="w-5 h-5 text-[#1E3A5F]" />
                 Add New Task
@@ -9239,7 +9280,7 @@ JSON array only:`
         {/* Non-Negotiables Modal */}
         {showNonNegotiableModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <div className={`rounded-2xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800 text-white" : "bg-white"}`}>
               <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
                 <Lock className="w-5 h-5 text-amber-600" />
                 Add Non-Negotiable Habit
@@ -9329,7 +9370,7 @@ JSON array only:`
         {/* Mood Modal */}
         {showMoodModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <div className={`rounded-2xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800 text-white" : "bg-white"}`}>
               <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Heart className="w-5 h-5 text-purple-500" />
                 Log Today's Mood
@@ -9424,7 +9465,7 @@ JSON array only:`
             {/* Close Button */}
             <button
               onClick={() => setShowVisionWrapped(false)}
-              className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
             >
               <X className="w-5 h-5 text-white" />
             </button>
@@ -9466,25 +9507,25 @@ JSON array only:`
                 <div className="text-center max-w-3xl animate-fade-in">
                   <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-6">Your year in numbers</p>
                   <div className="grid grid-cols-2 gap-6 mb-8">
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/10">
+                    <div className="bg-gray-800 backdrop-blur-sm rounded-3xl p-6 border border-gray-600">
                       <p className="text-6xl md:text-8xl font-black bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
                         {wrappedStats.totalHabitsTracked}
                       </p>
                       <p className="text-white/60 mt-2">habits tracked</p>
                     </div>
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/10">
+                    <div className="bg-gray-800 backdrop-blur-sm rounded-3xl p-6 border border-gray-600">
                       <p className="text-6xl md:text-8xl font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent">
                         {wrappedStats.totalDaysCompleted}
                       </p>
                       <p className="text-white/60 mt-2">days completed</p>
                     </div>
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/10">
+                    <div className="bg-gray-800 backdrop-blur-sm rounded-3xl p-6 border border-gray-600">
                       <p className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 to-violet-500 bg-clip-text text-transparent">
                         {wrappedStats.totalWeeks}
                       </p>
                       <p className="text-white/60 mt-2">weeks strong</p>
                     </div>
-                    <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/10">
+                    <div className="bg-gray-800 backdrop-blur-sm rounded-3xl p-6 border border-gray-600">
                       <p className="text-6xl md:text-8xl font-black bg-gradient-to-r from-[#F5B800] to-amber-500 bg-clip-text text-transparent">
                         {wrappedStats.overallCompletionRate}%
                       </p>
@@ -9528,7 +9569,7 @@ JSON array only:`
                   <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
                     "{wrappedStats.worstHabit.name}"
                   </h2>
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 mb-6">
+                  <div className="bg-gray-800 backdrop-blur-sm rounded-2xl p-6 border border-gray-600 mb-6">
                     <p className="text-5xl md:text-6xl font-black text-orange-400">
                       {wrappedStats.worstHabit.rate}%
                     </p>
@@ -9601,7 +9642,7 @@ JSON array only:`
                       ];
                       const icons = { fitness: '💪', health: '❤️', business: '💼', finance: '💰', learning: '📚', mindfulness: '🧘', social: '👥', discipline: '🎯' };
                       return (
-                        <div key={cat.name} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                        <div key={cat.name} className="bg-gray-800 backdrop-blur-sm rounded-xl p-4 border border-gray-600">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-white font-medium flex items-center gap-2">
                               <span className="text-xl">{icons[cat.name] || '📌'}</span>
@@ -9609,7 +9650,7 @@ JSON array only:`
                             </span>
                             <span className="text-white/60 text-sm">{cat.count} habits</span>
                           </div>
-                          <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                          <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
                             <div 
                               className={`h-full bg-gradient-to-r ${colors[idx]} rounded-full transition-all duration-1000`}
                               style={{ width: `${(cat.count / wrappedStats.categoryRankings[0].count) * 100}%` }}
@@ -9672,7 +9713,7 @@ JSON array only:`
                     {wrappedStats.funFacts.slice(0, 4).map((fact, idx) => (
                       <div 
                         key={idx} 
-                        className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 text-left"
+                        className="bg-gray-800 backdrop-blur-sm rounded-xl p-5 border border-gray-600 text-left"
                         style={{ animationDelay: `${idx * 0.2}s` }}
                       >
                         <p className="text-white/90 text-lg">{fact}</p>
@@ -9700,7 +9741,7 @@ JSON array only:`
                           className={`rounded-xl p-4 border transition-all ${
                             isMe 
                               ? 'bg-gradient-to-r from-[#F5B800]/20 to-amber-500/20 border-[#F5B800]/50' 
-                              : 'bg-white/5 border-white/10'
+                              : 'bg-gray-800 border-gray-600'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -9744,7 +9785,7 @@ JSON array only:`
                   <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
                     {wrappedStats.gradeMessage}
                   </h2>
-                  <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 mt-6">
+                  <div className="bg-gray-800 backdrop-blur-sm rounded-xl p-6 border border-gray-600 mt-6">
                     <div className="grid grid-cols-3 gap-4 text-center">
                       <div>
                         <p className="text-2xl font-bold text-[#F5B800]">{wrappedStats.overallCompletionRate}%</p>
@@ -9796,7 +9837,7 @@ JSON array only:`
                     value={visionAnswers.wordOfYear}
                     onChange={(e) => setVisionAnswers({ ...visionAnswers, wordOfYear: e.target.value.toUpperCase() })}
                     placeholder="e.g., DISCIPLINE, GROWTH, BALANCE"
-                    className="w-full max-w-md mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-2xl text-white text-center uppercase tracking-widest placeholder:text-white/30 outline-none transition-colors"
+                    className="w-full max-w-md mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-6 py-4 text-2xl text-white text-center uppercase tracking-widest placeholder:text-white/30 outline-none transition-colors"
                     maxLength={20}
                   />
                   <div className="flex flex-wrap justify-center gap-2 mt-6">
@@ -9807,7 +9848,7 @@ JSON array only:`
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                           visionAnswers.wordOfYear === word 
                             ? 'bg-[#F5B800] text-[#1E3A5F]' 
-                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                            : 'bg-gray-700 text-white/70 hover:bg-gray-600'
                         }`}
                       >
                         {word}
@@ -9829,7 +9870,7 @@ JSON array only:`
                     value={visionAnswers.biggestGoal}
                     onChange={(e) => setVisionAnswers({ ...visionAnswers, biggestGoal: e.target.value })}
                     placeholder="Describe your biggest goal in detail..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
                   />
                 </div>
               )}
@@ -9852,7 +9893,7 @@ JSON array only:`
                       { key: 'relationshipsScore', label: 'Relationships', icon: '🤝' },
                       { key: 'spiritualScore', label: 'Spiritual', icon: '🙏' }
                     ].map(domain => (
-                      <div key={domain.key} className="bg-white/5 rounded-xl p-4">
+                      <div key={domain.key} className="bg-gray-800 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-white font-medium">{domain.icon} {domain.label}</span>
                           <span className="text-[#F5B800] font-bold text-xl">{visionAnswers[domain.key]}</span>
@@ -9890,7 +9931,7 @@ JSON array only:`
                           value={visionAnswers[`nonNegotiable${num}`]}
                           onChange={(e) => setVisionAnswers({ ...visionAnswers, [`nonNegotiable${num}`]: e.target.value })}
                           placeholder={`Non-negotiable habit #${num}`}
-                          className="flex-1 bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                          className="flex-1 bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
                         />
                       </div>
                     ))}
@@ -9911,7 +9952,7 @@ JSON array only:`
                     value={visionAnswers.supportPerson}
                     onChange={(e) => setVisionAnswers({ ...visionAnswers, supportPerson: e.target.value })}
                     placeholder="Name of your accountability partner"
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
                   />
                   <div className="flex flex-wrap justify-center gap-2 mt-6">
                     {['Brandon', 'John', 'Taylor'].filter(p => p !== userProfile?.linkedParticipant).map(name => (
@@ -9921,7 +9962,7 @@ JSON array only:`
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                           visionAnswers.supportPerson === name 
                             ? 'bg-[#F5B800] text-[#1E3A5F]' 
-                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                            : 'bg-gray-700 text-white/70 hover:bg-gray-600'
                         }`}
                       >
                         {name}
@@ -9944,7 +9985,7 @@ JSON array only:`
                     value={visionAnswers.rewardForSuccess}
                     onChange={(e) => setVisionAnswers({ ...visionAnswers, rewardForSuccess: e.target.value })}
                     placeholder="e.g., Vacation, new gadget, special experience..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
                   />
                 </div>
               )}
@@ -9961,7 +10002,7 @@ JSON array only:`
                     value={visionAnswers.letterToSelf}
                     onChange={(e) => setVisionAnswers({ ...visionAnswers, letterToSelf: e.target.value })}
                     placeholder="Dear Future Me,&#10;&#10;As I write this in early 2026, I want you to remember..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-48"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-48"
                   />
                 </div>
               )}
@@ -9972,7 +10013,7 @@ JSON array only:`
               {visionSlide > 0 && (
                 <button
                   onClick={() => setVisionSlide(visionSlide - 1)}
-                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                  className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
                 >
                   <ChevronLeft className="w-5 h-5" />
                   Back
@@ -10018,7 +10059,7 @@ JSON array only:`
             {/* Close Button */}
             <button
               onClick={() => setShowReflectionModal(false)}
-              className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
             >
               <X className="w-5 h-5 text-white" />
             </button>
@@ -10059,7 +10100,7 @@ JSON array only:`
                     value={reflectionAnswers.wordToDescribe2025}
                     onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, wordToDescribe2025: e.target.value.toUpperCase() })}
                     placeholder="e.g., GROWTH, CHALLENGING, TRANSFORMATIVE"
-                    className="w-full max-w-md mx-auto block bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl px-6 py-4 text-2xl text-white text-center uppercase tracking-widest placeholder:text-white/30 outline-none transition-colors"
+                    className="w-full max-w-md mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-purple-400 rounded-xl px-6 py-4 text-2xl text-white text-center uppercase tracking-widest placeholder:text-white/30 outline-none transition-colors"
                     maxLength={20}
                   />
                   <div className="flex flex-wrap justify-center gap-2 mt-6">
@@ -10070,7 +10111,7 @@ JSON array only:`
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                           reflectionAnswers.wordToDescribe2025 === word 
                             ? 'bg-purple-400 text-white' 
-                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                            : 'bg-gray-700 text-white/70 hover:bg-gray-600'
                         }`}
                       >
                         {word}
@@ -10094,7 +10135,7 @@ JSON array only:`
                     value={reflectionAnswers.biggestWin}
                     onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, biggestWin: e.target.value })}
                     placeholder="Describe your proudest achievement this year..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
                   />
                 </div>
               )}
@@ -10111,7 +10152,7 @@ JSON array only:`
                     value={reflectionAnswers.biggestChallenge}
                     onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, biggestChallenge: e.target.value })}
                     placeholder="What obstacle tested you the most?"
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-orange-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-orange-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
                   />
                 </div>
               )}
@@ -10130,7 +10171,7 @@ JSON array only:`
                     value={reflectionAnswers.lessonLearned}
                     onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, lessonLearned: e.target.value })}
                     placeholder="Share the wisdom you gained..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-cyan-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-cyan-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
                   />
                 </div>
               )}
@@ -10153,7 +10194,7 @@ JSON array only:`
                       { key: 'relationshipsReflection', label: 'Relationships', icon: '🤝' },
                       { key: 'spiritualReflection', label: 'Spiritual', icon: '🙏' }
                     ].map(domain => (
-                      <div key={domain.key} className="bg-white/5 rounded-xl p-4">
+                      <div key={domain.key} className="bg-gray-800 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-white font-medium">{domain.icon} {domain.label}</span>
                           <span className="text-purple-300 font-bold text-xl">{reflectionAnswers[domain.key]}</span>
@@ -10187,7 +10228,7 @@ JSON array only:`
                         value={reflectionAnswers.habitMastered}
                         onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, habitMastered: e.target.value })}
                         placeholder="e.g., Morning workouts, Daily reading..."
-                        className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-green-400 rounded-xl px-6 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                        className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-green-400 rounded-xl px-6 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
                       />
                     </div>
                     <div>
@@ -10197,7 +10238,7 @@ JSON array only:`
                         value={reflectionAnswers.habitStruggled}
                         onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, habitStruggled: e.target.value })}
                         placeholder="e.g., Consistent sleep, Diet tracking..."
-                        className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-orange-400 rounded-xl px-6 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                        className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-orange-400 rounded-xl px-6 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
                       />
                     </div>
                   </div>
@@ -10218,7 +10259,7 @@ JSON array only:`
                     value={reflectionAnswers.unexpectedJoy}
                     onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, unexpectedJoy: e.target.value })}
                     placeholder="A moment, person, or experience that surprised you with happiness..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-pink-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-pink-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
                   />
                 </div>
               )}
@@ -10234,7 +10275,7 @@ JSON array only:`
                     value={reflectionAnswers.gratefulFor}
                     onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, gratefulFor: e.target.value })}
                     placeholder="People, experiences, lessons, opportunities..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
                   />
                 </div>
               )}
@@ -10250,7 +10291,7 @@ JSON array only:`
                     value={reflectionAnswers.adviceToFutureSelf}
                     onChange={(e) => setReflectionAnswers({ ...reflectionAnswers, adviceToFutureSelf: e.target.value })}
                     placeholder="Based on everything you learned in 2025..."
-                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-40"
+                    className="w-full max-w-lg mx-auto block bg-gray-700 border-2 border-gray-600 focus:border-purple-400 rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-40"
                   />
                 </div>
               )}
@@ -10261,7 +10302,7 @@ JSON array only:`
               {reflectionSlide > 0 && (
                 <button
                   onClick={() => setReflectionSlide(reflectionSlide - 1)}
-                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                  className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
                 >
                   <ChevronLeft className="w-5 h-5" />
                   Back
@@ -10295,11 +10336,11 @@ JSON array only:`
             <div className="fixed inset-0 pointer-events-none overflow-hidden">
               <div className="absolute top-1/4 -left-20 w-80 h-80 bg-[#F5B800]/20 rounded-full blur-3xl animate-pulse" />
               <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gray-800 rounded-full blur-3xl" />
             </div>
 
             {/* Progress Bar */}
-            <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-30">
+            <div className="fixed top-0 left-0 right-0 h-1 bg-gray-700 z-30">
               <div 
                 className="h-full bg-gradient-to-r from-[#F5B800] to-amber-400 transition-all duration-500"
                 style={{ width: `${((onboardingSlide + 1) / 8) * 100}%` }}
@@ -10351,15 +10392,15 @@ JSON array only:`
                   <p className="text-white/50 mb-8">Let's get you set up in about 2 minutes</p>
                   
                   <div className="flex flex-wrap justify-center gap-4 mb-8">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-gray-700 rounded-full">
                       <Target className="w-4 h-4 text-[#F5B800]" />
                       <span className="text-white/80 text-sm">Track Habits</span>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-gray-700 rounded-full">
                       <Users className="w-4 h-4 text-[#F5B800]" />
                       <span className="text-white/80 text-sm">Group Accountability</span>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-gray-700 rounded-full">
                       <TrendingUp className="w-4 h-4 text-[#F5B800]" />
                       <span className="text-white/80 text-sm">See Progress</span>
                     </div>
@@ -10386,7 +10427,7 @@ JSON array only:`
                         value={onboardingData.displayName}
                         onChange={(e) => setOnboardingData({ ...onboardingData, displayName: e.target.value })}
                         placeholder="John Smith"
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
                       />
                     </div>
                     <div>
@@ -10396,7 +10437,7 @@ JSON array only:`
                         value={onboardingData.nickname}
                         onChange={(e) => setOnboardingData({ ...onboardingData, nickname: e.target.value })}
                         placeholder="Johnny"
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
                       />
                     </div>
                   </div>
@@ -10420,11 +10461,11 @@ JSON array only:`
                       className={`p-6 rounded-2xl border-2 transition-all text-left ${
                         onboardingData.participantType === 'existing'
                           ? 'bg-[#F5B800]/20 border-[#F5B800] shadow-lg shadow-[#F5B800]/20'
-                          : 'bg-white/5 border-white/20 hover:border-white/40'
+                          : 'bg-gray-800 border-gray-600 hover:border-white/40'
                       }`}
                     >
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
-                        onboardingData.participantType === 'existing' ? 'bg-[#F5B800]' : 'bg-white/10'
+                        onboardingData.participantType === 'existing' ? 'bg-[#F5B800]' : 'bg-gray-700'
                       }`}>
                         <Users className={`w-5 h-5 ${onboardingData.participantType === 'existing' ? 'text-[#1E3A5F]' : 'text-white'}`} />
                       </div>
@@ -10437,11 +10478,11 @@ JSON array only:`
                       className={`p-6 rounded-2xl border-2 transition-all text-left ${
                         onboardingData.participantType === 'new'
                           ? 'bg-[#F5B800]/20 border-[#F5B800] shadow-lg shadow-[#F5B800]/20'
-                          : 'bg-white/5 border-white/20 hover:border-white/40'
+                          : 'bg-gray-800 border-gray-600 hover:border-white/40'
                       }`}
                     >
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
-                        onboardingData.participantType === 'new' ? 'bg-[#F5B800]' : 'bg-white/10'
+                        onboardingData.participantType === 'new' ? 'bg-[#F5B800]' : 'bg-gray-700'
                       }`}>
                         <Plus className={`w-5 h-5 ${onboardingData.participantType === 'new' ? 'text-[#1E3A5F]' : 'text-white'}`} />
                       </div>
@@ -10461,7 +10502,7 @@ JSON array only:`
                             className={`p-4 rounded-xl border-2 transition-all ${
                               onboardingData.linkedParticipant === p
                                 ? 'bg-[#F5B800] border-[#F5B800] text-[#1E3A5F]'
-                                : 'bg-white/5 border-white/20 text-white hover:border-white/40'
+                                : 'bg-gray-800 border-gray-600 text-white hover:border-white/40'
                             }`}
                           >
                             <span className="font-bold">{p}</span>
@@ -10479,7 +10520,7 @@ JSON array only:`
                         value={onboardingData.newParticipantName}
                         onChange={(e) => setOnboardingData({ ...onboardingData, newParticipantName: e.target.value })}
                         placeholder="Enter your name"
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
                       />
                     </div>
                   )}
@@ -10501,7 +10542,7 @@ JSON array only:`
                     value={onboardingData.primaryGoal}
                     onChange={(e) => setOnboardingData({ ...onboardingData, primaryGoal: e.target.value })}
                     placeholder="e.g., Build consistent fitness habits, grow my business, improve work-life balance..."
-                    className="w-full bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                    className="w-full bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
                   />
                   
                   <div className="flex flex-wrap justify-center gap-2 mt-4">
@@ -10512,7 +10553,7 @@ JSON array only:`
                         className={`px-4 py-2 rounded-full text-sm transition-all ${
                           onboardingData.primaryGoal === goal
                             ? 'bg-[#F5B800] text-[#1E3A5F] font-bold'
-                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                            : 'bg-gray-700 text-white/70 hover:bg-gray-600'
                         }`}
                       >
                         {goal}
@@ -10557,7 +10598,7 @@ JSON array only:`
                           className={`p-4 rounded-xl border-2 transition-all ${
                             isSelected
                               ? 'bg-gradient-to-br ' + area.color + ' border-white/50 shadow-lg'
-                              : 'bg-white/5 border-white/20 hover:border-white/40'
+                              : 'bg-gray-800 border-gray-600 hover:border-white/40'
                           }`}
                         >
                           <span className="text-2xl mb-2 block">{area.icon}</span>
@@ -10610,7 +10651,7 @@ JSON array only:`
                         className={`p-6 rounded-2xl border-2 transition-all text-left ${
                           onboardingData.accountabilityStyle === style.key
                             ? `bg-gradient-to-br ${style.color} border-white/50 shadow-lg`
-                            : 'bg-white/5 border-white/20 hover:border-white/40'
+                            : 'bg-gray-800 border-gray-600 hover:border-white/40'
                         }`}
                       >
                         <span className="text-3xl mb-3 block">{style.icon}</span>
@@ -10637,7 +10678,7 @@ JSON array only:`
                     {[0, 1, 2].map(idx => (
                       <div key={idx} className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                          onboardingData.initialHabits[idx] ? 'bg-green-500' : 'bg-white/10'
+                          onboardingData.initialHabits[idx] ? 'bg-green-500' : 'bg-gray-700'
                         }`}>
                           {onboardingData.initialHabits[idx] ? (
                             <Check className="w-5 h-5 text-white" />
@@ -10654,13 +10695,13 @@ JSON array only:`
                             setOnboardingData({ ...onboardingData, initialHabits: newHabits });
                           }}
                           placeholder={idx === 0 ? 'e.g., Workout 4x per week' : idx === 1 ? 'e.g., Read 30 minutes' : 'e.g., No social media until noon'}
-                          className="flex-1 bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                          className="flex-1 bg-gray-700 border-2 border-gray-600 focus:border-[#F5B800] rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
                         />
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-6 p-4 bg-white/5 rounded-xl">
+                  <div className="mt-6 p-4 bg-gray-800 rounded-xl">
                     <p className="text-white/50 text-sm mb-3">Popular habits in your focus areas:</p>
                     <div className="flex flex-wrap justify-center gap-2">
                       {(() => {
@@ -10682,7 +10723,7 @@ JSON array only:`
                                 setOnboardingData({ ...onboardingData, initialHabits: newHabits });
                               }
                             }}
-                            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white/70 text-sm transition-colors"
+                            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-white/70 text-sm transition-colors"
                           >
                             + {s}
                           </button>
@@ -10707,23 +10748,23 @@ JSON array only:`
                   </p>
                   
                   {/* Summary Card */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-left mb-8 border border-white/20">
+                  <div className="bg-gray-700 backdrop-blur-sm rounded-2xl p-6 text-left mb-8 border border-gray-600">
                     <h3 className="text-white font-bold mb-4 text-center">Your Setup Summary</h3>
                     <div className="space-y-3">
-                      <div className="flex justify-between items-center py-2 border-b border-white/10">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-600">
                         <span className="text-white/60">Participant</span>
                         <span className="text-white font-medium">
                           {onboardingData.participantType === 'new' ? onboardingData.newParticipantName : onboardingData.linkedParticipant}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center py-2 border-b border-white/10">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-600">
                         <span className="text-white/60">Focus Areas</span>
                         <span className="text-white font-medium">
                           {onboardingData.focusAreas.length > 0 ? onboardingData.focusAreas.slice(0, 3).join(', ') : 'Not set'}
                           {onboardingData.focusAreas.length > 3 && ` +${onboardingData.focusAreas.length - 3}`}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center py-2 border-b border-white/10">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-600">
                         <span className="text-white/60">Style</span>
                         <span className="text-white font-medium capitalize">{onboardingData.accountabilityStyle}</span>
                       </div>
@@ -10754,7 +10795,7 @@ JSON array only:`
                 {onboardingSlide > 0 && (
                   <button
                     onClick={() => setOnboardingSlide(onboardingSlide - 1)}
-                    className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                    className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
                   >
                     <ChevronLeft className="w-5 h-5" />
                     Back
@@ -10783,7 +10824,7 @@ JSON array only:`
             {/* Close Button */}
             <button
               onClick={() => setShowTimeCapsule(false)}
-              className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
             >
               <X className="w-5 h-5 text-white" />
             </button>
@@ -10806,17 +10847,17 @@ JSON array only:`
                     It contains your hopes, predictions, and a message to your future self.
                   </p>
                   
-                  <div className="bg-white/10 rounded-2xl p-6 mb-6">
+                  <div className="bg-gray-700 rounded-2xl p-6 mb-6">
                     <h3 className="text-amber-300 font-bold mb-4">Unlock Schedule</h3>
                     <div className="space-y-3">
-                      <div className={`flex items-center justify-between p-3 rounded-xl ${isMidYearUnlocked ? 'bg-green-500/20' : 'bg-white/5'}`}>
+                      <div className={`flex items-center justify-between p-3 rounded-xl ${isMidYearUnlocked ? 'bg-green-500/20' : 'bg-gray-800'}`}>
                         <div className="flex items-center gap-3">
                           {isMidYearUnlocked ? <Check className="w-5 h-5 text-green-400" /> : <Lock className="w-5 h-5 text-white/40" />}
                           <span className="text-white font-medium">Mid-Year Review</span>
                         </div>
                         <span className={isMidYearUnlocked ? 'text-green-400' : 'text-white/40'}>July 1, 2026</span>
                       </div>
-                      <div className={`flex items-center justify-between p-3 rounded-xl ${isEndYearUnlocked ? 'bg-green-500/20' : 'bg-white/5'}`}>
+                      <div className={`flex items-center justify-between p-3 rounded-xl ${isEndYearUnlocked ? 'bg-green-500/20' : 'bg-gray-800'}`}>
                         <div className="flex items-center gap-3">
                           {isEndYearUnlocked ? <Check className="w-5 h-5 text-green-400" /> : <Lock className="w-5 h-5 text-white/40" />}
                           <span className="text-white font-medium">Full Capsule</span>
@@ -10828,7 +10869,7 @@ JSON array only:`
 
                   {/* Mid-year preview if unlocked */}
                   {isMidYearUnlocked && (
-                    <div className="bg-white/10 rounded-2xl p-6 text-left mb-6">
+                    <div className="bg-gray-700 rounded-2xl p-6 text-left mb-6">
                       <h3 className="text-amber-300 font-bold mb-3 flex items-center gap-2">
                         <PartyPopper className="w-5 h-5" />
                         Mid-Year Preview
@@ -10865,25 +10906,25 @@ JSON array only:`
                   
                   <div className="space-y-4 text-left">
                     {timeCapsuleData.currentMood && (
-                      <div className="bg-white/10 rounded-xl p-4">
+                      <div className="bg-gray-700 rounded-xl p-4">
                         <p className="text-amber-300 text-xs uppercase font-bold mb-1">Your Mood Back Then</p>
                         <p className="text-white">{timeCapsuleData.currentMood}</p>
                       </div>
                     )}
                     {timeCapsuleData.currentChallenge && (
-                      <div className="bg-white/10 rounded-xl p-4">
+                      <div className="bg-gray-700 rounded-xl p-4">
                         <p className="text-amber-300 text-xs uppercase font-bold mb-1">Challenge You Were Facing</p>
                         <p className="text-white">{timeCapsuleData.currentChallenge}</p>
                       </div>
                     )}
                     {timeCapsuleData.hopesForEndOfYear && (
-                      <div className="bg-white/10 rounded-xl p-4">
+                      <div className="bg-gray-700 rounded-xl p-4">
                         <p className="text-amber-300 text-xs uppercase font-bold mb-1">Your Hopes for End of Year</p>
                         <p className="text-white">{timeCapsuleData.hopesForEndOfYear}</p>
                       </div>
                     )}
                     {timeCapsuleData.predictionsFor2026 && (
-                      <div className="bg-white/10 rounded-xl p-4">
+                      <div className="bg-gray-700 rounded-xl p-4">
                         <p className="text-amber-300 text-xs uppercase font-bold mb-1">Your Predictions</p>
                         <p className="text-white">{timeCapsuleData.predictionsFor2026}</p>
                       </div>
@@ -10901,7 +10942,7 @@ JSON array only:`
                       </div>
                     )}
                     {timeCapsuleData.currentFavorites && (
-                      <div className="bg-white/10 rounded-xl p-4">
+                      <div className="bg-gray-700 rounded-xl p-4">
                         <p className="text-amber-300 text-xs uppercase font-bold mb-1">Your Favorites Back Then</p>
                         <p className="text-white">{timeCapsuleData.currentFavorites}</p>
                       </div>
@@ -10929,7 +10970,7 @@ JSON array only:`
                         value={timeCapsuleAnswers.currentMood}
                         onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, currentMood: e.target.value })}
                         placeholder="Describe your current state of mind..."
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
                       />
                     </div>
                     <div>
@@ -10939,7 +10980,7 @@ JSON array only:`
                         value={timeCapsuleAnswers.currentChallenge}
                         onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, currentChallenge: e.target.value })}
                         placeholder="Your biggest obstacle right now..."
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
                       />
                     </div>
                     <div>
@@ -10948,7 +10989,7 @@ JSON array only:`
                         value={timeCapsuleAnswers.hopesForEndOfYear}
                         onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, hopesForEndOfYear: e.target.value })}
                         placeholder="Your hopes and dreams for this year..."
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none resize-none h-24"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none resize-none h-24"
                       />
                     </div>
                     <div>
@@ -10958,7 +10999,7 @@ JSON array only:`
                         value={timeCapsuleAnswers.predictionsFor2026}
                         onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, predictionsFor2026: e.target.value })}
                         placeholder="Something you think will happen..."
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
                       />
                     </div>
                     <div>
@@ -10968,7 +11009,7 @@ JSON array only:`
                         value={timeCapsuleAnswers.secretGoal}
                         onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, secretGoal: e.target.value })}
                         placeholder="Something you haven't told anyone..."
-                        className="w-full bg-white/10 border-2 border-purple-500/30 focus:border-purple-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                        className="w-full bg-gray-700 border-2 border-purple-500/30 focus:border-purple-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
                       />
                     </div>
                     <div>
@@ -10977,7 +11018,7 @@ JSON array only:`
                         value={timeCapsuleAnswers.messageToFutureSelf}
                         onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, messageToFutureSelf: e.target.value })}
                         placeholder="Dear future me..."
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none resize-none h-32"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none resize-none h-32"
                       />
                     </div>
                     <div>
@@ -10987,7 +11028,7 @@ JSON array only:`
                         value={timeCapsuleAnswers.currentFavorites}
                         onChange={(e) => setTimeCapsuleAnswers({ ...timeCapsuleAnswers, currentFavorites: e.target.value })}
                         placeholder="What you're loving right now..."
-                        className="w-full bg-white/10 border-2 border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
+                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none"
                       />
                     </div>
                   </div>
