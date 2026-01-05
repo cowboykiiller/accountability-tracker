@@ -852,6 +852,24 @@ export default function AccountabilityTracker() {
   const [viewingProfile, setViewingProfile] = useState(null); // For viewing other profiles
   const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
   
+  // Onboarding state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingSlide, setOnboardingSlide] = useState(0);
+  const [onboardingData, setOnboardingData] = useState({
+    displayName: '',
+    nickname: '',
+    participantType: 'existing', // 'existing' or 'new'
+    linkedParticipant: '',
+    newParticipantName: '',
+    primaryGoal: '',
+    focusAreas: [], // ['Fitness', 'Business', 'Finance', etc.]
+    experienceLevel: 'beginner', // 'beginner', 'intermediate', 'advanced'
+    accountabilityStyle: 'supportive', // 'supportive', 'competitive', 'balanced'
+    initialHabits: ['', '', ''],
+    reminderPreference: 'daily',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+  });
+  
   // Habit editing state
   const [editingHabit, setEditingHabit] = useState(null); // {id, habit, target}
   const [showAddHabitModal, setShowAddHabitModal] = useState(false); // Add habit popup
@@ -1162,6 +1180,18 @@ export default function AccountabilityTracker() {
           photoURL: myProfile.photoURL || ''
         });
         setProfilePhotoPreview(myProfile.photoURL || null);
+        // Close onboarding if profile exists
+        setShowOnboarding(false);
+      } else {
+        // No profile - show onboarding for new users
+        setShowOnboarding(true);
+        setOnboardingSlide(0);
+        // Pre-fill with Google account info
+        setOnboardingData(prev => ({
+          ...prev,
+          displayName: user.displayName || '',
+          nickname: user.displayName?.split(' ')[0] || ''
+        }));
       }
     }, (error) => {
       console.error('Profiles error:', error);
@@ -1392,6 +1422,71 @@ export default function AccountabilityTracker() {
     
     await setDoc(doc(db, 'timeCapsules', `capsule_2026_${user.uid}`), capsuleDoc);
     setShowTimeCapsule(false);
+  };
+
+  // Complete onboarding and create profile
+  const completeOnboarding = async () => {
+    if (!user) return;
+    
+    try {
+      // Determine participant name
+      const participantName = onboardingData.participantType === 'new' 
+        ? onboardingData.newParticipantName 
+        : onboardingData.linkedParticipant;
+      
+      // Create user profile
+      const profileDoc = {
+        odingUserId: user.uid,
+        displayName: onboardingData.displayName,
+        nickname: onboardingData.nickname,
+        linkedParticipant: participantName,
+        email: user.email,
+        photoURL: user.photoURL || '',
+        bio: onboardingData.primaryGoal,
+        goals: onboardingData.primaryGoal,
+        focusAreas: onboardingData.focusAreas,
+        experienceLevel: onboardingData.experienceLevel,
+        accountabilityStyle: onboardingData.accountabilityStyle,
+        reminderPreference: onboardingData.reminderPreference,
+        timezone: onboardingData.timezone,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        onboardingCompleted: true
+      };
+      
+      await setDoc(doc(db, 'profiles', `profile_${user.uid}`), profileDoc);
+      
+      // Create initial habits for current week if provided
+      const initialHabits = onboardingData.initialHabits.filter(h => h.trim());
+      if (initialHabits.length > 0) {
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(today);
+        monday.setDate(today.getDate() + mondayOffset);
+        const weekStart = monday.toISOString().split('T')[0];
+        
+        for (const habitName of initialHabits) {
+          const habitDoc = {
+            habit: habitName,
+            participant: participantName,
+            weekStart,
+            target: 5,
+            daysCompleted: [],
+            createdAt: new Date().toISOString(),
+            createdBy: user.uid
+          };
+          await setDoc(doc(db, 'habits', `${participantName}_${weekStart}_${habitName.replace(/\s+/g, '_')}`), habitDoc);
+        }
+      }
+      
+      // Close onboarding
+      setShowOnboarding(false);
+      setOnboardingSlide(0);
+      
+    } catch (error) {
+      console.error('Onboarding error:', error);
+    }
   };
 
   // Get profile by participant name
@@ -9688,6 +9783,495 @@ export default function AccountabilityTracker() {
                 </button>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Onboarding Modal - Full Screen Experience */}
+        {showOnboarding && (
+          <div className="fixed inset-0 z-[200] bg-gradient-to-br from-[#1E3A5F] via-[#2d4a6f] to-[#1E3A5F] overflow-y-auto">
+            {/* Background Effects */}
+            <div className="fixed inset-0 pointer-events-none overflow-hidden">
+              <div className="absolute top-1/4 -left-20 w-80 h-80 bg-[#F5B800]/20 rounded-full blur-3xl animate-pulse" />
+              <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl" />
+            </div>
+
+            {/* Progress Bar */}
+            <div className="fixed top-0 left-0 right-0 h-1 bg-white/10 z-30">
+              <div 
+                className="h-full bg-gradient-to-r from-[#F5B800] to-amber-400 transition-all duration-500"
+                style={{ width: `${((onboardingSlide + 1) / 8) * 100}%` }}
+              />
+            </div>
+
+            {/* Progress Dots */}
+            <div className="fixed top-6 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => i <= onboardingSlide && setOnboardingSlide(i)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    i === onboardingSlide ? 'w-8 bg-[#F5B800]' : i < onboardingSlide ? 'w-2 bg-[#F5B800]/60 cursor-pointer' : 'w-2 bg-white/20'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Skip Button (only on first few slides) */}
+            {onboardingSlide < 6 && (
+              <button
+                onClick={() => setOnboardingSlide(7)}
+                className="fixed top-6 right-6 z-20 text-white/50 hover:text-white/80 text-sm transition-colors"
+              >
+                Skip Setup →
+              </button>
+            )}
+
+            {/* Slide Container */}
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 md:p-12 relative z-10">
+              
+              {/* Slide 0: Welcome */}
+              {onboardingSlide === 0 && (
+                <div className="text-center max-w-2xl animate-fade-in">
+                  {/* Logo */}
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-[#F5B800] to-amber-500 flex items-center justify-center shadow-2xl shadow-amber-500/30">
+                    <img src={LOGO_BASE64} alt="Logo" className="w-16 h-16" />
+                  </div>
+                  <h1 className="text-4xl md:text-5xl font-black text-white mb-4">
+                    Welcome to
+                  </h1>
+                  <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-[#F5B800] to-amber-300 bg-clip-text text-transparent mb-6">
+                    The Accountability Group
+                  </h1>
+                  <p className="text-xl text-white/70 mb-2">
+                    Track habits. Stay accountable. Achieve more.
+                  </p>
+                  <p className="text-white/50 mb-8">Let's get you set up in about 2 minutes</p>
+                  
+                  <div className="flex flex-wrap justify-center gap-4 mb-8">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+                      <Target className="w-4 h-4 text-[#F5B800]" />
+                      <span className="text-white/80 text-sm">Track Habits</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+                      <Users className="w-4 h-4 text-[#F5B800]" />
+                      <span className="text-white/80 text-sm">Group Accountability</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+                      <TrendingUp className="w-4 h-4 text-[#F5B800]" />
+                      <span className="text-white/80 text-sm">See Progress</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 1: Name */}
+              {onboardingSlide === 1 && (
+                <div className="text-center max-w-xl w-full animate-fade-in">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center">
+                    <User className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    What should we call you?
+                  </h2>
+                  <p className="text-white/60 mb-8">This is how you'll appear to your accountability partners</p>
+                  
+                  <div className="space-y-4 max-w-md mx-auto">
+                    <div>
+                      <label className="text-white/70 text-sm block mb-2 text-left">Full Name</label>
+                      <input
+                        type="text"
+                        value={onboardingData.displayName}
+                        onChange={(e) => setOnboardingData({ ...onboardingData, displayName: e.target.value })}
+                        placeholder="John Smith"
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-white/70 text-sm block mb-2 text-left">Nickname (optional)</label>
+                      <input
+                        type="text"
+                        value={onboardingData.nickname}
+                        onChange={(e) => setOnboardingData({ ...onboardingData, nickname: e.target.value })}
+                        placeholder="Johnny"
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 2: Join or Create Participant */}
+              {onboardingSlide === 2 && (
+                <div className="text-center max-w-2xl w-full animate-fade-in">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center">
+                    <Users className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    Link your account
+                  </h2>
+                  <p className="text-white/60 mb-8">Are you joining as an existing participant or creating a new profile?</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl mx-auto mb-6">
+                    <button
+                      onClick={() => setOnboardingData({ ...onboardingData, participantType: 'existing' })}
+                      className={`p-6 rounded-2xl border-2 transition-all text-left ${
+                        onboardingData.participantType === 'existing'
+                          ? 'bg-[#F5B800]/20 border-[#F5B800] shadow-lg shadow-[#F5B800]/20'
+                          : 'bg-white/5 border-white/20 hover:border-white/40'
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
+                        onboardingData.participantType === 'existing' ? 'bg-[#F5B800]' : 'bg-white/10'
+                      }`}>
+                        <Users className={`w-5 h-5 ${onboardingData.participantType === 'existing' ? 'text-[#1E3A5F]' : 'text-white'}`} />
+                      </div>
+                      <h3 className="text-white font-bold mb-1">Join Existing</h3>
+                      <p className="text-white/50 text-sm">Link to Taylor, Brandon, or John</p>
+                    </button>
+                    
+                    <button
+                      onClick={() => setOnboardingData({ ...onboardingData, participantType: 'new' })}
+                      className={`p-6 rounded-2xl border-2 transition-all text-left ${
+                        onboardingData.participantType === 'new'
+                          ? 'bg-[#F5B800]/20 border-[#F5B800] shadow-lg shadow-[#F5B800]/20'
+                          : 'bg-white/5 border-white/20 hover:border-white/40'
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
+                        onboardingData.participantType === 'new' ? 'bg-[#F5B800]' : 'bg-white/10'
+                      }`}>
+                        <Plus className={`w-5 h-5 ${onboardingData.participantType === 'new' ? 'text-[#1E3A5F]' : 'text-white'}`} />
+                      </div>
+                      <h3 className="text-white font-bold mb-1">Create New</h3>
+                      <p className="text-white/50 text-sm">Start fresh as a new participant</p>
+                    </button>
+                  </div>
+
+                  {onboardingData.participantType === 'existing' && (
+                    <div className="max-w-md mx-auto animate-fade-in">
+                      <label className="text-white/70 text-sm block mb-3">Select your participant profile:</label>
+                      <div className="grid grid-cols-3 gap-3">
+                        {PARTICIPANTS.map(p => (
+                          <button
+                            key={p}
+                            onClick={() => setOnboardingData({ ...onboardingData, linkedParticipant: p })}
+                            className={`p-4 rounded-xl border-2 transition-all ${
+                              onboardingData.linkedParticipant === p
+                                ? 'bg-[#F5B800] border-[#F5B800] text-[#1E3A5F]'
+                                : 'bg-white/5 border-white/20 text-white hover:border-white/40'
+                            }`}
+                          >
+                            <span className="font-bold">{p}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {onboardingData.participantType === 'new' && (
+                    <div className="max-w-md mx-auto animate-fade-in">
+                      <label className="text-white/70 text-sm block mb-2 text-left">Your participant name:</label>
+                      <input
+                        type="text"
+                        value={onboardingData.newParticipantName}
+                        onChange={(e) => setOnboardingData({ ...onboardingData, newParticipantName: e.target.value })}
+                        placeholder="Enter your name"
+                        className="w-full bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Slide 3: Primary Goal */}
+              {onboardingSlide === 3 && (
+                <div className="text-center max-w-xl w-full animate-fade-in">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                    <Target className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    What's your main goal?
+                  </h2>
+                  <p className="text-white/60 mb-8">What do you want to achieve with habit tracking?</p>
+                  
+                  <textarea
+                    value={onboardingData.primaryGoal}
+                    onChange={(e) => setOnboardingData({ ...onboardingData, primaryGoal: e.target.value })}
+                    placeholder="e.g., Build consistent fitness habits, grow my business, improve work-life balance..."
+                    className="w-full bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-5 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                  />
+                  
+                  <div className="flex flex-wrap justify-center gap-2 mt-4">
+                    {['Get healthier', 'Build my business', 'Improve productivity', 'Better work-life balance', 'Learn new skills'].map(goal => (
+                      <button
+                        key={goal}
+                        onClick={() => setOnboardingData({ ...onboardingData, primaryGoal: goal })}
+                        className={`px-4 py-2 rounded-full text-sm transition-all ${
+                          onboardingData.primaryGoal === goal
+                            ? 'bg-[#F5B800] text-[#1E3A5F] font-bold'
+                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                        }`}
+                      >
+                        {goal}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 4: Focus Areas */}
+              {onboardingSlide === 4 && (
+                <div className="text-center max-w-2xl w-full animate-fade-in">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
+                    <BarChart3 className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    Which areas do you want to focus on?
+                  </h2>
+                  <p className="text-white/60 mb-8">Select all that apply (we'll help you track these)</p>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-2xl mx-auto">
+                    {[
+                      { key: 'Fitness', icon: '💪', color: 'from-green-400 to-emerald-500' },
+                      { key: 'Business', icon: '💼', color: 'from-blue-400 to-indigo-500' },
+                      { key: 'Finance', icon: '💰', color: 'from-yellow-400 to-amber-500' },
+                      { key: 'Health', icon: '❤️', color: 'from-red-400 to-rose-500' },
+                      { key: 'Learning', icon: '📚', color: 'from-purple-400 to-violet-500' },
+                      { key: 'Relationships', icon: '🤝', color: 'from-pink-400 to-rose-500' },
+                      { key: 'Spiritual', icon: '🙏', color: 'from-cyan-400 to-teal-500' },
+                      { key: 'Discipline', icon: '🎯', color: 'from-orange-400 to-red-500' }
+                    ].map(area => {
+                      const isSelected = onboardingData.focusAreas.includes(area.key);
+                      return (
+                        <button
+                          key={area.key}
+                          onClick={() => {
+                            const newAreas = isSelected
+                              ? onboardingData.focusAreas.filter(a => a !== area.key)
+                              : [...onboardingData.focusAreas, area.key];
+                            setOnboardingData({ ...onboardingData, focusAreas: newAreas });
+                          }}
+                          className={`p-4 rounded-xl border-2 transition-all ${
+                            isSelected
+                              ? 'bg-gradient-to-br ' + area.color + ' border-white/50 shadow-lg'
+                              : 'bg-white/5 border-white/20 hover:border-white/40'
+                          }`}
+                        >
+                          <span className="text-2xl mb-2 block">{area.icon}</span>
+                          <span className={`font-medium text-sm ${isSelected ? 'text-white' : 'text-white/80'}`}>{area.key}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 5: Accountability Style */}
+              {onboardingSlide === 5 && (
+                <div className="text-center max-w-2xl w-full animate-fade-in">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center">
+                    <Heart className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    What's your accountability style?
+                  </h2>
+                  <p className="text-white/60 mb-8">This helps us personalize your experience</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
+                    {[
+                      { 
+                        key: 'supportive', 
+                        title: 'Supportive', 
+                        desc: 'Encouraging words and gentle reminders',
+                        icon: '🤗',
+                        color: 'from-pink-400 to-rose-500'
+                      },
+                      { 
+                        key: 'competitive', 
+                        title: 'Competitive', 
+                        desc: 'Rankings, challenges, and leaderboards',
+                        icon: '🏆',
+                        color: 'from-amber-400 to-orange-500'
+                      },
+                      { 
+                        key: 'balanced', 
+                        title: 'Balanced', 
+                        desc: 'Mix of support and healthy competition',
+                        icon: '⚖️',
+                        color: 'from-blue-400 to-cyan-500'
+                      }
+                    ].map(style => (
+                      <button
+                        key={style.key}
+                        onClick={() => setOnboardingData({ ...onboardingData, accountabilityStyle: style.key })}
+                        className={`p-6 rounded-2xl border-2 transition-all text-left ${
+                          onboardingData.accountabilityStyle === style.key
+                            ? `bg-gradient-to-br ${style.color} border-white/50 shadow-lg`
+                            : 'bg-white/5 border-white/20 hover:border-white/40'
+                        }`}
+                      >
+                        <span className="text-3xl mb-3 block">{style.icon}</span>
+                        <h3 className="text-white font-bold mb-1">{style.title}</h3>
+                        <p className="text-white/60 text-sm">{style.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 6: Initial Habits */}
+              {onboardingSlide === 6 && (
+                <div className="text-center max-w-xl w-full animate-fade-in">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
+                    <CheckCircle2 className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    Start with 3 habits
+                  </h2>
+                  <p className="text-white/60 mb-8">What habits do you want to track this week? (You can always add more later)</p>
+                  
+                  <div className="space-y-4 max-w-md mx-auto">
+                    {[0, 1, 2].map(idx => (
+                      <div key={idx} className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                          onboardingData.initialHabits[idx] ? 'bg-green-500' : 'bg-white/10'
+                        }`}>
+                          {onboardingData.initialHabits[idx] ? (
+                            <Check className="w-5 h-5 text-white" />
+                          ) : (
+                            <span className="text-white/50 font-bold">{idx + 1}</span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={onboardingData.initialHabits[idx]}
+                          onChange={(e) => {
+                            const newHabits = [...onboardingData.initialHabits];
+                            newHabits[idx] = e.target.value;
+                            setOnboardingData({ ...onboardingData, initialHabits: newHabits });
+                          }}
+                          placeholder={idx === 0 ? 'e.g., Workout 4x per week' : idx === 1 ? 'e.g., Read 30 minutes' : 'e.g., No social media until noon'}
+                          className="flex-1 bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 p-4 bg-white/5 rounded-xl">
+                    <p className="text-white/50 text-sm mb-3">Popular habits in your focus areas:</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {(() => {
+                        const suggestions = [];
+                        if (onboardingData.focusAreas.includes('Fitness')) suggestions.push('Workout', '10K steps', 'Morning run');
+                        if (onboardingData.focusAreas.includes('Health')) suggestions.push('8hrs sleep', 'Meditate', 'Drink 8 glasses');
+                        if (onboardingData.focusAreas.includes('Business')) suggestions.push('3 sales calls', 'Client follow-ups', 'Networking');
+                        if (onboardingData.focusAreas.includes('Learning')) suggestions.push('Read 30min', 'Online course', 'Practice skill');
+                        if (onboardingData.focusAreas.includes('Discipline')) suggestions.push('No social media', 'Wake at 6am', 'Plan tomorrow');
+                        if (suggestions.length === 0) suggestions.push('Workout', 'Read', 'Meditate', 'Plan day');
+                        return suggestions.slice(0, 6).map(s => (
+                          <button
+                            key={s}
+                            onClick={() => {
+                              const emptyIdx = onboardingData.initialHabits.findIndex(h => !h);
+                              if (emptyIdx !== -1) {
+                                const newHabits = [...onboardingData.initialHabits];
+                                newHabits[emptyIdx] = s;
+                                setOnboardingData({ ...onboardingData, initialHabits: newHabits });
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white/70 text-sm transition-colors"
+                          >
+                            + {s}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 7: Ready! */}
+              {onboardingSlide === 7 && (
+                <div className="text-center max-w-xl animate-fade-in">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#F5B800] to-amber-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 animate-pulse">
+                    <PartyPopper className="w-12 h-12 text-white" />
+                  </div>
+                  <h1 className="text-4xl md:text-5xl font-black text-white mb-4">
+                    You're all set!
+                  </h1>
+                  <p className="text-xl text-white/70 mb-8">
+                    Welcome to the accountability group, {onboardingData.nickname || onboardingData.displayName?.split(' ')[0] || 'friend'}!
+                  </p>
+                  
+                  {/* Summary Card */}
+                  <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-left mb-8 border border-white/20">
+                    <h3 className="text-white font-bold mb-4 text-center">Your Setup Summary</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center py-2 border-b border-white/10">
+                        <span className="text-white/60">Participant</span>
+                        <span className="text-white font-medium">
+                          {onboardingData.participantType === 'new' ? onboardingData.newParticipantName : onboardingData.linkedParticipant}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-white/10">
+                        <span className="text-white/60">Focus Areas</span>
+                        <span className="text-white font-medium">
+                          {onboardingData.focusAreas.length > 0 ? onboardingData.focusAreas.slice(0, 3).join(', ') : 'Not set'}
+                          {onboardingData.focusAreas.length > 3 && ` +${onboardingData.focusAreas.length - 3}`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-white/10">
+                        <span className="text-white/60">Style</span>
+                        <span className="text-white font-medium capitalize">{onboardingData.accountabilityStyle}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-white/60">Starting Habits</span>
+                        <span className="text-white font-medium">{onboardingData.initialHabits.filter(h => h).length} habits</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-4">
+                    <button
+                      onClick={completeOnboarding}
+                      className="px-10 py-4 bg-gradient-to-r from-[#F5B800] to-amber-500 hover:from-[#e5a800] hover:to-amber-400 text-[#1E3A5F] rounded-xl font-black text-lg transition-all shadow-lg shadow-amber-500/25 flex items-center gap-2"
+                    >
+                      <Sparkles className="w-5 h-5" />
+                      Let's Go!
+                    </button>
+                    <p className="text-white/40 text-sm">You can always update these settings later</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Navigation Buttons */}
+            {onboardingSlide < 7 && (
+              <div className="fixed bottom-8 left-0 right-0 flex justify-center gap-4 px-6 z-20">
+                {onboardingSlide > 0 && (
+                  <button
+                    onClick={() => setOnboardingSlide(onboardingSlide - 1)}
+                    className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                    Back
+                  </button>
+                )}
+                <button
+                  onClick={() => setOnboardingSlide(onboardingSlide + 1)}
+                  disabled={
+                    (onboardingSlide === 1 && !onboardingData.displayName) ||
+                    (onboardingSlide === 2 && onboardingData.participantType === 'existing' && !onboardingData.linkedParticipant) ||
+                    (onboardingSlide === 2 && onboardingData.participantType === 'new' && !onboardingData.newParticipantName)
+                  }
+                  className="px-8 py-3 bg-[#F5B800] hover:bg-[#e5a800] disabled:opacity-50 disabled:cursor-not-allowed text-[#1E3A5F] rounded-xl font-bold transition-colors flex items-center gap-2"
+                >
+                  {onboardingSlide === 0 ? "Get Started" : "Continue"}
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
