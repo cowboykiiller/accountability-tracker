@@ -419,6 +419,7 @@ const NAV_ITEMS = [
   { id: 'compete', icon: Trophy, label: 'Compete' },
   { id: 'tracker', icon: Calendar, label: 'Track' },
   { id: 'insights', icon: BarChart3, label: 'Insights' },
+  { id: 'vision', icon: Star, label: 'Vision' },
   { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
 ];
 
@@ -455,6 +456,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
     'add': 'Add Habit', 
     'quotes': 'Quotes', 
     'ai-coach': 'AI Coach',
+    'vision': '2026 Vision',
     'profile': 'My Profile'
   };
   const allNavItems = [
@@ -467,6 +469,7 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
     { id: 'insights', icon: BarChart3, label: 'Insights' },
     { id: 'scorecard', icon: Award, label: 'Score' },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
+    { id: 'vision', icon: Star, label: '2026 Vision' },
     { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
   ];
   
@@ -578,6 +581,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
     { id: 'tasks', icon: Target, label: 'Tasks' },
     { id: 'scorecard', icon: Award, label: 'Scorecard' },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
+    { id: 'vision', icon: Star, label: '2026 Vision' },
     { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' },
     { id: 'profile', icon: User, label: 'Profile' }
   ];
@@ -871,6 +875,33 @@ export default function AccountabilityTracker() {
   const [moodData, setMoodData] = useState([]); // {date, mood: 1-10, motivation: 1-10, notes}
   const [showMoodModal, setShowMoodModal] = useState(false);
   const [todayMood, setTodayMood] = useState({ mood: 5, motivation: 5, notes: '' });
+  
+  // 2026 Vision state
+  const [visionData, setVisionData] = useState(null); // Saved vision document
+  const [showVisionWrapped, setShowVisionWrapped] = useState(false); // Full wrapped experience
+  const [visionSlide, setVisionSlide] = useState(0); // Current slide in wrapped
+  const [visionAnswers, setVisionAnswers] = useState({
+    wordOfYear: '',
+    biggestGoal: '',
+    whyMatters: '',
+    mainObstacle: '',
+    overcomeStrategy: '',
+    dailyHabit: '',
+    monthlyMilestone: '',
+    supportPerson: '',
+    rewardForSuccess: '',
+    fitnessScore: 5,
+    businessScore: 5,
+    financeScore: 5,
+    healthScore: 5,
+    learningScore: 5,
+    relationshipsScore: 5,
+    spiritualScore: 5,
+    nonNegotiable1: '',
+    nonNegotiable2: '',
+    nonNegotiable3: '',
+    letterToSelf: ''
+  });
   
   // Monthly view state
   const [monthlyViewMonth, setMonthlyViewMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
@@ -1209,6 +1240,41 @@ export default function AccountabilityTracker() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Listen for vision data
+  useEffect(() => {
+    if (!user) return;
+    
+    const visionRef = doc(db, 'visions', `vision_2026_${user.uid}`);
+    const unsubscribe = onSnapshot(visionRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setVisionData(snapshot.data());
+        // Also populate visionAnswers for editing
+        setVisionAnswers(prev => ({ ...prev, ...snapshot.data() }));
+      }
+    }, (error) => {
+      console.error('Vision error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Save vision document
+  const saveVision = async () => {
+    if (!user) return;
+    
+    const visionDoc = {
+      ...visionAnswers,
+      odify: user.uid,
+      participant: userProfile?.linkedParticipant || user?.displayName,
+      updatedAt: new Date().toISOString(),
+      year: 2026
+    };
+    
+    await setDoc(doc(db, 'visions', `vision_2026_${user.uid}`), visionDoc);
+    setShowVisionWrapped(false);
+    setVisionSlide(0);
+  };
 
   // Get profile by participant name
   const getProfileByParticipant = (participantName) => {
@@ -7070,6 +7136,170 @@ export default function AccountabilityTracker() {
           </div>
         )}
 
+        {/* VISION VIEW */}
+        {activeView === 'vision' && (
+          <div className="space-y-4">
+            {/* Vision Header */}
+            <div className="bg-gradient-to-r from-[#1E3A5F] via-[#2d4a6f] to-[#1E3A5F] rounded-2xl p-6 text-white relative overflow-hidden">
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute top-4 right-4 w-32 h-32 bg-[#F5B800] rounded-full blur-3xl" />
+                <div className="absolute bottom-4 left-4 w-24 h-24 bg-white rounded-full blur-2xl" />
+              </div>
+              <div className="relative">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-12 h-12 rounded-xl bg-[#F5B800] flex items-center justify-center">
+                    <Star className="w-6 h-6 text-[#1E3A5F]" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">2026 Vision</h2>
+                    <p className="text-[#F5B800]/80 text-sm">Your Year-End Review & Future Vision</p>
+                  </div>
+                </div>
+                <p className="text-white/70 text-sm mt-3">Reflect on your journey, set your intentions, and create your roadmap for an amazing 2026.</p>
+              </div>
+            </div>
+
+            {/* Vision Content */}
+            {visionData ? (
+              <div className="space-y-4">
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Word of Year */}
+                  <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 text-white">
+                    <p className="text-xs uppercase tracking-wider opacity-80 mb-1">Word of the Year</p>
+                    <p className="text-3xl font-black uppercase tracking-wide">{visionData.wordOfYear || '—'}</p>
+                  </div>
+                  
+                  {/* Biggest Goal */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 md:col-span-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Target className="w-5 h-5 text-[#1E3A5F]" />
+                      <p className="text-xs uppercase tracking-wider text-gray-500">Biggest Goal for 2026</p>
+                    </div>
+                    <p className="text-gray-800 font-medium">{visionData.biggestGoal || 'Not set yet'}</p>
+                  </div>
+                </div>
+
+                {/* Domain Scores */}
+                <div className="bg-white rounded-2xl p-5 border border-gray-100">
+                  <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-[#1E3A5F]" />
+                    Life Domain Scores
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { key: 'fitnessScore', label: 'Fitness', icon: '💪', color: 'from-green-400 to-emerald-500' },
+                      { key: 'businessScore', label: 'Business', icon: '💼', color: 'from-blue-400 to-indigo-500' },
+                      { key: 'financeScore', label: 'Finance', icon: '💰', color: 'from-yellow-400 to-amber-500' },
+                      { key: 'healthScore', label: 'Health', icon: '❤️', color: 'from-red-400 to-rose-500' },
+                      { key: 'learningScore', label: 'Learning', icon: '📚', color: 'from-purple-400 to-violet-500' },
+                      { key: 'relationshipsScore', label: 'Relationships', icon: '🤝', color: 'from-pink-400 to-rose-500' },
+                      { key: 'spiritualScore', label: 'Spiritual', icon: '🙏', color: 'from-cyan-400 to-teal-500' }
+                    ].map(domain => (
+                      <div key={domain.key} className="text-center">
+                        <div className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br ${domain.color} flex items-center justify-center text-white text-2xl font-bold mb-2`}>
+                          {visionData[domain.key] || 5}
+                        </div>
+                        <p className="text-xs text-gray-600">{domain.icon} {domain.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Non-Negotiables */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 border border-amber-200">
+                  <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
+                    <Lock className="w-5 h-5" />
+                    My 3 Non-Negotiables for 2026
+                  </h3>
+                  <div className="space-y-2">
+                    {[visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).map((nn, idx) => (
+                      <div key={idx} className="flex items-center gap-3 bg-white/60 p-3 rounded-xl">
+                        <div className="w-8 h-8 rounded-lg bg-amber-200 flex items-center justify-center font-bold text-amber-700">{idx + 1}</div>
+                        <p className="text-gray-800 font-medium">{nn}</p>
+                      </div>
+                    ))}
+                    {![visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).length && (
+                      <p className="text-amber-600 text-sm">No non-negotiables set yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Strategy & Support */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100">
+                    <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-purple-500" />
+                      My Success Strategy
+                    </h3>
+                    <p className="text-gray-600 text-sm">{visionData.overcomeStrategy || 'Not defined yet'}</p>
+                  </div>
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100">
+                    <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-red-500" />
+                      Accountability Partner
+                    </h3>
+                    <p className="text-gray-600 text-sm">{visionData.supportPerson || 'Not set yet'}</p>
+                  </div>
+                </div>
+
+                {/* Letter to Self Preview */}
+                {visionData.letterToSelf && (
+                  <div className="bg-gradient-to-br from-gray-50 to-slate-100 rounded-2xl p-5 border border-gray-200">
+                    <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                      <MessageCircle className="w-5 h-5 text-gray-500" />
+                      Letter to My Future Self
+                    </h3>
+                    <p className="text-gray-600 text-sm italic line-clamp-3">"{visionData.letterToSelf}"</p>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => { setShowVisionWrapped(true); setVisionSlide(0); }}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#1E3A5F] text-white rounded-xl font-semibold hover:bg-[#162D4D] transition-colors"
+                  >
+                    <Edit3 className="w-5 h-5" />
+                    Edit My Vision
+                  </button>
+                  <button
+                    onClick={() => { setShowVisionWrapped(true); setVisionSlide(0); }}
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-[#F5B800] text-[#1E3A5F] rounded-xl font-semibold hover:bg-[#e5a800] transition-colors"
+                  >
+                    <PartyPopper className="w-5 h-5" />
+                    Replay Journey
+                  </button>
+                </div>
+
+                {/* Last Updated */}
+                <p className="text-center text-xs text-gray-400">
+                  Last updated: {visionData.updatedAt ? new Date(visionData.updatedAt).toLocaleDateString() : 'Never'}
+                </p>
+              </div>
+            ) : (
+              /* Empty State - No Vision Yet */
+              <div className="bg-white rounded-2xl p-8 border border-gray-100 text-center">
+                <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#F5B800] to-amber-500 flex items-center justify-center mb-4">
+                  <Star className="w-10 h-10 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Create Your 2026 Vision</h3>
+                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                  Take a few minutes to reflect on your journey and set your intentions for the year ahead. 
+                  Complete the interactive vision experience to clarify your goals.
+                </p>
+                <button
+                  onClick={() => { setShowVisionWrapped(true); setVisionSlide(0); }}
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] text-white rounded-xl font-semibold hover:from-[#162D4D] hover:to-[#1E3A5F] transition-all shadow-lg shadow-[#1E3A5F]/25"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  Start Vision Journey
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeView === 'quotes' && (
           <div className="space-y-4">
             {/* Header */}
@@ -7984,6 +8214,338 @@ export default function AccountabilityTracker() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Vision Wrapped Full-Screen Experience */}
+        {showVisionWrapped && (
+          <div className="fixed inset-0 z-[100] bg-[#0d1321] overflow-hidden">
+            {/* Progress Dots */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setVisionSlide(i)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === visionSlide ? 'w-8 bg-[#F5B800]' : i < visionSlide ? 'w-1.5 bg-[#F5B800]/60' : 'w-1.5 bg-white/30'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => setShowVisionWrapped(false)}
+              className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+
+            {/* Slide Container */}
+            <div className="h-full flex flex-col items-center justify-center p-6 md:p-12">
+              
+              {/* Slide 0: Welcome */}
+              {visionSlide === 0 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500">
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#F5B800] to-amber-500 flex items-center justify-center">
+                    <Star className="w-12 h-12 text-[#1E3A5F]" />
+                  </div>
+                  <h1 className="text-4xl md:text-6xl font-black text-white mb-4">
+                    Your 2026 Vision
+                  </h1>
+                  <p className="text-xl text-white/60 mb-8">
+                    Let's reflect on your journey and set powerful intentions for the year ahead.
+                  </p>
+                  <p className="text-[#F5B800] text-sm mb-8">Takes about 5 minutes</p>
+                </div>
+              )}
+
+              {/* Slide 1: Word of Year */}
+              {visionSlide === 1 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Define Your Year</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    Choose Your Word of the Year
+                  </h2>
+                  <p className="text-white/60 mb-8">One word that will guide your decisions and actions in 2026.</p>
+                  <input
+                    type="text"
+                    value={visionAnswers.wordOfYear}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, wordOfYear: e.target.value.toUpperCase() })}
+                    placeholder="e.g., DISCIPLINE, GROWTH, BALANCE"
+                    className="w-full max-w-md mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-2xl text-white text-center uppercase tracking-widest placeholder:text-white/30 outline-none transition-colors"
+                    maxLength={20}
+                  />
+                  <div className="flex flex-wrap justify-center gap-2 mt-6">
+                    {['FOCUS', 'STRENGTH', 'DISCIPLINE', 'GROWTH', 'BALANCE', 'FREEDOM', 'IMPACT', 'CONSISTENCY'].map(word => (
+                      <button
+                        key={word}
+                        onClick={() => setVisionAnswers({ ...visionAnswers, wordOfYear: word })}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                          visionAnswers.wordOfYear === word 
+                            ? 'bg-[#F5B800] text-[#1E3A5F]' 
+                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                        }`}
+                      >
+                        {word}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 2: Biggest Goal */}
+              {visionSlide === 2 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Mission</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    What's Your #1 Goal for 2026?
+                  </h2>
+                  <p className="text-white/60 mb-8">If you could only accomplish one thing this year, what would it be?</p>
+                  <textarea
+                    value={visionAnswers.biggestGoal}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, biggestGoal: e.target.value })}
+                    placeholder="Describe your biggest goal in detail..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                  />
+                </div>
+              )}
+
+              {/* Slide 3: Why It Matters */}
+              {visionSlide === 3 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Why</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    Why Does This Matter to You?
+                  </h2>
+                  <p className="text-white/60 mb-8">Understanding your "why" will keep you motivated when things get tough.</p>
+                  <textarea
+                    value={visionAnswers.whyMatters}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, whyMatters: e.target.value })}
+                    placeholder="Why is this goal important to you? What will achieving it mean for your life?"
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-32"
+                  />
+                </div>
+              )}
+
+              {/* Slide 4: Domain Scores */}
+              {visionSlide === 4 && (
+                <div className="text-center max-w-3xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Life Assessment</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    Rate Your Life Domains
+                  </h2>
+                  <p className="text-white/60 mb-8">How satisfied are you currently in each area? (1-10)</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                    {[
+                      { key: 'fitnessScore', label: 'Fitness', icon: '💪' },
+                      { key: 'businessScore', label: 'Business/Career', icon: '💼' },
+                      { key: 'financeScore', label: 'Finance', icon: '💰' },
+                      { key: 'healthScore', label: 'Health', icon: '❤️' },
+                      { key: 'learningScore', label: 'Learning', icon: '📚' },
+                      { key: 'relationshipsScore', label: 'Relationships', icon: '🤝' },
+                      { key: 'spiritualScore', label: 'Spiritual', icon: '🙏' }
+                    ].map(domain => (
+                      <div key={domain.key} className="bg-white/5 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-white font-medium">{domain.icon} {domain.label}</span>
+                          <span className="text-[#F5B800] font-bold text-xl">{visionAnswers[domain.key]}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="10"
+                          value={visionAnswers[domain.key]}
+                          onChange={(e) => setVisionAnswers({ ...visionAnswers, [domain.key]: parseInt(e.target.value) })}
+                          className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#F5B800]"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 5: Obstacles */}
+              {visionSlide === 5 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Anticipate Challenges</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    What's Your Biggest Obstacle?
+                  </h2>
+                  <p className="text-white/60 mb-8">What could prevent you from reaching your goals?</p>
+                  <textarea
+                    value={visionAnswers.mainObstacle}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, mainObstacle: e.target.value })}
+                    placeholder="Identify your main challenge or obstacle..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-28"
+                  />
+                </div>
+              )}
+
+              {/* Slide 6: Strategy */}
+              {visionSlide === 6 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Battle Plan</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    How Will You Overcome It?
+                  </h2>
+                  <p className="text-white/60 mb-8">What's your strategy for pushing through challenges?</p>
+                  <textarea
+                    value={visionAnswers.overcomeStrategy}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, overcomeStrategy: e.target.value })}
+                    placeholder="Describe your strategy for overcoming obstacles..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-28"
+                  />
+                </div>
+              )}
+
+              {/* Slide 7: Non-Negotiables */}
+              {visionSlide === 7 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Foundation</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    Your 3 Non-Negotiables
+                  </h2>
+                  <p className="text-white/60 mb-8">Three habits you commit to doing NO MATTER WHAT.</p>
+                  <div className="space-y-4 max-w-lg mx-auto">
+                    {[1, 2, 3].map(num => (
+                      <div key={num} className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#F5B800] flex items-center justify-center font-bold text-[#1E3A5F] shrink-0">
+                          {num}
+                        </div>
+                        <input
+                          type="text"
+                          value={visionAnswers[`nonNegotiable${num}`]}
+                          onChange={(e) => setVisionAnswers({ ...visionAnswers, [`nonNegotiable${num}`]: e.target.value })}
+                          placeholder={`Non-negotiable habit #${num}`}
+                          className="flex-1 bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 8: Daily Habit */}
+              {visionSlide === 8 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Daily Commitment</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    Your Keystone Habit
+                  </h2>
+                  <p className="text-white/60 mb-8">One daily habit that will create a ripple effect across all areas.</p>
+                  <input
+                    type="text"
+                    value={visionAnswers.dailyHabit}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, dailyHabit: e.target.value })}
+                    placeholder="e.g., Wake up at 5am, Exercise for 30 min, Read for 20 min"
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* Slide 9: Accountability */}
+              {visionSlide === 9 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Your Support System</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    Who Will Hold You Accountable?
+                  </h2>
+                  <p className="text-white/60 mb-8">Name someone who will check in on your progress.</p>
+                  <input
+                    type="text"
+                    value={visionAnswers.supportPerson}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, supportPerson: e.target.value })}
+                    placeholder="Name of your accountability partner"
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                  />
+                  <div className="flex flex-wrap justify-center gap-2 mt-6">
+                    {['Brandon', 'John', 'Taylor'].filter(p => p !== userProfile?.linkedParticipant).map(name => (
+                      <button
+                        key={name}
+                        onClick={() => setVisionAnswers({ ...visionAnswers, supportPerson: name })}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                          visionAnswers.supportPerson === name 
+                            ? 'bg-[#F5B800] text-[#1E3A5F]' 
+                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide 10: Reward */}
+              {visionSlide === 10 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Celebrate Success</p>
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+                    How Will You Reward Yourself?
+                  </h2>
+                  <p className="text-white/60 mb-8">What will you treat yourself to when you achieve your goal?</p>
+                  <input
+                    type="text"
+                    value={visionAnswers.rewardForSuccess}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, rewardForSuccess: e.target.value })}
+                    placeholder="e.g., Vacation, new gadget, special experience..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* Slide 11: Letter to Self */}
+              {visionSlide === 11 && (
+                <div className="text-center max-w-2xl transition-opacity duration-500 w-full">
+                  <p className="text-[#F5B800] text-sm uppercase tracking-widest mb-4">Final Reflection</p>
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    Write a Letter to Your Future Self
+                  </h2>
+                  <p className="text-white/60 mb-6">You'll read this at the end of 2026. What do you want to tell yourself?</p>
+                  <textarea
+                    value={visionAnswers.letterToSelf}
+                    onChange={(e) => setVisionAnswers({ ...visionAnswers, letterToSelf: e.target.value })}
+                    placeholder="Dear Future Me,&#10;&#10;As I write this in early 2026, I want you to remember..."
+                    className="w-full max-w-lg mx-auto block bg-white/10 border-2 border-white/20 focus:border-[#F5B800] rounded-xl px-6 py-4 text-lg text-white placeholder:text-white/30 outline-none transition-colors resize-none h-48"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Navigation */}
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-6">
+              {visionSlide > 0 && (
+                <button
+                  onClick={() => setVisionSlide(visionSlide - 1)}
+                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                  Back
+                </button>
+              )}
+              {visionSlide < 11 ? (
+                <button
+                  onClick={() => setVisionSlide(visionSlide + 1)}
+                  className="px-8 py-3 bg-[#F5B800] hover:bg-[#e5a800] text-[#1E3A5F] rounded-xl font-bold transition-colors flex items-center gap-2"
+                >
+                  {visionSlide === 0 ? "Let's Begin" : 'Continue'}
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              ) : (
+                <button
+                  onClick={saveVision}
+                  className="px-8 py-3 bg-gradient-to-r from-[#F5B800] to-amber-500 hover:from-[#e5a800] hover:to-amber-400 text-[#1E3A5F] rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/25"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  Save My Vision
+                </button>
+              )}
+            </div>
+
+            {/* Decorative Elements */}
+            <div className="absolute top-1/4 left-10 w-64 h-64 bg-[#F5B800]/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-1/4 right-10 w-48 h-48 bg-[#1E3A5F]/30 rounded-full blur-3xl pointer-events-none" />
           </div>
         )}
 
