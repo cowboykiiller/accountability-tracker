@@ -1002,6 +1002,40 @@ export default function AccountabilityTracker() {
   const [quoteCustomDirection, setQuoteCustomDirection] = useState('');
   const [quoteThemeType, setQuoteThemeType] = useState('random'); // 'random', 'motivational', 'stoic', 'business', 'custom'
   
+  // === NEW FEATURES STATE ===
+  
+  // Activity Feed state (real-time habit completions)
+  const [activityFeed, setActivityFeed] = useState([]);
+  const [showActivityFeed, setShowActivityFeed] = useState(false);
+  
+  // Weekly Check-in state (enhanced)
+  const [showWeeklyCheckIn, setShowWeeklyCheckIn] = useState(false);
+  const [weeklyCheckInData, setWeeklyCheckInData] = useState({
+    wins: '',
+    challenges: '',
+    learning: '',
+    nextWeekFocus: '',
+    energyLevel: 5,
+    overallRating: 5
+  });
+  const [savedCheckIns, setSavedCheckIns] = useState([]);
+  
+  // Achievement Badges state
+  const [earnedBadges, setEarnedBadges] = useState([]);
+  const [showBadgeUnlock, setShowBadgeUnlock] = useState(null); // Badge just earned
+  
+  // Analytics state (Best/Worst Days, Correlations)
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analyticsTab, setAnalyticsTab] = useState('overview'); // 'overview', 'days', 'correlations', 'streaks'
+  
+  // Monthly Report state
+  const [showMonthlyReport, setShowMonthlyReport] = useState(false);
+  const [reportMonth, setReportMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  const [generatingReport, setGeneratingReport] = useState(false);
+  
+  // Rest Days state (per habit)
+  const [showRestDayModal, setShowRestDayModal] = useState(null); // habitId or null
+  
   const calendarRef = useRef(null);
   const fileInputRef = useRef(null);
   const postTextRef = useRef(null);
@@ -1376,6 +1410,58 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
+  // Listen for activity feed (habit completions)
+  useEffect(() => {
+    if (!user) return;
+    
+    const q = query(collection(db, 'activityFeed'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const feedData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })).slice(0, 50); // Limit to 50 most recent
+      setActivityFeed(feedData);
+    }, (error) => {
+      console.error('Activity feed error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Listen for weekly check-ins
+  useEffect(() => {
+    if (!user) return;
+    
+    const q = query(collection(db, 'weeklyCheckIns'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const checkInsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setSavedCheckIns(checkInsData);
+    }, (error) => {
+      console.error('Weekly check-ins error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Listen for earned badges
+  useEffect(() => {
+    if (!user) return;
+    
+    const badgesRef = doc(db, 'badges', user.uid);
+    const unsubscribe = onSnapshot(badgesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setEarnedBadges(snapshot.data().badges || []);
+      }
+    }, (error) => {
+      console.error('Badges error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
   // Save vision document
   const saveVision = async () => {
     if (!user) return;
@@ -1589,6 +1675,233 @@ export default function AccountabilityTracker() {
       };
     }).sort((a, b) => b.score - a.score);
   }, [habits, calculateStreaks, allParticipants, currentWeekStart]);
+
+  // === ADVANCED ANALYTICS ===
+  
+  // Calculate per-habit streaks (consecutive days completed within weeks)
+  const habitStreaks = useMemo(() => {
+    if (!myParticipant) return {};
+    
+    const myHabits = habits.filter(h => h.participant === myParticipant);
+    const habitMap = {};
+    
+    // Group by habit name
+    myHabits.forEach(h => {
+      const name = h.habit?.toLowerCase().trim();
+      if (!name) return;
+      if (!habitMap[name]) habitMap[name] = [];
+      habitMap[name].push(h);
+    });
+    
+    // Calculate streak for each habit
+    const streaks = {};
+    Object.entries(habitMap).forEach(([name, habitList]) => {
+      // Sort by week
+      const sorted = habitList.sort((a, b) => a.weekStart?.localeCompare(b.weekStart));
+      
+      let currentStreak = 0;
+      let longestStreak = 0;
+      let totalDays = 0;
+      let totalWeeks = sorted.length;
+      
+      // Count total completed days
+      sorted.forEach(h => {
+        totalDays += h.daysCompleted?.length || 0;
+      });
+      
+      // Calculate week-over-week streak (weeks where target was met)
+      sorted.forEach(h => {
+        const completed = h.daysCompleted?.length || 0;
+        const target = h.target || 5;
+        if (completed >= target) {
+          currentStreak++;
+          longestStreak = Math.max(longestStreak, currentStreak);
+        } else {
+          currentStreak = 0;
+        }
+      });
+      
+      streaks[name] = {
+        displayName: habitList[0]?.habit || name,
+        currentStreak,
+        longestStreak,
+        totalDays,
+        totalWeeks,
+        avgPerWeek: totalWeeks > 0 ? (totalDays / totalWeeks).toFixed(1) : 0
+      };
+    });
+    
+    return streaks;
+  }, [habits, myParticipant]);
+
+  // Calculate best/worst days of the week
+  const dayAnalytics = useMemo(() => {
+    if (!myParticipant) return { best: null, worst: null, dayStats: [] };
+    
+    const myHabits = habits.filter(h => h.participant === myParticipant);
+    const dayTotals = [0, 0, 0, 0, 0, 0, 0]; // Mon-Sun
+    const dayPossible = [0, 0, 0, 0, 0, 0, 0];
+    
+    myHabits.forEach(h => {
+      const target = h.target || 5;
+      // Each habit contributes to the possible count for each day
+      for (let i = 0; i < 7; i++) {
+        dayPossible[i]++;
+        if ((h.daysCompleted || []).includes(i)) {
+          dayTotals[i]++;
+        }
+      }
+    });
+    
+    const dayStats = DAYS.map((day, i) => ({
+      day,
+      dayIndex: i,
+      completed: dayTotals[i],
+      possible: dayPossible[i],
+      rate: dayPossible[i] > 0 ? Math.round((dayTotals[i] / dayPossible[i]) * 100) : 0
+    }));
+    
+    const sorted = [...dayStats].sort((a, b) => b.rate - a.rate);
+    
+    return {
+      best: sorted[0],
+      worst: sorted[sorted.length - 1],
+      dayStats
+    };
+  }, [habits, myParticipant]);
+
+  // Calculate habit correlations (which habits are completed together)
+  const habitCorrelations = useMemo(() => {
+    if (!myParticipant) return [];
+    
+    const myHabits = habits.filter(h => h.participant === myParticipant);
+    
+    // Group by week
+    const weeklyHabits = {};
+    myHabits.forEach(h => {
+      if (!weeklyHabits[h.weekStart]) weeklyHabits[h.weekStart] = [];
+      weeklyHabits[h.weekStart].push(h);
+    });
+    
+    // Find pairs of habits that are often completed on the same days
+    const pairStats = {};
+    
+    Object.values(weeklyHabits).forEach(weekHabits => {
+      for (let i = 0; i < weekHabits.length; i++) {
+        for (let j = i + 1; j < weekHabits.length; j++) {
+          const h1 = weekHabits[i];
+          const h2 = weekHabits[j];
+          const key = [h1.habit, h2.habit].sort().join('|||');
+          
+          if (!pairStats[key]) {
+            pairStats[key] = { habit1: h1.habit, habit2: h2.habit, bothDone: 0, onlyOne: 0, neitherDone: 0 };
+          }
+          
+          // Check each day
+          for (let d = 0; d < 7; d++) {
+            const h1Done = (h1.daysCompleted || []).includes(d);
+            const h2Done = (h2.daysCompleted || []).includes(d);
+            
+            if (h1Done && h2Done) pairStats[key].bothDone++;
+            else if (h1Done || h2Done) pairStats[key].onlyOne++;
+            else pairStats[key].neitherDone++;
+          }
+        }
+      }
+    });
+    
+    // Calculate correlation score
+    const correlations = Object.values(pairStats)
+      .map(p => {
+        const total = p.bothDone + p.onlyOne + p.neitherDone;
+        const correlation = total > 0 ? Math.round((p.bothDone / total) * 100) : 0;
+        return { ...p, correlation, total };
+      })
+      .filter(p => p.total >= 14) // At least 2 weeks of data
+      .sort((a, b) => b.correlation - a.correlation);
+    
+    return correlations.slice(0, 10); // Top 10 correlations
+  }, [habits, myParticipant]);
+
+  // Calculate monthly stats for reports
+  const monthlyStats = useMemo(() => {
+    if (!myParticipant) return null;
+    
+    const { year, month } = reportMonth;
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    
+    const myHabits = habits.filter(h => {
+      if (h.participant !== myParticipant) return false;
+      const weekDate = new Date(h.weekStart);
+      return weekDate >= monthStart && weekDate <= monthEnd;
+    });
+    
+    const totalCompleted = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+    const totalTarget = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+    const completionRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
+    
+    // Weekly breakdown
+    const weeklyBreakdown = {};
+    myHabits.forEach(h => {
+      if (!weeklyBreakdown[h.weekStart]) {
+        weeklyBreakdown[h.weekStart] = { completed: 0, target: 0, habits: [] };
+      }
+      weeklyBreakdown[h.weekStart].completed += h.daysCompleted?.length || 0;
+      weeklyBreakdown[h.weekStart].target += h.target || 5;
+      weeklyBreakdown[h.weekStart].habits.push(h);
+    });
+    
+    // Top performing habits
+    const habitPerformance = {};
+    myHabits.forEach(h => {
+      const name = h.habit;
+      if (!habitPerformance[name]) habitPerformance[name] = { completed: 0, target: 0 };
+      habitPerformance[name].completed += h.daysCompleted?.length || 0;
+      habitPerformance[name].target += h.target || 5;
+    });
+    
+    const topHabits = Object.entries(habitPerformance)
+      .map(([name, stats]) => ({
+        name,
+        ...stats,
+        rate: stats.target > 0 ? Math.round((stats.completed / stats.target) * 100) : 0
+      }))
+      .sort((a, b) => b.rate - a.rate);
+    
+    return {
+      monthName: monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      totalHabits: myHabits.length,
+      totalCompleted,
+      totalTarget,
+      completionRate,
+      weeklyBreakdown: Object.entries(weeklyBreakdown).map(([week, data]) => ({
+        week,
+        ...data,
+        rate: data.target > 0 ? Math.round((data.completed / data.target) * 100) : 0
+      })).sort((a, b) => a.week.localeCompare(b.week)),
+      topHabits: topHabits.slice(0, 5),
+      worstHabits: [...topHabits].reverse().slice(0, 3),
+      perfectWeeks: Object.values(weeklyBreakdown).filter(w => w.target > 0 && w.completed >= w.target).length,
+      totalWeeks: Object.keys(weeklyBreakdown).length
+    };
+  }, [habits, myParticipant, reportMonth]);
+
+  // Badge definitions
+  const BADGE_DEFINITIONS = {
+    first_habit: { name: 'First Step', icon: '🌱', description: 'Completed your first habit' },
+    perfect_day: { name: 'Perfect Day', icon: '⭐', description: 'Completed all habits in a day' },
+    '7_day_warrior': { name: '7-Day Warrior', icon: '🔥', description: 'Completed a habit every day of the week' },
+    early_bird: { name: 'Early Bird', icon: '🌅', description: 'Woke up at 5am' },
+    streak_3: { name: 'On Fire', icon: '🔥', description: '3+ week streak' },
+    streak_5: { name: 'Unstoppable', icon: '💪', description: '5+ week streak' },
+    streak_10: { name: 'Legend', icon: '👑', description: '10+ week streak' },
+    perfect_week: { name: 'Perfect Week', icon: '🏆', description: '100% completion in a week' },
+    consistency_king: { name: 'Consistency King', icon: '👑', description: '90%+ for 4 consecutive weeks' },
+    habit_master: { name: 'Habit Master', icon: '🎯', description: 'Completed 100 total habit days' },
+    social_butterfly: { name: 'Social Butterfly', icon: '🦋', description: 'Posted 10+ times in community' },
+    challenger: { name: 'Challenger', icon: '⚔️', description: 'Won 3 challenges' }
+  };
 
   // Calculate Wrapped Stats for the current user
   const wrappedStats = useMemo(() => {
@@ -2781,14 +3094,200 @@ JSON array only:`
     const habit = habits.find(h => h.id === id);
     if (!habit) return;
     
-    const newDaysCompleted = (habit.daysCompleted || []).includes(idx)
+    const wasCompleted = (habit.daysCompleted || []).includes(idx);
+    const newDaysCompleted = wasCompleted
       ? habit.daysCompleted.filter(d => d !== idx)
       : [...(habit.daysCompleted || []), idx].sort((a, b) => a - b);
     
     await setDoc(doc(db, 'habits', id), { ...habit, daysCompleted: newDaysCompleted });
+    
+    // Log activity to feed (only for completions, not removals)
+    if (!wasCompleted && myParticipant) {
+      const activityId = `activity_${Date.now()}`;
+      const dayName = DAYS[idx];
+      await setDoc(doc(db, 'activityFeed', activityId), {
+        id: activityId,
+        type: 'habit_complete',
+        participant: myParticipant,
+        habitName: habit.habit,
+        dayName,
+        weekStart: habit.weekStart,
+        timestamp: new Date().toISOString(),
+        userId: user?.uid
+      });
+      
+      // Check for badge achievements
+      checkAndAwardBadges(habit, newDaysCompleted);
+    }
   };
 
-  // Add a new instance (success or fail) to a percentage habit
+  // Check and award badges
+  const checkAndAwardBadges = async (habit, newDaysCompleted) => {
+    if (!user) return;
+    
+    const currentBadges = [...earnedBadges];
+    const newBadges = [];
+    
+    // First Habit badge
+    if (!currentBadges.includes('first_habit') && newDaysCompleted.length === 1) {
+      newBadges.push({ id: 'first_habit', name: 'First Step', icon: '🌱', description: 'Completed your first habit', earnedAt: new Date().toISOString() });
+    }
+    
+    // Perfect Day badge (completed all habits for a day)
+    const todayHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const todayIdx = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const allTodayComplete = todayHabits.every(h => (h.daysCompleted || []).includes(todayIdx));
+    if (!currentBadges.includes('perfect_day') && allTodayComplete && todayHabits.length >= 3) {
+      newBadges.push({ id: 'perfect_day', name: 'Perfect Day', icon: '⭐', description: 'Completed all habits in a day', earnedAt: new Date().toISOString() });
+    }
+    
+    // 7-Day Warrior badge
+    if (!currentBadges.includes('7_day_warrior') && newDaysCompleted.length === 7) {
+      newBadges.push({ id: '7_day_warrior', name: '7-Day Warrior', icon: '🔥', description: 'Completed a habit every day of the week', earnedAt: new Date().toISOString() });
+    }
+    
+    // Early Bird badge (5am wake up)
+    if (!currentBadges.includes('early_bird') && habit.habit?.toLowerCase().includes('wake') && habit.habit?.toLowerCase().includes('5')) {
+      newBadges.push({ id: 'early_bird', name: 'Early Bird', icon: '🌅', description: 'Woke up at 5am', earnedAt: new Date().toISOString() });
+    }
+    
+    // Save new badges
+    if (newBadges.length > 0) {
+      const allBadges = [...currentBadges, ...newBadges.map(b => b.id)];
+      await setDoc(doc(db, 'badges', user.uid), { 
+        badges: allBadges,
+        badgeDetails: [...(earnedBadges.map(id => ({ id })) || []), ...newBadges],
+        updatedAt: new Date().toISOString()
+      });
+      
+      // Show badge unlock animation
+      setShowBadgeUnlock(newBadges[0]);
+      setTimeout(() => setShowBadgeUnlock(null), 3000);
+    }
+  };
+
+  // === NEW FEATURE FUNCTIONS ===
+
+  // Copy habits from previous week (Recurring Habit Templates)
+  const copyHabitsFromLastWeek = async () => {
+    if (!myParticipant || !currentWeek) return;
+    
+    // Get last week's date
+    const currentDate = new Date(currentWeek);
+    currentDate.setDate(currentDate.getDate() - 7);
+    const lastWeek = currentDate.toISOString().split('T')[0];
+    
+    // Get last week's habits
+    const lastWeekHabits = habits.filter(h => 
+      h.participant === myParticipant && h.weekStart === lastWeek
+    );
+    
+    if (lastWeekHabits.length === 0) {
+      alert('No habits found from last week to copy.');
+      return;
+    }
+    
+    // Check for existing habits this week
+    const thisWeekHabits = habits.filter(h => 
+      h.participant === myParticipant && h.weekStart === currentWeek
+    );
+    const existingNames = thisWeekHabits.map(h => h.habit?.toLowerCase().trim());
+    
+    // Copy habits that don't already exist
+    let copied = 0;
+    for (const habit of lastWeekHabits) {
+      if (!existingNames.includes(habit.habit?.toLowerCase().trim())) {
+        const id = `habit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await setDoc(doc(db, 'habits', id), {
+          id,
+          habit: habit.habit,
+          participant: myParticipant,
+          weekStart: currentWeek,
+          habitType: habit.habitType || 'daily',
+          target: habit.target || 5,
+          daysCompleted: [],
+          restDays: habit.restDays || [],
+          order: habit.order
+        });
+        copied++;
+      }
+    }
+    
+    if (copied > 0) {
+      // Log activity
+      await setDoc(doc(db, 'activityFeed', `activity_${Date.now()}`), {
+        type: 'habits_copied',
+        participant: myParticipant,
+        count: copied,
+        timestamp: new Date().toISOString(),
+        userId: user?.uid
+      });
+    }
+    
+    alert(`Copied ${copied} habit${copied !== 1 ? 's' : ''} from last week!`);
+  };
+
+  // Toggle rest day for a habit
+  const toggleRestDay = async (habitId, dayIndex) => {
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+    
+    const restDays = habit.restDays || [];
+    const newRestDays = restDays.includes(dayIndex)
+      ? restDays.filter(d => d !== dayIndex)
+      : [...restDays, dayIndex].sort((a, b) => a - b);
+    
+    await setDoc(doc(db, 'habits', habitId), { ...habit, restDays: newRestDays });
+  };
+
+  // Save weekly check-in
+  const saveWeeklyCheckIn = async () => {
+    if (!user || !myParticipant) return;
+    
+    const checkInId = `checkin_${currentWeek}_${user.uid}`;
+    await setDoc(doc(db, 'weeklyCheckIns', checkInId), {
+      id: checkInId,
+      participant: myParticipant,
+      weekStart: currentWeek,
+      ...weeklyCheckInData,
+      createdAt: new Date().toISOString(),
+      userId: user.uid
+    });
+    
+    // Log activity
+    await setDoc(doc(db, 'activityFeed', `activity_${Date.now()}`), {
+      type: 'weekly_checkin',
+      participant: myParticipant,
+      weekStart: currentWeek,
+      timestamp: new Date().toISOString(),
+      userId: user?.uid
+    });
+    
+    setShowWeeklyCheckIn(false);
+    setWeeklyCheckInData({
+      wins: '',
+      challenges: '',
+      learning: '',
+      nextWeekFocus: '',
+      energyLevel: 5,
+      overallRating: 5
+    });
+  };
+
+  // Get previous week's habits for quick copy
+  const getPreviousWeekHabits = useMemo(() => {
+    if (!myParticipant || !currentWeek) return [];
+    
+    const currentDate = new Date(currentWeek);
+    currentDate.setDate(currentDate.getDate() - 7);
+    const lastWeek = currentDate.toISOString().split('T')[0];
+    
+    return habits.filter(h => 
+      h.participant === myParticipant && h.weekStart === lastWeek
+    );
+  }, [habits, myParticipant, currentWeek]);
   const addPercentageInstance = async (id, success) => {
     const habit = habits.find(h => h.id === id);
     if (!habit) return;
@@ -3856,7 +4355,19 @@ JSON array only:`
       setSelectedWeek(currentMon);
     }
   };
+  const goToLastWeek = () => {
+    const currentMon = getCurrentMonday();
+    const currentIdx = ALL_WEEKS.indexOf(currentMon);
+    if (currentIdx > 0) {
+      setSelectedWeek(ALL_WEEKS[currentIdx - 1]);
+    }
+  };
   const isCurrentWeekSelected = currentWeek === getCurrentMonday();
+  const isLastWeekSelected = (() => {
+    const currentMon = getCurrentMonday();
+    const currentIdx = ALL_WEEKS.indexOf(currentMon);
+    return currentIdx > 0 && currentWeek === ALL_WEEKS[currentIdx - 1];
+  })();
 
   const handleCalendarDayClick = (date) => {
     if (!date) return;
@@ -3960,6 +4471,18 @@ JSON array only:`
             </div>
             {/* Desktop week controls */}
             <div className="hidden md:flex items-center gap-2">
+              {isCurrentWeekSelected && (
+                <button 
+                  onClick={goToLastWeek}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                    darkMode 
+                      ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' 
+                      : 'bg-amber-500 text-white hover:bg-amber-600'
+                  }`}
+                >
+                  Last week
+                </button>
+              )}
               {!isCurrentWeekSelected && (
                 <button 
                   onClick={goToCurrentWeek}
@@ -4049,6 +4572,18 @@ JSON array only:`
                 {currentWeek ? formatWeekString(currentWeek) : 'Select week'}
               </span>
             </button>
+            {isCurrentWeekSelected && (
+              <button 
+                onClick={goToLastWeek}
+                className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  darkMode 
+                    ? 'bg-amber-500/20 text-amber-400 active:bg-amber-500/30' 
+                    : 'bg-amber-500 text-white active:bg-amber-600'
+                }`}
+              >
+                Last wk
+              </button>
+            )}
             {!isCurrentWeekSelected && (
               <button 
                 onClick={goToCurrentWeek}
@@ -5942,6 +6477,101 @@ JSON array only:`
               </button>
             </div>
             
+            {/* Quick Actions Bar */}
+            <div className={`flex flex-wrap gap-2 p-3 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+              {/* Copy from Last Week */}
+              {getPreviousWeekHabits.length > 0 && currentWeekHabits.filter(h => h.participant === myParticipant).length === 0 && (
+                <button
+                  onClick={copyHabitsFromLastWeek}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    darkMode 
+                      ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' 
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Copy Last Week ({getPreviousWeekHabits.length})
+                </button>
+              )}
+              
+              {/* Weekly Check-in */}
+              <button
+                onClick={() => setShowWeeklyCheckIn(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
+                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                }`}
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Weekly Check-in
+              </button>
+              
+              {/* Activity Feed */}
+              <button
+                onClick={() => setShowActivityFeed(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors relative ${
+                  darkMode 
+                    ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' 
+                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Activity
+                {activityFeed.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">
+                    {Math.min(activityFeed.length, 9)}
+                  </span>
+                )}
+              </button>
+              
+              {/* Analytics */}
+              <button
+                onClick={() => setShowAnalytics(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Analytics
+              </button>
+              
+              {/* Monthly Report */}
+              <button
+                onClick={() => setShowMonthlyReport(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30' 
+                    : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Monthly Report
+              </button>
+              
+              {/* Current Streak Display */}
+              {calculateStreaks[myParticipant] > 0 && (
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
+                  darkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-700'
+                }`}>
+                  <Flame className="w-3.5 h-3.5" />
+                  {calculateStreaks[myParticipant]} week streak
+                </div>
+              )}
+              
+              {/* Badges count */}
+              {earnedBadges.length > 0 && (
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
+                  darkMode ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  <Trophy className="w-3.5 h-3.5" />
+                  {earnedBadges.length} badges
+                </div>
+              )}
+            </div>
+            
             {/* No habits - Show AI suggestions */}
             {currentWeekHabits.length === 0 ? (
               <div className={`rounded-xl p-6 ${darkMode ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' : 'bg-white border border-gray-100'}`}>
@@ -6308,6 +6938,7 @@ JSON array only:`
                               ) : (
                                 DAYS.map((d, i) => {
                                   const isCompleted = (h.daysCompleted || []).includes(i);
+                                  const isRestDay = (h.restDays || []).includes(i);
                                   const dayDate = new Date(currentWeek + 'T00:00:00');
                                   dayDate.setDate(dayDate.getDate() + i);
                                   const isToday = dayDate.toDateString() === new Date().toDateString();
@@ -6316,18 +6947,25 @@ JSON array only:`
                                     <td key={d} className="p-0.5 text-center">
                                       <button 
                                         onClick={() => canEdit && toggleDay(h.id, i)} 
+                                        onContextMenu={(e) => {
+                                          e.preventDefault();
+                                          if (canEdit) toggleRestDay(h.id, i);
+                                        }}
                                         disabled={!canEdit}
+                                        title={isRestDay ? 'Rest day (right-click to toggle)' : 'Click to complete, right-click for rest day'}
                                         className={`w-6 h-6 rounded border-2 transition-all flex items-center justify-center ${
-                                          isCompleted 
-                                            ? 'bg-green-500 border-green-500 text-white' 
-                                            : isToday
-                                              ? 'border-[#F5B800] bg-amber-50'
-                                              : canEdit 
-                                                ? darkMode ? 'border-gray-600 hover:border-green-400 bg-gray-800' : 'border-gray-300 hover:border-green-400 bg-white'
-                                                : darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+                                          isRestDay
+                                            ? darkMode ? 'bg-gray-600 border-gray-500 text-gray-400' : 'bg-gray-200 border-gray-300 text-gray-400'
+                                            : isCompleted 
+                                              ? 'bg-green-500 border-green-500 text-white' 
+                                              : isToday
+                                                ? 'border-[#F5B800] bg-amber-50'
+                                                : canEdit 
+                                                  ? darkMode ? 'border-gray-600 hover:border-green-400 bg-gray-800' : 'border-gray-300 hover:border-green-400 bg-white'
+                                                  : darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                                         }`}
                                       >
-                                        {isCompleted && <Check className="w-4 h-4" />}
+                                        {isRestDay ? <span className="text-[10px]">R</span> : isCompleted && <Check className="w-4 h-4" />}
                                       </button>
                                     </td>
                                   );
@@ -6561,6 +7199,7 @@ JSON array only:`
                             <div className="flex items-center justify-between gap-1 mb-2">
                               {DAYS.map((d, i) => {
                                 const isCompleted = (h.daysCompleted || []).includes(i);
+                                const isRestDay = (h.restDays || []).includes(i);
                                 const dayDate = new Date(currentWeek + 'T00:00:00');
                                 dayDate.setDate(dayDate.getDate() + i);
                                 const isToday = dayDate.toDateString() === new Date().toDateString();
@@ -6569,23 +7208,31 @@ JSON array only:`
                                   <button
                                     key={d}
                                     onClick={() => canEdit && toggleDay(h.id, i)}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault();
+                                      if (canEdit) toggleRestDay(h.id, i);
+                                    }}
                                     disabled={!canEdit}
                                     className={`flex-1 flex flex-col items-center py-1.5 rounded-lg transition-all ${
-                                      isCompleted 
-                                        ? 'bg-green-500 text-white' 
-                                        : isToday
-                                          ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
-                                          : darkMode 
-                                            ? canEdit ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' : 'bg-gray-800 border border-gray-700'
-                                            : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
+                                      isRestDay
+                                        ? darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-gray-200 border border-gray-300'
+                                        : isCompleted 
+                                          ? 'bg-green-500 text-white' 
+                                          : isToday
+                                            ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
+                                            : darkMode 
+                                              ? canEdit ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' : 'bg-gray-800 border border-gray-700'
+                                              : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
                                     }`}
                                   >
                                     <span className={`text-[10px] font-medium ${
-                                      isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-400' : 'text-gray-400'
+                                      isRestDay ? 'text-gray-400' : isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-400' : 'text-gray-400'
                                     }`}>
                                       {d[0]}
                                     </span>
-                                    {isCompleted ? (
+                                    {isRestDay ? (
+                                      <span className="text-[10px] text-gray-400">R</span>
+                                    ) : isCompleted ? (
                                       <Check className="w-4 h-4" />
                                     ) : (
                                       <div className={`w-4 h-4 rounded-full border-2 ${
@@ -11128,6 +11775,567 @@ JSON array only:`
               >
                 Close
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* === NEW FEATURE MODALS === */}
+
+        {/* Badge Unlock Animation */}
+        {showBadgeUnlock && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none">
+            <div className="animate-bounce bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 shadow-2xl text-center pointer-events-auto">
+              <div className="text-6xl mb-2">{showBadgeUnlock.icon}</div>
+              <h3 className="text-xl font-bold text-white">Badge Unlocked!</h3>
+              <p className="text-amber-100 font-medium">{showBadgeUnlock.name}</p>
+              <p className="text-amber-200 text-sm mt-1">{showBadgeUnlock.description}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Activity Feed Modal */}
+        {showActivityFeed && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  <Zap className="w-5 h-5 text-amber-500" />
+                  Live Activity
+                </h3>
+                <button onClick={() => setShowActivityFeed(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="overflow-y-auto flex-1 space-y-2">
+                {activityFeed.length === 0 ? (
+                  <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <Zap className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p>No recent activity</p>
+                  </div>
+                ) : (
+                  activityFeed.slice(0, 30).map((activity, idx) => {
+                    const timeAgo = (() => {
+                      const diff = Date.now() - new Date(activity.timestamp).getTime();
+                      const mins = Math.floor(diff / 60000);
+                      if (mins < 1) return 'just now';
+                      if (mins < 60) return `${mins}m ago`;
+                      const hours = Math.floor(mins / 60);
+                      if (hours < 24) return `${hours}h ago`;
+                      const days = Math.floor(hours / 24);
+                      return `${days}d ago`;
+                    })();
+                    
+                    return (
+                      <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            activity.participant === myParticipant 
+                              ? 'bg-green-500 text-white' 
+                              : 'bg-blue-500 text-white'
+                          }`}>
+                            {activity.participant?.[0] || '?'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                              <span className="font-bold">{activity.participant}</span>
+                              {activity.type === 'habit_complete' && ' completed '}
+                              {activity.type === 'habits_copied' && ` copied ${activity.count} habits`}
+                              {activity.type === 'weekly_checkin' && ' submitted weekly check-in'}
+                              {activity.type === 'habit_complete' && (
+                                <span className="text-green-500">"{activity.habitName}"</span>
+                              )}
+                            </p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{timeAgo}</p>
+                          </div>
+                          {activity.type === 'habit_complete' && (
+                            <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Weekly Check-in Modal */}
+        {showWeeklyCheckIn && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className={`rounded-2xl p-6 w-full max-w-lg my-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  <MessageCircle className="w-5 h-5 text-purple-500" />
+                  Weekly Check-in
+                </h3>
+                <button onClick={() => setShowWeeklyCheckIn(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Reflect on week of {currentWeek ? formatWeekString(currentWeek) : 'this week'}
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    🏆 Wins this week
+                  </label>
+                  <textarea
+                    value={weeklyCheckInData.wins}
+                    onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, wins: e.target.value }))}
+                    placeholder="What went well? What are you proud of?"
+                    className={`w-full p-3 rounded-lg border text-sm resize-none h-20 ${
+                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' : 'bg-gray-50 border-gray-200'
+                    }`}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    💪 Challenges faced
+                  </label>
+                  <textarea
+                    value={weeklyCheckInData.challenges}
+                    onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, challenges: e.target.value }))}
+                    placeholder="What was hard? What tripped you up?"
+                    className={`w-full p-3 rounded-lg border text-sm resize-none h-20 ${
+                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' : 'bg-gray-50 border-gray-200'
+                    }`}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    💡 Key learning
+                  </label>
+                  <textarea
+                    value={weeklyCheckInData.learning}
+                    onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, learning: e.target.value }))}
+                    placeholder="What did you learn about yourself?"
+                    className={`w-full p-3 rounded-lg border text-sm resize-none h-16 ${
+                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' : 'bg-gray-50 border-gray-200'
+                    }`}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    🎯 Focus for next week
+                  </label>
+                  <input
+                    type="text"
+                    value={weeklyCheckInData.nextWeekFocus}
+                    onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, nextWeekFocus: e.target.value }))}
+                    placeholder="One thing to prioritize..."
+                    className={`w-full p-3 rounded-lg border text-sm ${
+                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' : 'bg-gray-50 border-gray-200'
+                    }`}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      ⚡ Energy level: {weeklyCheckInData.energyLevel}/10
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="10"
+                      value={weeklyCheckInData.energyLevel}
+                      onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, energyLevel: parseInt(e.target.value) }))}
+                      className="w-full accent-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      ⭐ Week rating: {weeklyCheckInData.overallRating}/10
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="10"
+                      value={weeklyCheckInData.overallRating}
+                      onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, overallRating: parseInt(e.target.value) }))}
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowWeeklyCheckIn(false)}
+                  className={`flex-1 py-2.5 rounded-lg font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveWeeklyCheckIn}
+                  className="flex-1 py-2.5 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600"
+                >
+                  Save Check-in
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Analytics Modal */}
+        {showAnalytics && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className={`rounded-2xl w-full max-w-2xl my-4 max-h-[90vh] overflow-hidden flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    <BarChart3 className="w-5 h-5 text-blue-500" />
+                    Analytics & Insights
+                  </h3>
+                  <button onClick={() => setShowAnalytics(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Analytics Tabs */}
+                <div className={`flex gap-1 mt-3 p-1 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                  {[
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'days', label: 'Best/Worst Days' },
+                    { id: 'streaks', label: 'Streaks' },
+                    { id: 'correlations', label: 'Correlations' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setAnalyticsTab(tab.id)}
+                      className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                        analyticsTab === tab.id
+                          ? darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-800 shadow-sm'
+                          : darkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="p-4 overflow-y-auto flex-1">
+                {/* Overview Tab */}
+                {analyticsTab === 'overview' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-blue-600'}`}>Current Streak</p>
+                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-blue-700'}`}>
+                          {calculateStreaks[myParticipant] || 0} weeks
+                        </p>
+                      </div>
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>Best Day</p>
+                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-green-700'}`}>
+                          {dayAnalytics.best?.day || '-'}
+                        </p>
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>
+                          {dayAnalytics.best?.rate || 0}% completion
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Badges Section */}
+                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-amber-50'}`}>
+                      <h4 className={`font-semibold mb-3 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-amber-800'}`}>
+                        <Trophy className="w-4 h-4" />
+                        Earned Badges ({earnedBadges.length})
+                      </h4>
+                      {earnedBadges.length === 0 ? (
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-amber-600'}`}>
+                          Complete habits to earn badges!
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {earnedBadges.map((badgeId, idx) => {
+                            const badge = BADGE_DEFINITIONS[badgeId] || { icon: '🏅', name: badgeId };
+                            return (
+                              <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-white'}`}>
+                                <span>{badge.icon}</span>
+                                <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-700'}`}>{badge.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Best/Worst Days Tab */}
+                {analyticsTab === 'days' && (
+                  <div className="space-y-4">
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Your completion rate by day of the week
+                    </p>
+                    <div className="space-y-2">
+                      {dayAnalytics.dayStats.map((day, idx) => (
+                        <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{day.day}</span>
+                            <span className={`font-bold ${
+                              day.rate >= 80 ? 'text-green-500' : 
+                              day.rate >= 60 ? 'text-blue-500' : 
+                              day.rate >= 40 ? 'text-amber-500' : 'text-red-500'
+                            }`}>{day.rate}%</span>
+                          </div>
+                          <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                            <div 
+                              className={`h-full rounded-full ${
+                                day.rate >= 80 ? 'bg-green-500' : 
+                                day.rate >= 60 ? 'bg-blue-500' : 
+                                day.rate >= 40 ? 'bg-amber-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${day.rate}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50'}`}>
+                      <p className={`text-sm ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
+                        💡 <strong>Insight:</strong> You perform best on <strong>{dayAnalytics.best?.day}</strong> ({dayAnalytics.best?.rate}%). 
+                        Consider scheduling important habits on this day!
+                      </p>
+                    </div>
+                    
+                    {dayAnalytics.worst && dayAnalytics.worst.rate < 50 && (
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50'}`}>
+                        <p className={`text-sm ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>
+                          ⚠️ <strong>Opportunity:</strong> <strong>{dayAnalytics.worst.day}</strong> is your weakest day ({dayAnalytics.worst.rate}%). 
+                          Try planning lighter habits or setting reminders.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Streaks Tab */}
+                {analyticsTab === 'streaks' && (
+                  <div className="space-y-4">
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Track your consistency across habits
+                    </p>
+                    <div className="space-y-3">
+                      {Object.entries(habitStreaks).length === 0 ? (
+                        <p className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Not enough data yet. Keep tracking!
+                        </p>
+                      ) : (
+                        Object.entries(habitStreaks)
+                          .sort((a, b) => b[1].currentStreak - a[1].currentStreak)
+                          .slice(0, 10)
+                          .map(([key, streak], idx) => (
+                            <div key={key} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <p className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                    {streak.displayName}
+                                  </p>
+                                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {streak.totalWeeks} weeks tracked · Avg {streak.avgPerWeek} days/week
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <div className="flex items-center gap-1">
+                                    <Flame className={`w-4 h-4 ${streak.currentStreak >= 3 ? 'text-orange-500' : 'text-gray-400'}`} />
+                                    <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                      {streak.currentStreak}
+                                    </span>
+                                  </div>
+                                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Best: {streak.longestStreak}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Correlations Tab */}
+                {analyticsTab === 'correlations' && (
+                  <div className="space-y-4">
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Habits you often complete together (higher % = stronger correlation)
+                    </p>
+                    <div className="space-y-3">
+                      {habitCorrelations.length === 0 ? (
+                        <p className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Not enough data yet. Track more habits together to see correlations!
+                        </p>
+                      ) : (
+                        habitCorrelations.map((corr, idx) => (
+                          <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                  <span className="font-medium">{corr.habit1}</span>
+                                  <span className={`mx-2 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>↔</span>
+                                  <span className="font-medium">{corr.habit2}</span>
+                                </p>
+                              </div>
+                              <span className={`font-bold ${
+                                corr.correlation >= 70 ? 'text-green-500' : 
+                                corr.correlation >= 50 ? 'text-blue-500' : 'text-amber-500'
+                              }`}>{corr.correlation}%</span>
+                            </div>
+                            <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                              <div 
+                                className={`h-full rounded-full ${
+                                  corr.correlation >= 70 ? 'bg-green-500' : 
+                                  corr.correlation >= 50 ? 'bg-blue-500' : 'bg-amber-500'
+                                }`}
+                                style={{ width: `${corr.correlation}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    
+                    {habitCorrelations.length > 0 && habitCorrelations[0].correlation >= 60 && (
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50'}`}>
+                        <p className={`text-sm ${darkMode ? 'text-blue-400' : 'text-blue-700'}`}>
+                          💡 <strong>Insight:</strong> "{habitCorrelations[0].habit1}" and "{habitCorrelations[0].habit2}" 
+                          are often done together. Consider stacking them in your routine!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Monthly Report Modal */}
+        {showMonthlyReport && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className={`rounded-2xl w-full max-w-2xl my-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    <Calendar className="w-5 h-5 text-purple-500" />
+                    Monthly Report
+                  </h3>
+                  <button onClick={() => setShowMonthlyReport(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Month Selector */}
+                <div className="flex items-center justify-center gap-2 mt-3">
+                  <button 
+                    onClick={() => setReportMonth(prev => {
+                      const d = new Date(prev.year, prev.month - 1, 1);
+                      return { year: d.getFullYear(), month: d.getMonth() };
+                    })}
+                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                  >
+                    <ChevronLeft className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                  </button>
+                  <span className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    {monthlyStats?.monthName}
+                  </span>
+                  <button 
+                    onClick={() => setReportMonth(prev => {
+                      const d = new Date(prev.year, prev.month + 1, 1);
+                      return { year: d.getFullYear(), month: d.getMonth() };
+                    })}
+                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                  >
+                    <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                  </button>
+                </div>
+              </div>
+              
+              {monthlyStats && (
+                <div className="p-4 space-y-4">
+                  {/* Overview Stats */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
+                      <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-purple-700'}`}>
+                        {monthlyStats.completionRate}%
+                      </p>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-purple-600'}`}>Completion</p>
+                    </div>
+                    <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
+                      <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-green-700'}`}>
+                        {monthlyStats.perfectWeeks}
+                      </p>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>Perfect Weeks</p>
+                    </div>
+                    <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                      <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-blue-700'}`}>
+                        {monthlyStats.totalCompleted}
+                      </p>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-blue-600'}`}>Days Completed</p>
+                    </div>
+                  </div>
+                  
+                  {/* Weekly Breakdown */}
+                  <div>
+                    <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Weekly Breakdown
+                    </h4>
+                    <div className="space-y-2">
+                      {monthlyStats.weeklyBreakdown.map((week, idx) => (
+                        <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Week of {week.week}
+                            </span>
+                            <span className={`font-bold ${
+                              week.rate >= 100 ? 'text-green-500' : 
+                              week.rate >= 70 ? 'text-blue-500' : 'text-amber-500'
+                            }`}>{week.rate}%</span>
+                          </div>
+                          <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                            <div 
+                              className={`h-full rounded-full ${
+                                week.rate >= 100 ? 'bg-green-500' : 
+                                week.rate >= 70 ? 'bg-blue-500' : 'bg-amber-500'
+                              }`}
+                              style={{ width: `${Math.min(week.rate, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Top Habits */}
+                  {monthlyStats.topHabits.length > 0 && (
+                    <div>
+                      <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        🏆 Top Performing Habits
+                      </h4>
+                      <div className="space-y-1">
+                        {monthlyStats.topHabits.map((h, idx) => (
+                          <div key={idx} className="flex items-center justify-between py-2">
+                            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{h.name}</span>
+                            <span className="text-sm text-green-500 font-medium">{h.rate}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
