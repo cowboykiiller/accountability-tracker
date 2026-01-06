@@ -1410,7 +1410,8 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
-  // Listen for activity feed (habit completions)
+  // Listen for activity feed (habit completions) - DISABLED: needs Firebase index
+  /*
   useEffect(() => {
     if (!user) return;
     
@@ -1432,8 +1433,10 @@ export default function AccountabilityTracker() {
       console.error('Activity feed setup error:', error);
     }
   }, [user]);
+  */
 
-  // Listen for weekly check-ins
+  // Listen for weekly check-ins - DISABLED: needs Firebase index
+  /*
   useEffect(() => {
     if (!user) return;
     
@@ -1455,8 +1458,10 @@ export default function AccountabilityTracker() {
       console.error('Weekly check-ins setup error:', error);
     }
   }, [user]);
+  */
 
-  // Listen for earned badges
+  // Listen for earned badges - DISABLED: may cause issues
+  /*
   useEffect(() => {
     if (!user) return;
     
@@ -1478,6 +1483,7 @@ export default function AccountabilityTracker() {
       console.error('Badges setup error:', error);
     }
   }, [user]);
+  */
 
   // Save vision document
   const saveVision = async () => {
@@ -3131,31 +3137,11 @@ JSON array only:`
     const habit = habits.find(h => h.id === id);
     if (!habit) return;
     
-    const wasCompleted = (habit.daysCompleted || []).includes(idx);
-    const newDaysCompleted = wasCompleted
+    const newDaysCompleted = (habit.daysCompleted || []).includes(idx)
       ? habit.daysCompleted.filter(d => d !== idx)
       : [...(habit.daysCompleted || []), idx].sort((a, b) => a - b);
     
     await setDoc(doc(db, 'habits', id), { ...habit, daysCompleted: newDaysCompleted });
-    
-    // Log activity to feed (only for completions, not removals)
-    if (!wasCompleted && myParticipant) {
-      const activityId = `activity_${Date.now()}`;
-      const dayName = DAYS[idx];
-      await setDoc(doc(db, 'activityFeed', activityId), {
-        id: activityId,
-        type: 'habit_complete',
-        participant: myParticipant,
-        habitName: habit.habit,
-        dayName,
-        weekStart: habit.weekStart,
-        timestamp: new Date().toISOString(),
-        userId: user?.uid
-      });
-      
-      // Check for badge achievements
-      checkAndAwardBadges(habit, newDaysCompleted);
-    }
   };
 
   // Check and award badges
@@ -6523,81 +6509,8 @@ JSON array only:`
               </button>
             </div>
             
-            {/* Quick Actions Bar */}
+            {/* Quick Actions Bar - DISABLED FOR DEBUGGING
             <div className={`flex flex-wrap gap-2 p-3 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-              {/* Copy from Last Week */}
-              {getPreviousWeekHabits.length > 0 && currentWeekHabits.filter(h => h.participant === myParticipant).length === 0 && (
-                <button
-                  onClick={copyHabitsFromLastWeek}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    darkMode 
-                      ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' 
-                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  }`}
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Copy Last Week ({getPreviousWeekHabits.length})
-                </button>
-              )}
-              
-              {/* Weekly Check-in */}
-              <button
-                onClick={() => setShowWeeklyCheckIn(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  darkMode 
-                    ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
-                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                }`}
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                Weekly Check-in
-              </button>
-              
-              {/* Activity Feed */}
-              <button
-                onClick={() => setShowActivityFeed(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors relative ${
-                  darkMode 
-                    ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' 
-                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5" />
-                Activity
-                {activityFeed.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">
-                    {Math.min(activityFeed.length, 9)}
-                  </span>
-                )}
-              </button>
-              
-              {/* Analytics */}
-              <button
-                onClick={() => setShowAnalytics(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  darkMode 
-                    ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
-                    : 'bg-green-100 text-green-700 hover:bg-green-200'
-                }`}
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                Analytics
-              </button>
-              
-              {/* Monthly Report */}
-              <button
-                onClick={() => setShowMonthlyReport(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  darkMode 
-                    ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30' 
-                    : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                Monthly Report
-              </button>
-              
-              {/* Current Streak Display */}
               {calculateStreaks[myParticipant] > 0 && (
                 <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
                   darkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-700'
@@ -6606,17 +6519,8 @@ JSON array only:`
                   {calculateStreaks[myParticipant]} week streak
                 </div>
               )}
-              
-              {/* Badges count */}
-              {earnedBadges.length > 0 && (
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
-                  darkMode ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
-                }`}>
-                  <Trophy className="w-3.5 h-3.5" />
-                  {earnedBadges.length} badges
-                </div>
-              )}
             </div>
+            */}
             
             {/* No habits - Show AI suggestions */}
             {currentWeekHabits.length === 0 ? (
@@ -6984,7 +6888,6 @@ JSON array only:`
                               ) : (
                                 DAYS.map((d, i) => {
                                   const isCompleted = (h.daysCompleted || []).includes(i);
-                                  const isRestDay = (h.restDays || []).includes(i);
                                   const dayDate = new Date(currentWeek + 'T00:00:00');
                                   dayDate.setDate(dayDate.getDate() + i);
                                   const isToday = dayDate.toDateString() === new Date().toDateString();
@@ -6993,25 +6896,18 @@ JSON array only:`
                                     <td key={d} className="p-0.5 text-center">
                                       <button 
                                         onClick={() => canEdit && toggleDay(h.id, i)} 
-                                        onContextMenu={(e) => {
-                                          e.preventDefault();
-                                          if (canEdit) toggleRestDay(h.id, i);
-                                        }}
                                         disabled={!canEdit}
-                                        title={isRestDay ? 'Rest day (right-click to toggle)' : 'Click to complete, right-click for rest day'}
                                         className={`w-6 h-6 rounded border-2 transition-all flex items-center justify-center ${
-                                          isRestDay
-                                            ? darkMode ? 'bg-gray-600 border-gray-500 text-gray-400' : 'bg-gray-200 border-gray-300 text-gray-400'
-                                            : isCompleted 
-                                              ? 'bg-green-500 border-green-500 text-white' 
-                                              : isToday
-                                                ? 'border-[#F5B800] bg-amber-50'
-                                                : canEdit 
-                                                  ? darkMode ? 'border-gray-600 hover:border-green-400 bg-gray-800' : 'border-gray-300 hover:border-green-400 bg-white'
-                                                  : darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+                                          isCompleted 
+                                            ? 'bg-green-500 border-green-500 text-white' 
+                                            : isToday
+                                              ? 'border-[#F5B800] bg-amber-50'
+                                              : canEdit 
+                                                ? darkMode ? 'border-gray-600 hover:border-green-400 bg-gray-800' : 'border-gray-300 hover:border-green-400 bg-white'
+                                                : darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                                         }`}
                                       >
-                                        {isRestDay ? <span className="text-[10px]">R</span> : isCompleted && <Check className="w-4 h-4" />}
+                                        {isCompleted && <Check className="w-4 h-4" />}
                                       </button>
                                     </td>
                                   );
@@ -7245,7 +7141,6 @@ JSON array only:`
                             <div className="flex items-center justify-between gap-1 mb-2">
                               {DAYS.map((d, i) => {
                                 const isCompleted = (h.daysCompleted || []).includes(i);
-                                const isRestDay = (h.restDays || []).includes(i);
                                 const dayDate = new Date(currentWeek + 'T00:00:00');
                                 dayDate.setDate(dayDate.getDate() + i);
                                 const isToday = dayDate.toDateString() === new Date().toDateString();
@@ -7254,31 +7149,23 @@ JSON array only:`
                                   <button
                                     key={d}
                                     onClick={() => canEdit && toggleDay(h.id, i)}
-                                    onContextMenu={(e) => {
-                                      e.preventDefault();
-                                      if (canEdit) toggleRestDay(h.id, i);
-                                    }}
                                     disabled={!canEdit}
                                     className={`flex-1 flex flex-col items-center py-1.5 rounded-lg transition-all ${
-                                      isRestDay
-                                        ? darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-gray-200 border border-gray-300'
-                                        : isCompleted 
-                                          ? 'bg-green-500 text-white' 
-                                          : isToday
-                                            ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
-                                            : darkMode 
-                                              ? canEdit ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' : 'bg-gray-800 border border-gray-700'
-                                              : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
+                                      isCompleted 
+                                        ? 'bg-green-500 text-white' 
+                                        : isToday
+                                          ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
+                                          : darkMode 
+                                            ? canEdit ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' : 'bg-gray-800 border border-gray-700'
+                                            : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
                                     }`}
                                   >
                                     <span className={`text-[10px] font-medium ${
-                                      isRestDay ? 'text-gray-400' : isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-400' : 'text-gray-400'
+                                      isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-400' : 'text-gray-400'
                                     }`}>
                                       {d[0]}
                                     </span>
-                                    {isRestDay ? (
-                                      <span className="text-[10px] text-gray-400">R</span>
-                                    ) : isCompleted ? (
+                                    {isCompleted ? (
                                       <Check className="w-4 h-4" />
                                     ) : (
                                       <div className={`w-4 h-4 rounded-full border-2 ${
@@ -11825,566 +11712,7 @@ JSON array only:`
           </div>
         )}
 
-        {/* === NEW FEATURE MODALS === */}
-
-        {/* Badge Unlock Animation */}
-        {showBadgeUnlock && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none">
-            <div className="animate-bounce bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 shadow-2xl text-center pointer-events-auto">
-              <div className="text-6xl mb-2">{showBadgeUnlock.icon}</div>
-              <h3 className="text-xl font-bold text-white">Badge Unlocked!</h3>
-              <p className="text-amber-100 font-medium">{showBadgeUnlock.name}</p>
-              <p className="text-amber-200 text-sm mt-1">{showBadgeUnlock.description}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Activity Feed Modal */}
-        {showActivityFeed && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className={`rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  <Zap className="w-5 h-5 text-amber-500" />
-                  Live Activity
-                </h3>
-                <button onClick={() => setShowActivityFeed(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="overflow-y-auto flex-1 space-y-2">
-                {activityFeed.length === 0 ? (
-                  <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    <Zap className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p>No recent activity</p>
-                  </div>
-                ) : (
-                  activityFeed.slice(0, 30).map((activity, idx) => {
-                    const timeAgo = (() => {
-                      const diff = Date.now() - new Date(activity.timestamp).getTime();
-                      const mins = Math.floor(diff / 60000);
-                      if (mins < 1) return 'just now';
-                      if (mins < 60) return `${mins}m ago`;
-                      const hours = Math.floor(mins / 60);
-                      if (hours < 24) return `${hours}h ago`;
-                      const days = Math.floor(hours / 24);
-                      return `${days}d ago`;
-                    })();
-                    
-                    return (
-                      <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                            activity.participant === myParticipant 
-                              ? 'bg-green-500 text-white' 
-                              : 'bg-blue-500 text-white'
-                          }`}>
-                            {activity.participant?.[0] || '?'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                              <span className="font-bold">{activity.participant}</span>
-                              {activity.type === 'habit_complete' && ' completed '}
-                              {activity.type === 'habits_copied' && ` copied ${activity.count} habits`}
-                              {activity.type === 'weekly_checkin' && ' submitted weekly check-in'}
-                              {activity.type === 'habit_complete' && (
-                                <span className="text-green-500">"{activity.habitName}"</span>
-                              )}
-                            </p>
-                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{timeAgo}</p>
-                          </div>
-                          {activity.type === 'habit_complete' && (
-                            <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Weekly Check-in Modal */}
-        {showWeeklyCheckIn && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className={`rounded-2xl p-6 w-full max-w-lg my-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  <MessageCircle className="w-5 h-5 text-purple-500" />
-                  Weekly Check-in
-                </h3>
-                <button onClick={() => setShowWeeklyCheckIn(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Reflect on week of {currentWeek ? formatWeekString(currentWeek) : 'this week'}
-              </p>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    🏆 Wins this week
-                  </label>
-                  <textarea
-                    value={weeklyCheckInData.wins}
-                    onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, wins: e.target.value }))}
-                    placeholder="What went well? What are you proud of?"
-                    className={`w-full p-3 rounded-lg border text-sm resize-none h-20 ${
-                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' : 'bg-gray-50 border-gray-200'
-                    }`}
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    💪 Challenges faced
-                  </label>
-                  <textarea
-                    value={weeklyCheckInData.challenges}
-                    onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, challenges: e.target.value }))}
-                    placeholder="What was hard? What tripped you up?"
-                    className={`w-full p-3 rounded-lg border text-sm resize-none h-20 ${
-                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' : 'bg-gray-50 border-gray-200'
-                    }`}
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    💡 Key learning
-                  </label>
-                  <textarea
-                    value={weeklyCheckInData.learning}
-                    onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, learning: e.target.value }))}
-                    placeholder="What did you learn about yourself?"
-                    className={`w-full p-3 rounded-lg border text-sm resize-none h-16 ${
-                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' : 'bg-gray-50 border-gray-200'
-                    }`}
-                  />
-                </div>
-                
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    🎯 Focus for next week
-                  </label>
-                  <input
-                    type="text"
-                    value={weeklyCheckInData.nextWeekFocus}
-                    onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, nextWeekFocus: e.target.value }))}
-                    placeholder="One thing to prioritize..."
-                    className={`w-full p-3 rounded-lg border text-sm ${
-                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' : 'bg-gray-50 border-gray-200'
-                    }`}
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      ⚡ Energy level: {weeklyCheckInData.energyLevel}/10
-                    </label>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={weeklyCheckInData.energyLevel}
-                      onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, energyLevel: parseInt(e.target.value) }))}
-                      className="w-full accent-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      ⭐ Week rating: {weeklyCheckInData.overallRating}/10
-                    </label>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={weeklyCheckInData.overallRating}
-                      onChange={(e) => setWeeklyCheckInData(prev => ({ ...prev, overallRating: parseInt(e.target.value) }))}
-                      className="w-full accent-amber-500"
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowWeeklyCheckIn(false)}
-                  className={`flex-1 py-2.5 rounded-lg font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveWeeklyCheckIn}
-                  className="flex-1 py-2.5 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600"
-                >
-                  Save Check-in
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Analytics Modal */}
-        {showAnalytics && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className={`rounded-2xl w-full max-w-2xl my-4 max-h-[90vh] overflow-hidden flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-              <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-                <div className="flex items-center justify-between">
-                  <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    <BarChart3 className="w-5 h-5 text-blue-500" />
-                    Analytics & Insights
-                  </h3>
-                  <button onClick={() => setShowAnalytics(false)} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                
-                {/* Analytics Tabs */}
-                <div className={`flex gap-1 mt-3 p-1 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {[
-                    { id: 'overview', label: 'Overview' },
-                    { id: 'days', label: 'Best/Worst Days' },
-                    { id: 'streaks', label: 'Streaks' },
-                    { id: 'correlations', label: 'Correlations' }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setAnalyticsTab(tab.id)}
-                      className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                        analyticsTab === tab.id
-                          ? darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-800 shadow-sm'
-                          : darkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="p-4 overflow-y-auto flex-1">
-                {/* Overview Tab */}
-                {analyticsTab === 'overview' && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-blue-600'}`}>Current Streak</p>
-                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-blue-700'}`}>
-                          {calculateStreaks[myParticipant] || 0} weeks
-                        </p>
-                      </div>
-                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>Best Day</p>
-                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-green-700'}`}>
-                          {dayAnalytics.best?.day || '-'}
-                        </p>
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>
-                          {dayAnalytics.best?.rate || 0}% completion
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* Badges Section */}
-                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-amber-50'}`}>
-                      <h4 className={`font-semibold mb-3 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-amber-800'}`}>
-                        <Trophy className="w-4 h-4" />
-                        Earned Badges ({earnedBadges.length})
-                      </h4>
-                      {earnedBadges.length === 0 ? (
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-amber-600'}`}>
-                          Complete habits to earn badges!
-                        </p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {earnedBadges.map((badgeId, idx) => {
-                            const badge = BADGE_DEFINITIONS[badgeId] || { icon: '🏅', name: badgeId };
-                            return (
-                              <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-white'}`}>
-                                <span>{badge.icon}</span>
-                                <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-700'}`}>{badge.name}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Best/Worst Days Tab */}
-                {analyticsTab === 'days' && (
-                  <div className="space-y-4">
-                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Your completion rate by day of the week
-                    </p>
-                    <div className="space-y-2">
-                      {dayAnalytics.dayStats.map((day, idx) => (
-                        <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{day.day}</span>
-                            <span className={`font-bold ${
-                              day.rate >= 80 ? 'text-green-500' : 
-                              day.rate >= 60 ? 'text-blue-500' : 
-                              day.rate >= 40 ? 'text-amber-500' : 'text-red-500'
-                            }`}>{day.rate}%</span>
-                          </div>
-                          <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                            <div 
-                              className={`h-full rounded-full ${
-                                day.rate >= 80 ? 'bg-green-500' : 
-                                day.rate >= 60 ? 'bg-blue-500' : 
-                                day.rate >= 40 ? 'bg-amber-500' : 'bg-red-500'
-                              }`}
-                              style={{ width: `${day.rate}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50'}`}>
-                      <p className={`text-sm ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
-                        💡 <strong>Insight:</strong> You perform best on <strong>{dayAnalytics.best?.day}</strong> ({dayAnalytics.best?.rate}%). 
-                        Consider scheduling important habits on this day!
-                      </p>
-                    </div>
-                    
-                    {dayAnalytics.worst && dayAnalytics.worst.rate < 50 && (
-                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50'}`}>
-                        <p className={`text-sm ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>
-                          ⚠️ <strong>Opportunity:</strong> <strong>{dayAnalytics.worst.day}</strong> is your weakest day ({dayAnalytics.worst.rate}%). 
-                          Try planning lighter habits or setting reminders.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Streaks Tab */}
-                {analyticsTab === 'streaks' && (
-                  <div className="space-y-4">
-                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Track your consistency across habits
-                    </p>
-                    <div className="space-y-3">
-                      {Object.entries(habitStreaks).length === 0 ? (
-                        <p className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          Not enough data yet. Keep tracking!
-                        </p>
-                      ) : (
-                        Object.entries(habitStreaks)
-                          .sort((a, b) => b[1].currentStreak - a[1].currentStreak)
-                          .slice(0, 10)
-                          .map(([key, streak], idx) => (
-                            <div key={key} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <p className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                                    {streak.displayName}
-                                  </p>
-                                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {streak.totalWeeks} weeks tracked · Avg {streak.avgPerWeek} days/week
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <div className="flex items-center gap-1">
-                                    <Flame className={`w-4 h-4 ${streak.currentStreak >= 3 ? 'text-orange-500' : 'text-gray-400'}`} />
-                                    <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                                      {streak.currentStreak}
-                                    </span>
-                                  </div>
-                                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    Best: {streak.longestStreak}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Correlations Tab */}
-                {analyticsTab === 'correlations' && (
-                  <div className="space-y-4">
-                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Habits you often complete together (higher % = stronger correlation)
-                    </p>
-                    <div className="space-y-3">
-                      {habitCorrelations.length === 0 ? (
-                        <p className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          Not enough data yet. Track more habits together to see correlations!
-                        </p>
-                      ) : (
-                        habitCorrelations.map((corr, idx) => (
-                          <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                                  <span className="font-medium">{corr.habit1}</span>
-                                  <span className={`mx-2 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>↔</span>
-                                  <span className="font-medium">{corr.habit2}</span>
-                                </p>
-                              </div>
-                              <span className={`font-bold ${
-                                corr.correlation >= 70 ? 'text-green-500' : 
-                                corr.correlation >= 50 ? 'text-blue-500' : 'text-amber-500'
-                              }`}>{corr.correlation}%</span>
-                            </div>
-                            <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                              <div 
-                                className={`h-full rounded-full ${
-                                  corr.correlation >= 70 ? 'bg-green-500' : 
-                                  corr.correlation >= 50 ? 'bg-blue-500' : 'bg-amber-500'
-                                }`}
-                                style={{ width: `${corr.correlation}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    
-                    {habitCorrelations.length > 0 && habitCorrelations[0].correlation >= 60 && (
-                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50'}`}>
-                        <p className={`text-sm ${darkMode ? 'text-blue-400' : 'text-blue-700'}`}>
-                          💡 <strong>Insight:</strong> "{habitCorrelations[0].habit1}" and "{habitCorrelations[0].habit2}" 
-                          are often done together. Consider stacking them in your routine!
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Monthly Report Modal */}
-        {showMonthlyReport && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className={`rounded-2xl w-full max-w-2xl my-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-              <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-                <div className="flex items-center justify-between">
-                  <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    <Calendar className="w-5 h-5 text-purple-500" />
-                    Monthly Report
-                  </h3>
-                  <button onClick={() => setShowMonthlyReport(false)} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                
-                {/* Month Selector */}
-                <div className="flex items-center justify-center gap-2 mt-3">
-                  <button 
-                    onClick={() => setReportMonth(prev => {
-                      const d = new Date(prev.year, prev.month - 1, 1);
-                      return { year: d.getFullYear(), month: d.getMonth() };
-                    })}
-                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                  >
-                    <ChevronLeft className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-                  </button>
-                  <span className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    {monthlyStats?.monthName}
-                  </span>
-                  <button 
-                    onClick={() => setReportMonth(prev => {
-                      const d = new Date(prev.year, prev.month + 1, 1);
-                      return { year: d.getFullYear(), month: d.getMonth() };
-                    })}
-                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                  >
-                    <ChevronRight className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-                  </button>
-                </div>
-              </div>
-              
-              {monthlyStats && (
-                <div className="p-4 space-y-4">
-                  {/* Overview Stats */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
-                      <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-purple-700'}`}>
-                        {monthlyStats.completionRate}%
-                      </p>
-                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-purple-600'}`}>Completion</p>
-                    </div>
-                    <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
-                      <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-green-700'}`}>
-                        {monthlyStats.perfectWeeks}
-                      </p>
-                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>Perfect Weeks</p>
-                    </div>
-                    <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
-                      <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-blue-700'}`}>
-                        {monthlyStats.totalCompleted}
-                      </p>
-                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-blue-600'}`}>Days Completed</p>
-                    </div>
-                  </div>
-                  
-                  {/* Weekly Breakdown */}
-                  <div>
-                    <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                      Weekly Breakdown
-                    </h4>
-                    <div className="space-y-2">
-                      {monthlyStats.weeklyBreakdown.map((week, idx) => (
-                        <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                              Week of {week.week}
-                            </span>
-                            <span className={`font-bold ${
-                              week.rate >= 100 ? 'text-green-500' : 
-                              week.rate >= 70 ? 'text-blue-500' : 'text-amber-500'
-                            }`}>{week.rate}%</span>
-                          </div>
-                          <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                            <div 
-                              className={`h-full rounded-full ${
-                                week.rate >= 100 ? 'bg-green-500' : 
-                                week.rate >= 70 ? 'bg-blue-500' : 'bg-amber-500'
-                              }`}
-                              style={{ width: `${Math.min(week.rate, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Top Habits */}
-                  {monthlyStats.topHabits.length > 0 && (
-                    <div>
-                      <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        🏆 Top Performing Habits
-                      </h4>
-                      <div className="space-y-1">
-                        {monthlyStats.topHabits.map((h, idx) => (
-                          <div key={idx} className="flex items-center justify-between py-2">
-                            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{h.name}</span>
-                            <span className="text-sm text-green-500 font-medium">{h.rate}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* NEW FEATURE MODALS DISABLED FOR DEBUGGING */}
       </div>
       <MobileNav activeView={activeView} setActiveView={setActiveView} darkMode={darkMode} onAddHabit={() => setShowAddHabitModal(true)} />
     </div>
