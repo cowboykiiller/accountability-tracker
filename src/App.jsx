@@ -1002,6 +1002,12 @@ export default function AccountabilityTracker() {
   const [quoteCustomDirection, setQuoteCustomDirection] = useState('');
   const [quoteThemeType, setQuoteThemeType] = useState('random'); // 'random', 'motivational', 'stoic', 'business', 'custom'
   
+  // Analytics & Reports state (no Firebase needed)
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analyticsTab, setAnalyticsTab] = useState('overview');
+  const [showMonthlyReport, setShowMonthlyReport] = useState(false);
+  const [reportMonth, setReportMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  
   const calendarRef = useRef(null);
   const fileInputRef = useRef(null);
   const postTextRef = useRef(null);
@@ -2595,6 +2601,184 @@ JSON array only:`
   // Get the user's assigned participant name
   const myParticipant = userProfile?.linkedParticipant || user?.displayName || '';
 
+  // === ANALYTICS CALCULATIONS (no Firebase needed) ===
+  
+  // Calculate best/worst days of the week
+  const dayAnalytics = useMemo(() => {
+    if (!myParticipant) return { best: null, worst: null, dayStats: [] };
+    
+    const myHabits = habits.filter(h => h.participant === myParticipant);
+    if (myHabits.length === 0) return { best: null, worst: null, dayStats: [] };
+    
+    const dayTotals = [0, 0, 0, 0, 0, 0, 0];
+    const dayPossible = [0, 0, 0, 0, 0, 0, 0];
+    
+    myHabits.forEach(h => {
+      for (let i = 0; i < 7; i++) {
+        dayPossible[i]++;
+        if ((h.daysCompleted || []).includes(i)) {
+          dayTotals[i]++;
+        }
+      }
+    });
+    
+    const dayStats = DAYS.map((day, i) => ({
+      day,
+      dayIndex: i,
+      completed: dayTotals[i],
+      possible: dayPossible[i],
+      rate: dayPossible[i] > 0 ? Math.round((dayTotals[i] / dayPossible[i]) * 100) : 0
+    }));
+    
+    const sorted = [...dayStats].sort((a, b) => b.rate - a.rate);
+    
+    return {
+      best: sorted[0] || null,
+      worst: sorted[sorted.length - 1] || null,
+      dayStats
+    };
+  }, [habits, myParticipant]);
+
+  // Calculate per-habit streaks
+  const habitStreaks = useMemo(() => {
+    if (!myParticipant) return {};
+    
+    const myHabits = habits.filter(h => h.participant === myParticipant);
+    const habitMap = {};
+    
+    myHabits.forEach(h => {
+      const name = h.habit?.toLowerCase().trim();
+      if (!name) return;
+      if (!habitMap[name]) habitMap[name] = [];
+      habitMap[name].push(h);
+    });
+    
+    const streaks = {};
+    Object.entries(habitMap).forEach(([name, habitList]) => {
+      const sorted = habitList.sort((a, b) => (a.weekStart || '').localeCompare(b.weekStart || ''));
+      
+      let currentStreak = 0;
+      let longestStreak = 0;
+      let totalDays = 0;
+      
+      sorted.forEach(h => {
+        totalDays += h.daysCompleted?.length || 0;
+        const completed = h.daysCompleted?.length || 0;
+        const target = h.target || 5;
+        if (completed >= target) {
+          currentStreak++;
+          longestStreak = Math.max(longestStreak, currentStreak);
+        } else {
+          currentStreak = 0;
+        }
+      });
+      
+      streaks[name] = {
+        displayName: habitList[0]?.habit || name,
+        currentStreak,
+        longestStreak,
+        totalDays,
+        totalWeeks: sorted.length,
+        avgPerWeek: sorted.length > 0 ? (totalDays / sorted.length).toFixed(1) : 0
+      };
+    });
+    
+    return streaks;
+  }, [habits, myParticipant]);
+
+  // Calculate habit correlations
+  const habitCorrelations = useMemo(() => {
+    if (!myParticipant) return [];
+    
+    const myHabits = habits.filter(h => h.participant === myParticipant);
+    const weeklyHabits = {};
+    
+    myHabits.forEach(h => {
+      if (!weeklyHabits[h.weekStart]) weeklyHabits[h.weekStart] = [];
+      weeklyHabits[h.weekStart].push(h);
+    });
+    
+    const pairStats = {};
+    
+    Object.values(weeklyHabits).forEach(weekHabits => {
+      for (let i = 0; i < weekHabits.length; i++) {
+        for (let j = i + 1; j < weekHabits.length; j++) {
+          const h1 = weekHabits[i];
+          const h2 = weekHabits[j];
+          const key = [h1.habit, h2.habit].sort().join('|||');
+          
+          if (!pairStats[key]) {
+            pairStats[key] = { habit1: h1.habit, habit2: h2.habit, bothDone: 0, total: 0 };
+          }
+          
+          for (let d = 0; d < 7; d++) {
+            pairStats[key].total++;
+            if ((h1.daysCompleted || []).includes(d) && (h2.daysCompleted || []).includes(d)) {
+              pairStats[key].bothDone++;
+            }
+          }
+        }
+      }
+    });
+    
+    return Object.values(pairStats)
+      .map(p => ({ ...p, correlation: p.total > 0 ? Math.round((p.bothDone / p.total) * 100) : 0 }))
+      .filter(p => p.total >= 14)
+      .sort((a, b) => b.correlation - a.correlation)
+      .slice(0, 10);
+  }, [habits, myParticipant]);
+
+  // Calculate monthly stats
+  const monthlyStats = useMemo(() => {
+    if (!myParticipant) return null;
+    
+    const { year, month } = reportMonth;
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    
+    const myHabits = habits.filter(h => {
+      if (h.participant !== myParticipant) return false;
+      const weekDate = new Date(h.weekStart + 'T00:00:00');
+      return weekDate >= monthStart && weekDate <= monthEnd;
+    });
+    
+    if (myHabits.length === 0) return null;
+    
+    const totalCompleted = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+    const totalTarget = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+    
+    const weeklyBreakdown = {};
+    myHabits.forEach(h => {
+      if (!weeklyBreakdown[h.weekStart]) weeklyBreakdown[h.weekStart] = { completed: 0, target: 0 };
+      weeklyBreakdown[h.weekStart].completed += h.daysCompleted?.length || 0;
+      weeklyBreakdown[h.weekStart].target += h.target || 5;
+    });
+    
+    const habitPerformance = {};
+    myHabits.forEach(h => {
+      if (!habitPerformance[h.habit]) habitPerformance[h.habit] = { completed: 0, target: 0 };
+      habitPerformance[h.habit].completed += h.daysCompleted?.length || 0;
+      habitPerformance[h.habit].target += h.target || 5;
+    });
+    
+    const topHabits = Object.entries(habitPerformance)
+      .map(([name, s]) => ({ name, ...s, rate: s.target > 0 ? Math.round((s.completed / s.target) * 100) : 0 }))
+      .sort((a, b) => b.rate - a.rate);
+    
+    return {
+      monthName: monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      totalCompleted,
+      totalTarget,
+      completionRate: totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0,
+      weeklyBreakdown: Object.entries(weeklyBreakdown)
+        .map(([week, d]) => ({ week, ...d, rate: d.target > 0 ? Math.round((d.completed / d.target) * 100) : 0 }))
+        .sort((a, b) => a.week.localeCompare(b.week)),
+      topHabits: topHabits.slice(0, 5),
+      perfectWeeks: Object.values(weeklyBreakdown).filter(w => w.completed >= w.target).length,
+      totalWeeks: Object.keys(weeklyBreakdown).length
+    };
+  }, [habits, myParticipant, reportMonth]);
+
   // Set selectedParticipant to myParticipant when profile loads
   useEffect(() => {
     if (myParticipant && selectedParticipant === 'All') {
@@ -2712,6 +2896,17 @@ JSON array only:`
   }), [getRangeHabits, allParticipants]);
 
   const currentWeekHabits = useMemo(() => habits.filter(h => h.weekStart === currentWeek), [habits, currentWeek]);
+  
+  // Get previous week's habits for copy feature
+  const getPreviousWeekHabits = useMemo(() => {
+    if (!myParticipant || !currentWeek) return [];
+    
+    const currentDate = new Date(currentWeek + 'T00:00:00');
+    currentDate.setDate(currentDate.getDate() - 7);
+    const lastWeek = currentDate.toISOString().split('T')[0];
+    
+    return habits.filter(h => h.participant === myParticipant && h.weekStart === lastWeek);
+  }, [habits, myParticipant, currentWeek]);
 
   // Daily stats for current week (Week at a Glance)
   const dailyStats = useMemo(() => {
@@ -2786,6 +2981,38 @@ JSON array only:`
       : [...(habit.daysCompleted || []), idx].sort((a, b) => a - b);
     
     await setDoc(doc(db, 'habits', id), { ...habit, daysCompleted: newDaysCompleted });
+  };
+
+  // Copy habits from previous week
+  const copyHabitsFromLastWeek = async () => {
+    if (!myParticipant || !currentWeek || getPreviousWeekHabits.length === 0) return;
+    
+    const thisWeekHabits = habits.filter(h => h.participant === myParticipant && h.weekStart === currentWeek);
+    const existingNames = thisWeekHabits.map(h => h.habit?.toLowerCase().trim());
+    
+    let copied = 0;
+    for (const habit of getPreviousWeekHabits) {
+      if (!existingNames.includes(habit.habit?.toLowerCase().trim())) {
+        const id = `habit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await setDoc(doc(db, 'habits', id), {
+          id,
+          habit: habit.habit,
+          participant: myParticipant,
+          weekStart: currentWeek,
+          habitType: habit.habitType || 'daily',
+          target: habit.target || 5,
+          daysCompleted: [],
+          order: habit.order
+        });
+        copied++;
+      }
+    }
+    
+    if (copied > 0) {
+      alert(`Copied ${copied} habit${copied !== 1 ? 's' : ''} from last week!`);
+    } else {
+      alert('All habits from last week already exist this week.');
+    }
   };
 
   const addPercentageInstance = async (id, success) => {
@@ -5977,18 +6204,59 @@ JSON array only:`
               </button>
             </div>
             
-            {/* Quick Actions Bar - DISABLED FOR DEBUGGING
+            {/* Quick Actions Bar */}
             <div className={`flex flex-wrap gap-2 p-3 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+              {/* Copy from Last Week */}
+              {getPreviousWeekHabits.length > 0 && currentWeekHabits.filter(h => h.participant === myParticipant).length === 0 && (
+                <button
+                  onClick={copyHabitsFromLastWeek}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    darkMode 
+                      ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' 
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Copy Last Week ({getPreviousWeekHabits.length})
+                </button>
+              )}
+              
+              {/* Analytics */}
+              <button
+                onClick={() => setShowAnalytics(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Analytics
+              </button>
+              
+              {/* Monthly Report */}
+              <button
+                onClick={() => setShowMonthlyReport(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30' 
+                    : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Monthly Report
+              </button>
+              
+              {/* Current Streak Display */}
               {calculateStreaks[myParticipant] > 0 && (
                 <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
                   darkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-700'
                 }`}>
                   <Flame className="w-3.5 h-3.5" />
-                  {calculateStreaks[myParticipant]} week streak
+                  {calculateStreaks[myParticipant]} week streak 🔥
                 </div>
               )}
             </div>
-            */}
             
             {/* No habits - Show AI suggestions */}
             {currentWeekHabits.length === 0 ? (
@@ -11180,7 +11448,325 @@ JSON array only:`
           </div>
         )}
 
-        {/* NEW FEATURE MODALS DISABLED FOR DEBUGGING */}
+        {/* Analytics Modal */}
+        {showAnalytics && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    <BarChart3 className="w-5 h-5 text-green-500" />
+                    Analytics
+                  </h3>
+                  <button onClick={() => setShowAnalytics(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Analytics Tabs */}
+                <div className={`flex gap-1 mt-3 p-1 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                  {[
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'days', label: 'Best/Worst Days' },
+                    { id: 'streaks', label: 'Habit Streaks' },
+                    { id: 'correlations', label: 'Correlations' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setAnalyticsTab(tab.id)}
+                      className={`flex-1 py-2 px-2 rounded-md text-xs font-medium transition-colors ${
+                        analyticsTab === tab.id
+                          ? darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-800 shadow-sm'
+                          : darkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="p-4 overflow-y-auto flex-1">
+                {/* Overview Tab */}
+                {analyticsTab === 'overview' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-blue-600'}`}>Current Streak</p>
+                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-blue-700'}`}>
+                          {calculateStreaks[myParticipant] || 0} weeks
+                        </p>
+                      </div>
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>Best Day</p>
+                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-green-700'}`}>
+                          {dayAnalytics.best?.day || '-'}
+                        </p>
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>
+                          {dayAnalytics.best?.rate || 0}% completion
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-amber-50'}`}>
+                      <h4 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-amber-800'}`}>
+                        📊 Quick Stats
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className={darkMode ? 'text-gray-300' : 'text-amber-700'}>
+                          Total habits tracked: <strong>{Object.keys(habitStreaks).length}</strong>
+                        </div>
+                        <div className={darkMode ? 'text-gray-300' : 'text-amber-700'}>
+                          Habit correlations: <strong>{habitCorrelations.length}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Best/Worst Days Tab */}
+                {analyticsTab === 'days' && (
+                  <div className="space-y-4">
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Your completion rate by day of the week
+                    </p>
+                    
+                    <div className="space-y-2">
+                      {dayAnalytics.dayStats.map((day, idx) => (
+                        <div key={idx} className="flex items-center gap-3">
+                          <span className={`w-12 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {day.day}
+                          </span>
+                          <div className={`flex-1 h-6 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                            <div 
+                              className={`h-full rounded-full ${
+                                day.rate >= 80 ? 'bg-green-500' : day.rate >= 50 ? 'bg-blue-500' : 'bg-amber-500'
+                              }`}
+                              style={{ width: `${day.rate}%` }}
+                            />
+                          </div>
+                          <span className={`w-12 text-sm font-medium text-right ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {day.rate}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {dayAnalytics.best && dayAnalytics.worst && (
+                      <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                        <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-blue-700'}`}>
+                          💡 <strong>Insight:</strong> You perform best on <strong>{dayAnalytics.best.day}</strong> ({dayAnalytics.best.rate}%) 
+                          and may need more focus on <strong>{dayAnalytics.worst.day}</strong> ({dayAnalytics.worst.rate}%).
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Habit Streaks Tab */}
+                {analyticsTab === 'streaks' && (
+                  <div className="space-y-3">
+                    {Object.keys(habitStreaks).length === 0 ? (
+                      <p className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        No habit data yet. Start tracking to see streaks!
+                      </p>
+                    ) : (
+                      Object.entries(habitStreaks)
+                        .sort((a, b) => b[1].currentStreak - a[1].currentStreak)
+                        .map(([key, streak]) => (
+                          <div key={key} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <div className="flex items-center justify-between">
+                              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                {streak.displayName}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {streak.currentStreak > 0 && (
+                                  <span className="flex items-center gap-1 text-orange-500 font-medium">
+                                    <Flame className="w-4 h-4" />
+                                    {streak.currentStreak}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              Best: {streak.longestStreak} weeks • Total: {streak.totalDays} days • Avg: {streak.avgPerWeek}/week
+                            </div>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                )}
+                
+                {/* Correlations Tab */}
+                {analyticsTab === 'correlations' && (
+                  <div className="space-y-3">
+                    {habitCorrelations.length === 0 ? (
+                      <p className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Need at least 2 weeks of data with multiple habits to find correlations.
+                      </p>
+                    ) : (
+                      <>
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Habits you tend to complete together
+                        </p>
+                        {habitCorrelations.map((corr, idx) => (
+                          <div key={idx} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                {corr.habit1} + {corr.habit2}
+                              </span>
+                              <span className={`font-bold ${corr.correlation >= 70 ? 'text-green-500' : corr.correlation >= 40 ? 'text-blue-500' : 'text-gray-500'}`}>
+                                {corr.correlation}%
+                              </span>
+                            </div>
+                            <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                              <div 
+                                className={`h-full rounded-full ${corr.correlation >= 70 ? 'bg-green-500' : corr.correlation >= 40 ? 'bg-blue-500' : 'bg-gray-400'}`}
+                                style={{ width: `${corr.correlation}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {habitCorrelations.length > 0 && habitCorrelations[0].correlation >= 60 && (
+                          <div className={`p-3 rounded-lg ${darkMode ? 'bg-green-900/30' : 'bg-green-50'}`}>
+                            <p className={`text-sm ${darkMode ? 'text-green-300' : 'text-green-700'}`}>
+                              💡 <strong>Insight:</strong> "{habitCorrelations[0].habit1}" and "{habitCorrelations[0].habit2}" 
+                              are often done together. Try stacking them as a routine!
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Monthly Report Modal */}
+        {showMonthlyReport && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    <Calendar className="w-5 h-5 text-indigo-500" />
+                    Monthly Report
+                  </h3>
+                  <button onClick={() => setShowMonthlyReport(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Month Selector */}
+                <div className="flex items-center justify-center gap-4 mt-3">
+                  <button
+                    onClick={() => setReportMonth(prev => {
+                      const newMonth = prev.month === 0 ? 11 : prev.month - 1;
+                      const newYear = prev.month === 0 ? prev.year - 1 : prev.year;
+                      return { year: newYear, month: newMonth };
+                    })}
+                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <span className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    {monthlyStats?.monthName || new Date(reportMonth.year, reportMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button
+                    onClick={() => setReportMonth(prev => {
+                      const newMonth = prev.month === 11 ? 0 : prev.month + 1;
+                      const newYear = prev.month === 11 ? prev.year + 1 : prev.year;
+                      return { year: newYear, month: newMonth };
+                    })}
+                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-4 overflow-y-auto flex-1">
+                {!monthlyStats ? (
+                  <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>No data for this month</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Summary Stats */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-indigo-50'}`}>
+                        <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-indigo-700'}`}>
+                          {monthlyStats.completionRate}%
+                        </p>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-indigo-600'}`}>Completion</p>
+                      </div>
+                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
+                        <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-green-700'}`}>
+                          {monthlyStats.perfectWeeks}
+                        </p>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-green-600'}`}>Perfect Weeks</p>
+                      </div>
+                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-700' : 'bg-amber-50'}`}>
+                        <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-amber-700'}`}>
+                          {monthlyStats.totalCompleted}
+                        </p>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-amber-600'}`}>Days Done</p>
+                      </div>
+                    </div>
+                    
+                    {/* Weekly Breakdown */}
+                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <h4 className={`font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Weekly Breakdown
+                      </h4>
+                      <div className="space-y-2">
+                        {monthlyStats.weeklyBreakdown.map((week, idx) => (
+                          <div key={idx} className="flex items-center gap-3">
+                            <span className={`text-xs w-16 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {formatWeekString(week.week)}
+                            </span>
+                            <div className={`flex-1 h-4 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                              <div 
+                                className={`h-full rounded-full ${week.rate >= 100 ? 'bg-green-500' : week.rate >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                style={{ width: `${Math.min(week.rate, 100)}%` }}
+                              />
+                            </div>
+                            <span className={`text-xs w-10 text-right font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {week.rate}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Top Habits */}
+                    {monthlyStats.topHabits.length > 0 && (
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <h4 className={`font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                          🏆 Top Habits
+                        </h4>
+                        <div className="space-y-2">
+                          {monthlyStats.topHabits.map((h, idx) => (
+                            <div key={idx} className="flex items-center justify-between">
+                              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{h.name}</span>
+                              <span className={`text-sm font-medium ${h.rate >= 80 ? 'text-green-500' : h.rate >= 50 ? 'text-blue-500' : 'text-amber-500'}`}>
+                                {h.rate}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <MobileNav activeView={activeView} setActiveView={setActiveView} darkMode={darkMode} onAddHabit={() => setShowAddHabitModal(true)} />
     </div>
