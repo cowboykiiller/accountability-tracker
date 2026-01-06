@@ -1414,52 +1414,69 @@ export default function AccountabilityTracker() {
   useEffect(() => {
     if (!user) return;
     
-    const q = query(collection(db, 'activityFeed'), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const feedData = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })).slice(0, 50); // Limit to 50 most recent
-      setActivityFeed(feedData);
-    }, (error) => {
-      console.error('Activity feed error:', error);
-    });
+    try {
+      const q = query(collection(db, 'activityFeed'), orderBy('timestamp', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const feedData = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        })).slice(0, 50); // Limit to 50 most recent
+        setActivityFeed(feedData);
+      }, (error) => {
+        console.error('Activity feed error:', error);
+        setActivityFeed([]); // Set empty on error
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Activity feed setup error:', error);
+    }
   }, [user]);
 
   // Listen for weekly check-ins
   useEffect(() => {
     if (!user) return;
     
-    const q = query(collection(db, 'weeklyCheckIns'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const checkInsData = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      }));
-      setSavedCheckIns(checkInsData);
-    }, (error) => {
-      console.error('Weekly check-ins error:', error);
-    });
+    try {
+      const q = query(collection(db, 'weeklyCheckIns'), orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const checkInsData = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        }));
+        setSavedCheckIns(checkInsData);
+      }, (error) => {
+        console.error('Weekly check-ins error:', error);
+        setSavedCheckIns([]);
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Weekly check-ins setup error:', error);
+    }
   }, [user]);
 
   // Listen for earned badges
   useEffect(() => {
     if (!user) return;
     
-    const badgesRef = doc(db, 'badges', user.uid);
-    const unsubscribe = onSnapshot(badgesRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setEarnedBadges(snapshot.data().badges || []);
-      }
-    }, (error) => {
-      console.error('Badges error:', error);
-    });
+    try {
+      const badgesRef = doc(db, 'badges', user.uid);
+      const unsubscribe = onSnapshot(badgesRef, (snapshot) => {
+        if (snapshot.exists()) {
+          setEarnedBadges(snapshot.data().badges || []);
+        } else {
+          setEarnedBadges([]);
+        }
+      }, (error) => {
+        console.error('Badges error:', error);
+        setEarnedBadges([]);
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Badges setup error:', error);
+    }
   }, [user]);
 
   // Save vision document
@@ -1680,211 +1697,231 @@ export default function AccountabilityTracker() {
   
   // Calculate per-habit streaks (consecutive days completed within weeks)
   const habitStreaks = useMemo(() => {
-    if (!myParticipant) return {};
-    
-    const myHabits = habits.filter(h => h.participant === myParticipant);
-    const habitMap = {};
-    
-    // Group by habit name
-    myHabits.forEach(h => {
-      const name = h.habit?.toLowerCase().trim();
-      if (!name) return;
-      if (!habitMap[name]) habitMap[name] = [];
-      habitMap[name].push(h);
-    });
-    
-    // Calculate streak for each habit
-    const streaks = {};
-    Object.entries(habitMap).forEach(([name, habitList]) => {
-      // Sort by week
-      const sorted = habitList.sort((a, b) => a.weekStart?.localeCompare(b.weekStart));
+    try {
+      if (!myParticipant) return {};
       
-      let currentStreak = 0;
-      let longestStreak = 0;
-      let totalDays = 0;
-      let totalWeeks = sorted.length;
+      const myHabits = habits.filter(h => h.participant === myParticipant);
+      const habitMap = {};
       
-      // Count total completed days
-      sorted.forEach(h => {
-        totalDays += h.daysCompleted?.length || 0;
+      // Group by habit name
+      myHabits.forEach(h => {
+        const name = h.habit?.toLowerCase().trim();
+        if (!name) return;
+        if (!habitMap[name]) habitMap[name] = [];
+        habitMap[name].push(h);
       });
       
-      // Calculate week-over-week streak (weeks where target was met)
-      sorted.forEach(h => {
-        const completed = h.daysCompleted?.length || 0;
-        const target = h.target || 5;
-        if (completed >= target) {
-          currentStreak++;
-          longestStreak = Math.max(longestStreak, currentStreak);
-        } else {
-          currentStreak = 0;
-        }
+      // Calculate streak for each habit
+      const streaks = {};
+      Object.entries(habitMap).forEach(([name, habitList]) => {
+        // Sort by week
+        const sorted = habitList.sort((a, b) => (a.weekStart || '').localeCompare(b.weekStart || ''));
+        
+        let currentStreak = 0;
+        let longestStreak = 0;
+        let totalDays = 0;
+        let totalWeeks = sorted.length;
+        
+        // Count total completed days
+        sorted.forEach(h => {
+          totalDays += h.daysCompleted?.length || 0;
+        });
+        
+        // Calculate week-over-week streak (weeks where target was met)
+        sorted.forEach(h => {
+          const completed = h.daysCompleted?.length || 0;
+          const target = h.target || 5;
+          if (completed >= target) {
+            currentStreak++;
+            longestStreak = Math.max(longestStreak, currentStreak);
+          } else {
+            currentStreak = 0;
+          }
+        });
+        
+        streaks[name] = {
+          displayName: habitList[0]?.habit || name,
+          currentStreak,
+          longestStreak,
+          totalDays,
+          totalWeeks,
+          avgPerWeek: totalWeeks > 0 ? (totalDays / totalWeeks).toFixed(1) : 0
+        };
       });
       
-      streaks[name] = {
-        displayName: habitList[0]?.habit || name,
-        currentStreak,
-        longestStreak,
-        totalDays,
-        totalWeeks,
-        avgPerWeek: totalWeeks > 0 ? (totalDays / totalWeeks).toFixed(1) : 0
-      };
-    });
-    
-    return streaks;
+      return streaks;
+    } catch (e) {
+      console.error('habitStreaks error:', e);
+      return {};
+    }
   }, [habits, myParticipant]);
 
   // Calculate best/worst days of the week
   const dayAnalytics = useMemo(() => {
-    if (!myParticipant) return { best: null, worst: null, dayStats: [] };
-    
-    const myHabits = habits.filter(h => h.participant === myParticipant);
-    const dayTotals = [0, 0, 0, 0, 0, 0, 0]; // Mon-Sun
-    const dayPossible = [0, 0, 0, 0, 0, 0, 0];
-    
-    myHabits.forEach(h => {
-      const target = h.target || 5;
-      // Each habit contributes to the possible count for each day
-      for (let i = 0; i < 7; i++) {
-        dayPossible[i]++;
-        if ((h.daysCompleted || []).includes(i)) {
-          dayTotals[i]++;
+    try {
+      if (!myParticipant) return { best: null, worst: null, dayStats: [] };
+      
+      const myHabits = habits.filter(h => h.participant === myParticipant);
+      const dayTotals = [0, 0, 0, 0, 0, 0, 0]; // Mon-Sun
+      const dayPossible = [0, 0, 0, 0, 0, 0, 0];
+      
+      myHabits.forEach(h => {
+        const target = h.target || 5;
+        // Each habit contributes to the possible count for each day
+        for (let i = 0; i < 7; i++) {
+          dayPossible[i]++;
+          if ((h.daysCompleted || []).includes(i)) {
+            dayTotals[i]++;
+          }
         }
-      }
-    });
-    
-    const dayStats = DAYS.map((day, i) => ({
-      day,
-      dayIndex: i,
-      completed: dayTotals[i],
-      possible: dayPossible[i],
-      rate: dayPossible[i] > 0 ? Math.round((dayTotals[i] / dayPossible[i]) * 100) : 0
-    }));
-    
-    const sorted = [...dayStats].sort((a, b) => b.rate - a.rate);
-    
-    return {
-      best: sorted[0],
-      worst: sorted[sorted.length - 1],
-      dayStats
-    };
+      });
+      
+      const dayStats = DAYS.map((day, i) => ({
+        day,
+        dayIndex: i,
+        completed: dayTotals[i],
+        possible: dayPossible[i],
+        rate: dayPossible[i] > 0 ? Math.round((dayTotals[i] / dayPossible[i]) * 100) : 0
+      }));
+      
+      const sorted = [...dayStats].sort((a, b) => b.rate - a.rate);
+      
+      return {
+        best: sorted[0] || null,
+        worst: sorted[sorted.length - 1] || null,
+        dayStats
+      };
+    } catch (e) {
+      console.error('dayAnalytics error:', e);
+      return { best: null, worst: null, dayStats: [] };
+    }
   }, [habits, myParticipant]);
 
   // Calculate habit correlations (which habits are completed together)
   const habitCorrelations = useMemo(() => {
-    if (!myParticipant) return [];
-    
-    const myHabits = habits.filter(h => h.participant === myParticipant);
-    
-    // Group by week
-    const weeklyHabits = {};
-    myHabits.forEach(h => {
-      if (!weeklyHabits[h.weekStart]) weeklyHabits[h.weekStart] = [];
-      weeklyHabits[h.weekStart].push(h);
-    });
-    
-    // Find pairs of habits that are often completed on the same days
-    const pairStats = {};
-    
-    Object.values(weeklyHabits).forEach(weekHabits => {
-      for (let i = 0; i < weekHabits.length; i++) {
-        for (let j = i + 1; j < weekHabits.length; j++) {
-          const h1 = weekHabits[i];
-          const h2 = weekHabits[j];
-          const key = [h1.habit, h2.habit].sort().join('|||');
-          
-          if (!pairStats[key]) {
-            pairStats[key] = { habit1: h1.habit, habit2: h2.habit, bothDone: 0, onlyOne: 0, neitherDone: 0 };
-          }
-          
-          // Check each day
-          for (let d = 0; d < 7; d++) {
-            const h1Done = (h1.daysCompleted || []).includes(d);
-            const h2Done = (h2.daysCompleted || []).includes(d);
+    try {
+      if (!myParticipant) return [];
+      
+      const myHabits = habits.filter(h => h.participant === myParticipant);
+      
+      // Group by week
+      const weeklyHabits = {};
+      myHabits.forEach(h => {
+        if (!weeklyHabits[h.weekStart]) weeklyHabits[h.weekStart] = [];
+        weeklyHabits[h.weekStart].push(h);
+      });
+      
+      // Find pairs of habits that are often completed on the same days
+      const pairStats = {};
+      
+      Object.values(weeklyHabits).forEach(weekHabits => {
+        for (let i = 0; i < weekHabits.length; i++) {
+          for (let j = i + 1; j < weekHabits.length; j++) {
+            const h1 = weekHabits[i];
+            const h2 = weekHabits[j];
+            const key = [h1.habit, h2.habit].sort().join('|||');
             
-            if (h1Done && h2Done) pairStats[key].bothDone++;
-            else if (h1Done || h2Done) pairStats[key].onlyOne++;
-            else pairStats[key].neitherDone++;
+            if (!pairStats[key]) {
+              pairStats[key] = { habit1: h1.habit, habit2: h2.habit, bothDone: 0, onlyOne: 0, neitherDone: 0 };
+            }
+            
+            // Check each day
+            for (let d = 0; d < 7; d++) {
+              const h1Done = (h1.daysCompleted || []).includes(d);
+              const h2Done = (h2.daysCompleted || []).includes(d);
+              
+              if (h1Done && h2Done) pairStats[key].bothDone++;
+              else if (h1Done || h2Done) pairStats[key].onlyOne++;
+              else pairStats[key].neitherDone++;
+            }
           }
         }
-      }
-    });
-    
-    // Calculate correlation score
-    const correlations = Object.values(pairStats)
-      .map(p => {
-        const total = p.bothDone + p.onlyOne + p.neitherDone;
-        const correlation = total > 0 ? Math.round((p.bothDone / total) * 100) : 0;
-        return { ...p, correlation, total };
-      })
-      .filter(p => p.total >= 14) // At least 2 weeks of data
-      .sort((a, b) => b.correlation - a.correlation);
-    
-    return correlations.slice(0, 10); // Top 10 correlations
+      });
+      
+      // Calculate correlation score
+      const correlations = Object.values(pairStats)
+        .map(p => {
+          const total = p.bothDone + p.onlyOne + p.neitherDone;
+          const correlation = total > 0 ? Math.round((p.bothDone / total) * 100) : 0;
+          return { ...p, correlation, total };
+        })
+        .filter(p => p.total >= 14) // At least 2 weeks of data
+        .sort((a, b) => b.correlation - a.correlation);
+      
+      return correlations.slice(0, 10); // Top 10 correlations
+    } catch (e) {
+      console.error('habitCorrelations error:', e);
+      return [];
+    }
   }, [habits, myParticipant]);
 
   // Calculate monthly stats for reports
   const monthlyStats = useMemo(() => {
-    if (!myParticipant) return null;
-    
-    const { year, month } = reportMonth;
-    const monthStart = new Date(year, month, 1);
-    const monthEnd = new Date(year, month + 1, 0);
-    
-    const myHabits = habits.filter(h => {
-      if (h.participant !== myParticipant) return false;
-      const weekDate = new Date(h.weekStart);
-      return weekDate >= monthStart && weekDate <= monthEnd;
-    });
-    
-    const totalCompleted = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-    const totalTarget = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
-    const completionRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
-    
-    // Weekly breakdown
-    const weeklyBreakdown = {};
-    myHabits.forEach(h => {
-      if (!weeklyBreakdown[h.weekStart]) {
-        weeklyBreakdown[h.weekStart] = { completed: 0, target: 0, habits: [] };
-      }
-      weeklyBreakdown[h.weekStart].completed += h.daysCompleted?.length || 0;
-      weeklyBreakdown[h.weekStart].target += h.target || 5;
-      weeklyBreakdown[h.weekStart].habits.push(h);
-    });
-    
-    // Top performing habits
-    const habitPerformance = {};
-    myHabits.forEach(h => {
-      const name = h.habit;
-      if (!habitPerformance[name]) habitPerformance[name] = { completed: 0, target: 0 };
-      habitPerformance[name].completed += h.daysCompleted?.length || 0;
-      habitPerformance[name].target += h.target || 5;
-    });
-    
-    const topHabits = Object.entries(habitPerformance)
-      .map(([name, stats]) => ({
-        name,
-        ...stats,
-        rate: stats.target > 0 ? Math.round((stats.completed / stats.target) * 100) : 0
-      }))
-      .sort((a, b) => b.rate - a.rate);
-    
-    return {
-      monthName: monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-      totalHabits: myHabits.length,
-      totalCompleted,
-      totalTarget,
-      completionRate,
-      weeklyBreakdown: Object.entries(weeklyBreakdown).map(([week, data]) => ({
-        week,
-        ...data,
-        rate: data.target > 0 ? Math.round((data.completed / data.target) * 100) : 0
-      })).sort((a, b) => a.week.localeCompare(b.week)),
-      topHabits: topHabits.slice(0, 5),
-      worstHabits: [...topHabits].reverse().slice(0, 3),
-      perfectWeeks: Object.values(weeklyBreakdown).filter(w => w.target > 0 && w.completed >= w.target).length,
-      totalWeeks: Object.keys(weeklyBreakdown).length
-    };
+    try {
+      if (!myParticipant) return null;
+      
+      const { year, month } = reportMonth;
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      
+      const myHabits = habits.filter(h => {
+        if (h.participant !== myParticipant) return false;
+        const weekDate = new Date(h.weekStart + 'T00:00:00');
+        return weekDate >= monthStart && weekDate <= monthEnd;
+      });
+      
+      const totalCompleted = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+      const totalTarget = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+      const completionRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
+      
+      // Weekly breakdown
+      const weeklyBreakdown = {};
+      myHabits.forEach(h => {
+        if (!weeklyBreakdown[h.weekStart]) {
+          weeklyBreakdown[h.weekStart] = { completed: 0, target: 0, habits: [] };
+        }
+        weeklyBreakdown[h.weekStart].completed += h.daysCompleted?.length || 0;
+        weeklyBreakdown[h.weekStart].target += h.target || 5;
+        weeklyBreakdown[h.weekStart].habits.push(h);
+      });
+      
+      // Top performing habits
+      const habitPerformance = {};
+      myHabits.forEach(h => {
+        const name = h.habit;
+        if (!habitPerformance[name]) habitPerformance[name] = { completed: 0, target: 0 };
+        habitPerformance[name].completed += h.daysCompleted?.length || 0;
+        habitPerformance[name].target += h.target || 5;
+      });
+      
+      const topHabits = Object.entries(habitPerformance)
+        .map(([name, stats]) => ({
+          name,
+          ...stats,
+          rate: stats.target > 0 ? Math.round((stats.completed / stats.target) * 100) : 0
+        }))
+        .sort((a, b) => b.rate - a.rate);
+      
+      return {
+        monthName: monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        totalHabits: myHabits.length,
+        totalCompleted,
+        totalTarget,
+        completionRate,
+        weeklyBreakdown: Object.entries(weeklyBreakdown).map(([week, data]) => ({
+          week,
+          ...data,
+          rate: data.target > 0 ? Math.round((data.completed / data.target) * 100) : 0
+        })).sort((a, b) => a.week.localeCompare(b.week)),
+        topHabits: topHabits.slice(0, 5),
+        worstHabits: [...topHabits].reverse().slice(0, 3),
+        perfectWeeks: Object.values(weeklyBreakdown).filter(w => w.target > 0 && w.completed >= w.target).length,
+        totalWeeks: Object.keys(weeklyBreakdown).length
+      };
+    } catch (e) {
+      console.error('monthlyStats error:', e);
+      return null;
+    }
   }, [habits, myParticipant, reportMonth]);
 
   // Badge definitions
@@ -3123,48 +3160,52 @@ JSON array only:`
 
   // Check and award badges
   const checkAndAwardBadges = async (habit, newDaysCompleted) => {
-    if (!user) return;
-    
-    const currentBadges = [...earnedBadges];
-    const newBadges = [];
-    
-    // First Habit badge
-    if (!currentBadges.includes('first_habit') && newDaysCompleted.length === 1) {
-      newBadges.push({ id: 'first_habit', name: 'First Step', icon: '🌱', description: 'Completed your first habit', earnedAt: new Date().toISOString() });
-    }
-    
-    // Perfect Day badge (completed all habits for a day)
-    const todayHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const todayIdx = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const allTodayComplete = todayHabits.every(h => (h.daysCompleted || []).includes(todayIdx));
-    if (!currentBadges.includes('perfect_day') && allTodayComplete && todayHabits.length >= 3) {
-      newBadges.push({ id: 'perfect_day', name: 'Perfect Day', icon: '⭐', description: 'Completed all habits in a day', earnedAt: new Date().toISOString() });
-    }
-    
-    // 7-Day Warrior badge
-    if (!currentBadges.includes('7_day_warrior') && newDaysCompleted.length === 7) {
-      newBadges.push({ id: '7_day_warrior', name: '7-Day Warrior', icon: '🔥', description: 'Completed a habit every day of the week', earnedAt: new Date().toISOString() });
-    }
-    
-    // Early Bird badge (5am wake up)
-    if (!currentBadges.includes('early_bird') && habit.habit?.toLowerCase().includes('wake') && habit.habit?.toLowerCase().includes('5')) {
-      newBadges.push({ id: 'early_bird', name: 'Early Bird', icon: '🌅', description: 'Woke up at 5am', earnedAt: new Date().toISOString() });
-    }
-    
-    // Save new badges
-    if (newBadges.length > 0) {
-      const allBadges = [...currentBadges, ...newBadges.map(b => b.id)];
-      await setDoc(doc(db, 'badges', user.uid), { 
-        badges: allBadges,
-        badgeDetails: [...(earnedBadges.map(id => ({ id })) || []), ...newBadges],
-        updatedAt: new Date().toISOString()
-      });
+    try {
+      if (!user) return;
       
-      // Show badge unlock animation
-      setShowBadgeUnlock(newBadges[0]);
-      setTimeout(() => setShowBadgeUnlock(null), 3000);
+      const currentBadges = [...(earnedBadges || [])];
+      const newBadges = [];
+      
+      // First Habit badge
+      if (!currentBadges.includes('first_habit') && newDaysCompleted.length === 1) {
+        newBadges.push({ id: 'first_habit', name: 'First Step', icon: '🌱', description: 'Completed your first habit', earnedAt: new Date().toISOString() });
+      }
+      
+      // Perfect Day badge (completed all habits for a day)
+      const todayHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const todayIdx = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const allTodayComplete = todayHabits.length > 0 && todayHabits.every(h => (h.daysCompleted || []).includes(todayIdx));
+      if (!currentBadges.includes('perfect_day') && allTodayComplete && todayHabits.length >= 3) {
+        newBadges.push({ id: 'perfect_day', name: 'Perfect Day', icon: '⭐', description: 'Completed all habits in a day', earnedAt: new Date().toISOString() });
+      }
+      
+      // 7-Day Warrior badge
+      if (!currentBadges.includes('7_day_warrior') && newDaysCompleted.length === 7) {
+        newBadges.push({ id: '7_day_warrior', name: '7-Day Warrior', icon: '🔥', description: 'Completed a habit every day of the week', earnedAt: new Date().toISOString() });
+      }
+      
+      // Early Bird badge (5am wake up)
+      if (!currentBadges.includes('early_bird') && habit.habit?.toLowerCase().includes('wake') && habit.habit?.toLowerCase().includes('5')) {
+        newBadges.push({ id: 'early_bird', name: 'Early Bird', icon: '🌅', description: 'Woke up at 5am', earnedAt: new Date().toISOString() });
+      }
+      
+      // Save new badges
+      if (newBadges.length > 0) {
+        const allBadges = [...currentBadges, ...newBadges.map(b => b.id)];
+        await setDoc(doc(db, 'badges', user.uid), { 
+          badges: allBadges,
+          badgeDetails: newBadges,
+          updatedAt: new Date().toISOString()
+        });
+        
+        // Show badge unlock animation
+        setShowBadgeUnlock(newBadges[0]);
+        setTimeout(() => setShowBadgeUnlock(null), 3000);
+      }
+    } catch (e) {
+      console.error('checkAndAwardBadges error:', e);
     }
   };
 
@@ -3280,13 +3321,18 @@ JSON array only:`
   const getPreviousWeekHabits = useMemo(() => {
     if (!myParticipant || !currentWeek) return [];
     
-    const currentDate = new Date(currentWeek);
-    currentDate.setDate(currentDate.getDate() - 7);
-    const lastWeek = currentDate.toISOString().split('T')[0];
-    
-    return habits.filter(h => 
-      h.participant === myParticipant && h.weekStart === lastWeek
-    );
+    try {
+      const currentDate = new Date(currentWeek + 'T00:00:00');
+      currentDate.setDate(currentDate.getDate() - 7);
+      const lastWeek = currentDate.toISOString().split('T')[0];
+      
+      return habits.filter(h => 
+        h.participant === myParticipant && h.weekStart === lastWeek
+      );
+    } catch (e) {
+      console.error('getPreviousWeekHabits error:', e);
+      return [];
+    }
   }, [habits, myParticipant, currentWeek]);
   const addPercentageInstance = async (id, success) => {
     const habit = habits.find(h => h.id === id);
