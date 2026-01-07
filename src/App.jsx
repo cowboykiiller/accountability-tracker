@@ -433,6 +433,20 @@ const TASK_CATEGORIES = [
   { id: 'Spiritual', icon: '🙏', color: 'bg-indigo-100 text-indigo-700' }
 ];
 
+// Habit categories (matching the 7 life domains)
+const HABIT_CATEGORIES = [
+  { id: 'Fitness', icon: '💪', color: 'bg-orange-100 text-orange-700', darkColor: 'bg-orange-500/20 text-orange-400' },
+  { id: 'Business', icon: '💼', color: 'bg-blue-100 text-blue-700', darkColor: 'bg-blue-500/20 text-blue-400' },
+  { id: 'Finance', icon: '💰', color: 'bg-emerald-100 text-emerald-700', darkColor: 'bg-emerald-500/20 text-emerald-400' },
+  { id: 'Health', icon: '🏥', color: 'bg-red-100 text-red-700', darkColor: 'bg-red-500/20 text-red-400' },
+  { id: 'Learning', icon: '📚', color: 'bg-purple-100 text-purple-700', darkColor: 'bg-purple-500/20 text-purple-400' },
+  { id: 'Relationships', icon: '❤️', color: 'bg-pink-100 text-pink-700', darkColor: 'bg-pink-500/20 text-pink-400' },
+  { id: 'Spiritual', icon: '🙏', color: 'bg-indigo-100 text-indigo-700', darkColor: 'bg-indigo-500/20 text-indigo-400' }
+];
+
+// Owner who can see all individual metrics
+const OWNER_PARTICIPANT = 'Taylor';
+
 const PRIORITY_CONFIG = {
   'High': { color: 'bg-red-500', textColor: 'text-red-600', icon: '🔴' },
   'Medium': { color: 'bg-yellow-500', textColor: 'text-yellow-600', icon: '🟡' },
@@ -778,12 +792,15 @@ export default function AccountabilityTracker() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [habits, setHabits] = useState([]);
+  const [habitNormGroups, setHabitNormGroups] = useState({}); // { "normalizedName": ["Exercise", "Workout", "Gym"] }
+  const [categorizingHabits, setCategorizingHabits] = useState(false);
+  const [normalizingHabits, setNormalizingHabits] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [activeView, setActiveView] = useState('dashboard');
   const [selectedWeek, setSelectedWeek] = useState(null); // Store week string, not index
   const [selectedParticipant, setSelectedParticipant] = useState('All');
   const [scorecardRange, setScorecardRange] = useState('4weeks');
-  const [newHabit, setNewHabit] = useState({ habit: '', participant: 'Taylor', target: 5, habitType: 'daily' }); // habitType: 'daily' or 'percentage'
+  const [newHabit, setNewHabit] = useState({ habit: '', participant: 'Taylor', target: 5, habitType: 'daily', category: '' }); // habitType: 'daily' or 'percentage'
   const [bulkHabits, setBulkHabits] = useState('');
   const [bulkParticipant, setBulkParticipant] = useState('Taylor');
   const [bulkTarget, setBulkTarget] = useState(5);
@@ -876,7 +893,7 @@ export default function AccountabilityTracker() {
   });
   
   // Habit editing state
-  const [editingHabit, setEditingHabit] = useState(null); // {id, habit, target}
+  const [editingHabit, setEditingHabit] = useState(null); // {id, habit, target, category}
   const [showAddHabitModal, setShowAddHabitModal] = useState(false); // Add habit popup
   const [weekHabitSuggestions, setWeekHabitSuggestions] = useState([]); // AI suggestions for new week
   const [weekSuggestLoading, setWeekSuggestLoading] = useState(false);
@@ -3067,7 +3084,8 @@ JSON array only:`
       participant: myParticipant, // Always use current user's participant name
       weekStart: currentWeek,
       habitType: newHabit.habitType || 'daily',
-      target: parseInt(newHabit.target)
+      target: parseInt(newHabit.target),
+      category: newHabit.category || '' // Will be AI-categorized if blank
     };
     
     // Add type-specific fields
@@ -3078,7 +3096,7 @@ JSON array only:`
     }
     
     await setDoc(doc(db, 'habits', id), habitData);
-    setNewHabit({ habit: '', participant: myParticipant, target: 5, habitType: 'daily' });
+    setNewHabit({ habit: '', participant: myParticipant, target: 5, habitType: 'daily', category: '' });
     setActiveView('tracker');
   };
 
@@ -3121,7 +3139,8 @@ JSON array only:`
       await setDoc(doc(db, 'habits', String(editingHabit.id)), {
         ...habit,
         habit: editingHabit.habit.trim(),
-        target: parseInt(editingHabit.target)
+        target: parseInt(editingHabit.target),
+        category: editingHabit.category || ''
       });
       
       console.log('Habit updated successfully:', editingHabit.id);
@@ -3151,6 +3170,152 @@ JSON array only:`
     
     await setDoc(doc(db, 'habits', habit1.id), { ...habit1, order: order2 });
     await setDoc(doc(db, 'habits', habit2.id), { ...habit2, order: order1 });
+  };
+
+  // AI Categorize uncategorized habits
+  const aiCategorizeHabits = async () => {
+    const uncategorized = habits.filter(h => !h.category);
+    if (uncategorized.length === 0) return;
+    
+    setCategorizingHabits(true);
+    
+    const habitNames = uncategorized.map(h => h.habit).join('\n');
+    const categories = HABIT_CATEGORIES.map(c => c.id).join(', ');
+    
+    const prompt = `Categorize each habit into ONE of these categories: ${categories}
+
+Habits to categorize:
+${habitNames}
+
+Respond with ONLY a JSON array of objects, one per habit in the same order:
+[{"habit": "habit name", "category": "Category"}]
+
+Example:
+[{"habit": "Exercise", "category": "Fitness"}, {"habit": "Read 30 min", "category": "Learning"}]`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.content[0]?.text || '';
+        try {
+          const results = JSON.parse(text);
+          // Update each habit with its category
+          for (const result of results) {
+            const habit = uncategorized.find(h => h.habit.toLowerCase() === result.habit.toLowerCase());
+            if (habit && HABIT_CATEGORIES.find(c => c.id === result.category)) {
+              await setDoc(doc(db, 'habits', habit.id), { ...habit, category: result.category });
+            }
+          }
+        } catch (e) {
+          console.error('Failed to parse AI categorization:', text);
+        }
+      }
+    } catch (error) {
+      console.error('AI categorization error:', error);
+    }
+    
+    setCategorizingHabits(false);
+  };
+
+  // AI Normalize similar habits for unified metrics
+  const aiNormalizeHabits = async () => {
+    const allHabitNames = [...new Set(habits.map(h => h.habit))];
+    if (allHabitNames.length < 2) return;
+    
+    setNormalizingHabits(true);
+    
+    const prompt = `Group these habits by semantic similarity. Habits that are essentially the same thing (like "Exercise" and "Workout", or "Read 15 min" and "Read 30 min") should be in the same group.
+
+Habits:
+${allHabitNames.join('\n')}
+
+Respond with ONLY a JSON object where keys are normalized group names and values are arrays of the original habit names that belong to that group:
+{"Exercise": ["Exercise", "Workout", "Gym session"], "Reading": ["Read 15 min", "Read 30 min", "Reading"]}
+
+Only group habits that are clearly the same activity. Leave unique habits as their own single-item group.`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.content[0]?.text || '';
+        try {
+          const groups = JSON.parse(text);
+          setHabitNormGroups(groups);
+          // Save to localStorage for persistence
+          localStorage.setItem('habitNormGroups', JSON.stringify(groups));
+        } catch (e) {
+          console.error('Failed to parse AI normalization:', text);
+        }
+      }
+    } catch (error) {
+      console.error('AI normalization error:', error);
+    }
+    
+    setNormalizingHabits(false);
+  };
+
+  // Get normalized habit name for metrics
+  const getNormalizedHabitName = (habitName) => {
+    for (const [normalized, variants] of Object.entries(habitNormGroups)) {
+      if (variants.includes(habitName)) {
+        return normalized;
+      }
+    }
+    return habitName;
+  };
+
+  // Load habit normalization groups from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('habitNormGroups');
+    if (saved) {
+      try {
+        setHabitNormGroups(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load habit norm groups');
+      }
+    }
+  }, []);
+
+  // Check if current user is owner (can see all individual metrics)
+  const isOwner = useMemo(() => {
+    return myParticipant === OWNER_PARTICIPANT;
+  }, [myParticipant]);
+
+  // Update habit category
+  const updateHabitCategory = async (habitId, category) => {
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+    await setDoc(doc(db, 'habits', habitId), { ...habit, category });
   };
 
   // Task management functions
@@ -6691,16 +6856,31 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     if (isEditing && canEdit) {
                       return (
                         <div key={h.id} className={`rounded-xl p-4 ${darkMode ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
-                          <div className="flex flex-col sm:flex-row gap-3">
-                            <input type="text" value={editingHabit.habit} onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
-                              className={`flex-1 px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500`} />
-                            <div className="flex items-center gap-2">
-                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target:</span>
-                              <input type="number" value={editingHabit.target} onChange={(e) => setEditingHabit({ ...editingHabit, target: parseInt(e.target.value) || 1 })}
-                                className={`w-16 px-2 py-2 rounded-lg text-sm text-center ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-200'} border`} min="1" max="7" />
+                          <div className="space-y-3">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <input type="text" value={editingHabit.habit} onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
+                                className={`flex-1 px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500`} />
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target:</span>
+                                <input type="number" value={editingHabit.target} onChange={(e) => setEditingHabit({ ...editingHabit, target: parseInt(e.target.value) || 1 })}
+                                  className={`w-16 px-2 py-2 rounded-lg text-sm text-center ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-200'} border`} min="1" max="7" />
+                              </div>
+                            </div>
+                            {/* Category Selection */}
+                            <div className="flex flex-wrap gap-1.5">
+                              {HABIT_CATEGORIES.map(cat => (
+                                <button key={cat.id} onClick={() => setEditingHabit({ ...editingHabit, category: editingHabit.category === cat.id ? '' : cat.id })}
+                                  className={`px-2 py-1 rounded text-xs font-medium ${
+                                    editingHabit.category === cat.id 
+                                      ? darkMode ? cat.darkColor + ' ring-1 ring-white/30' : cat.color + ' ring-1 ring-gray-400'
+                                      : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                  {cat.icon} {cat.id}
+                                </button>
+                              ))}
                             </div>
                             <div className="flex gap-2">
-                              <button onClick={() => { updateHabit(h.id, editingHabit.habit, editingHabit.target); setEditingHabit(null); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Save</button>
+                              <button onClick={() => { updateHabit(); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Save</button>
                               <button onClick={() => setEditingHabit(null)} className={`px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'}`}>Cancel</button>
                             </div>
                           </div>
@@ -6727,8 +6907,16 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                             
                             {/* Habit name and meta */}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className={`font-semibold truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</h3>
+                                {h.category && (() => {
+                                  const cat = HABIT_CATEGORIES.find(c => c.id === h.category);
+                                  return cat ? (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${darkMode ? cat.darkColor : cat.color}`}>
+                                      {cat.icon}
+                                    </span>
+                                  ) : null;
+                                })()}
                                 {habitIsNN && <Lock className={`w-3.5 h-3.5 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`} />}
                                 {!isMyHabit && <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>{h.participant}</span>}
                               </div>
@@ -6746,7 +6934,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                             {/* Actions */}
                             {canEdit && (
                               <div className={`flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
-                                <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                                <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target, category: h.category || '' })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
                                   <Edit3 className="w-4 h-4" />
                                 </button>
                                 <button onClick={() => deleteHabit(h.id)} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`}>
@@ -7616,12 +7804,118 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
         {activeView === 'scorecard' && (
           <div className="space-y-4">
-            <div className="flex gap-2 flex-wrap">{Object.entries(rangeLabels).map(([k, v]) => <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#F5B800]'}`}>{v}</button>)}</div>
+            {/* Range Selection & AI Tools */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex gap-2 flex-wrap">
+                {Object.entries(rangeLabels).map(([k, v]) => (
+                  <button key={k} onClick={() => setScorecardRange(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${scorecardRange === k ? 'bg-[#1E3A5F] text-white' : (darkMode ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-white text-gray-600 border border-gray-200')}`}>{v}</button>
+                ))}
+              </div>
+              
+              {/* AI Tools - Owner only */}
+              {isOwner && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={aiCategorizeHabits}
+                    disabled={categorizingHabits}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-700'}`}
+                  >
+                    {categorizingHabits ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5" />}
+                    Categorize
+                  </button>
+                  <button
+                    onClick={aiNormalizeHabits}
+                    disabled={normalizingHabits}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700'}`}
+                  >
+                    {normalizingHabits ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    Normalize
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Team Summary - Visible to everyone */}
+            {(() => {
+              const teamHabits = getRangeHabits;
+              const teamCompleted = teamHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+              const teamRate = teamHabits.length > 0 ? Math.round((teamCompleted / teamHabits.length) * 100) : 0;
+              
+              // Calculate user's rank
+              const participantRates = allParticipants.map(p => {
+                const pH = getRangeHabits.filter(h => h.participant === p);
+                const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                return { participant: p, rate: pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0 };
+              }).sort((a, b) => b.rate - a.rate);
+              
+              const myRank = participantRates.findIndex(p => p.participant === myParticipant) + 1;
+              const myRate = participantRates.find(p => p.participant === myParticipant)?.rate || 0;
+              
+              return (
+                <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-br from-[#1E3A5F] to-gray-800' : 'bg-gradient-to-br from-[#1E3A5F] to-[#2D4A6F]'}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-white font-bold text-lg">Team Performance</h3>
+                      <p className="text-white/60 text-sm">{rangeLabels[scorecardRange]}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-white">{teamRate}%</p>
+                      <p className="text-white/60 text-xs">Team Average</p>
+                    </div>
+                  </div>
+                  
+                  {/* Your Position */}
+                  <div className="bg-white/10 backdrop-blur rounded-xl p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${
+                        myRank === 1 ? 'bg-amber-400 text-amber-900' : myRank === 2 ? 'bg-gray-300 text-gray-700' : myRank === 3 ? 'bg-amber-600 text-white' : 'bg-white/20 text-white'
+                      }`}>
+                        {myRank}
+                      </div>
+                      <div>
+                        <p className="text-white font-semibold">Your Rank</p>
+                        <p className="text-white/60 text-sm">{myRate}% completion • {myRate >= teamRate ? '+' : ''}{myRate - teamRate}% vs team</p>
+                      </div>
+                    </div>
+                    {myRank === 1 && <Trophy className="w-6 h-6 text-amber-400" />}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Individual Scorecards - Conditional visibility */}
             {allParticipants.map(p => {
+              // Only show if: owner OR it's the user's own data
+              const canView = isOwner || p === myParticipant;
+              if (!canView) return null;
+              
               const pH = getRangeHabits.filter(h => h.participant === p);
               const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
               const rate = pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0;
               const profile = getProfileByParticipant(p);
+              
+              // Group by normalized habit name for metrics
+              const habitGroups = {};
+              pH.forEach(h => {
+                const normName = getNormalizedHabitName(h.habit);
+                if (!habitGroups[normName]) habitGroups[normName] = [];
+                habitGroups[normName].push(h);
+              });
+              
+              // Group by category
+              const categoryStats = {};
+              HABIT_CATEGORIES.forEach(cat => {
+                const catHabits = pH.filter(h => h.category === cat.id);
+                if (catHabits.length > 0) {
+                  const catCompleted = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                  categoryStats[cat.id] = {
+                    total: catHabits.length,
+                    completed: catCompleted,
+                    rate: Math.round((catCompleted / catHabits.length) * 100)
+                  };
+                }
+              });
+              
               return (
                 <div key={p} className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <div className="flex items-center justify-between mb-3">
@@ -7631,37 +7925,114 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       ) : (
                         <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: PARTICIPANT_COLORS[p] || '#6366f1' }}>{p[0]}</div>
                       )}
-                      <h3 className="font-bold text-gray-800">{p}</h3>
+                      <div>
+                        <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{p}</h3>
+                        {p === myParticipant && <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>You</span>}
+                      </div>
                     </button>
                     <div className="text-right">
                       <p className="text-2xl font-bold" style={{ color: PARTICIPANT_COLORS[p] || '#6366f1' }}>{rate}%</p>
-                      <p className="text-xs text-gray-400">completion</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>completion</p>
                     </div>
                   </div>
-                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
+                  
+                  <div className={`h-3 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-full overflow-hidden mb-3`}>
                     <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: PARTICIPANT_COLORS[p] || '#6366f1' }} />
                   </div>
-                  <div className="grid grid-cols-4 gap-3 text-center">
-                    <div className="bg-gray-50 rounded-lg p-2">
-                      <p className="text-lg font-bold text-gray-800">{pH.length}</p>
-                      <p className="text-xs text-gray-400">Total</p>
+                  
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-4 gap-2 text-center mb-3">
+                    <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-2`}>
+                      <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{pH.length}</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Total</p>
                     </div>
-                    <div className="bg-green-50 rounded-lg p-2">
-                      <p className="text-lg font-bold text-green-600">{completed}</p>
-                      <p className="text-xs text-gray-400">Completed</p>
+                    <div className={`${darkMode ? 'bg-green-500/20' : 'bg-green-50'} rounded-lg p-2`}>
+                      <p className={`text-lg font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{completed}</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Done</p>
                     </div>
-                    <div className="bg-emerald-50 rounded-lg p-2">
-                      <p className="text-lg font-bold text-emerald-600">{pH.filter(h => getStatus(h) === 'Exceeded').length}</p>
-                      <p className="text-xs text-gray-400">Exceeded</p>
+                    <div className={`${darkMode ? 'bg-emerald-500/20' : 'bg-emerald-50'} rounded-lg p-2`}>
+                      <p className={`text-lg font-bold ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>{pH.filter(h => getStatus(h) === 'Exceeded').length}</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Exceeded</p>
                     </div>
-                    <div className="bg-red-50 rounded-lg p-2">
-                      <p className="text-lg font-bold text-red-500">{pH.filter(h => getStatus(h) === 'Missed').length}</p>
-                      <p className="text-xs text-gray-400">Missed</p>
+                    <div className={`${darkMode ? 'bg-red-500/20' : 'bg-red-50'} rounded-lg p-2`}>
+                      <p className={`text-lg font-bold ${darkMode ? 'text-red-400' : 'text-red-500'}`}>{pH.filter(h => getStatus(h) === 'Missed').length}</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Missed</p>
                     </div>
                   </div>
+                  
+                  {/* Category Breakdown */}
+                  {Object.keys(categoryStats).length > 0 && (
+                    <div className={`border-t pt-3 ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                      <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>By Category</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(categoryStats).map(([catId, stats]) => {
+                          const cat = HABIT_CATEGORIES.find(c => c.id === catId);
+                          return (
+                            <div key={catId} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${darkMode ? cat?.darkColor : cat?.color}`}>
+                              <span>{cat?.icon}</span>
+                              <span className="font-medium">{catId}</span>
+                              <span className="opacity-70">{stats.rate}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Normalized Habit Groups - Show if there are merged habits */}
+                  {Object.keys(habitNormGroups).length > 0 && Object.keys(habitGroups).some(k => habitGroups[k].length > 1) && (
+                    <div className={`border-t pt-3 mt-3 ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                      <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Merged Habits</p>
+                      <div className="space-y-1">
+                        {Object.entries(habitGroups).filter(([_, group]) => group.length > 1).map(([normName, group]) => {
+                          const groupCompleted = group.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                          return (
+                            <div key={normName} className={`flex items-center justify-between text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                              <span>{normName} ({group.length} habits)</span>
+                              <span className="font-medium">{Math.round((groupCompleted / group.length) * 100)}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
+            
+            {/* Leaderboard - Visible to everyone but without detailed stats for others */}
+            {!isOwner && (
+              <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+                <h3 className={`font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Team Leaderboard</h3>
+                <div className="space-y-2">
+                  {allParticipants.map((p, idx) => {
+                    const pH = getRangeHabits.filter(h => h.participant === p);
+                    const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                    const rate = pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0;
+                    const isMe = p === myParticipant;
+                    
+                    return (
+                      <div key={p} className={`flex items-center gap-3 p-2 rounded-lg ${isMe ? (darkMode ? 'bg-[#1E3A5F]/30 border border-[#1E3A5F]/50' : 'bg-blue-50 border border-blue-200') : ''}`}>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          idx === 0 ? 'bg-amber-400 text-amber-900' : idx === 1 ? 'bg-gray-300 text-gray-700' : idx === 2 ? 'bg-amber-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600')
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <span className={`flex-1 font-medium ${isMe ? (darkMode ? 'text-white' : 'text-gray-900') : (darkMode ? 'text-gray-300' : 'text-gray-700')}`}>
+                          {p} {isMe && '(You)'}
+                        </span>
+                        <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{rate}%</span>
+                      </div>
+                    );
+                  }).sort((a, b) => {
+                    // Sort by rate descending
+                    const aRate = getRangeHabits.filter(h => h.participant === a.key).filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                    const bRate = getRangeHabits.filter(h => h.participant === b.key).filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                    return bRate - aRate;
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -7749,6 +8120,27 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       >
                         📊 Percentage
                       </button>
+                    </div>
+                  </div>
+                  
+                  {/* Category Selection */}
+                  <div>
+                    <label className={`text-xs font-medium mb-1.5 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Category (optional - AI will auto-detect if blank)</label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {HABIT_CATEGORIES.map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={() => setNewHabit({ ...newHabit, category: newHabit.category === cat.id ? '' : cat.id })}
+                          className={`p-2 rounded-lg text-xs font-medium flex flex-col items-center gap-1 transition-colors ${
+                            newHabit.category === cat.id 
+                              ? darkMode ? cat.darkColor + ' ring-1 ring-white/30' : cat.color + ' ring-1 ring-gray-400'
+                              : darkMode ? 'bg-gray-700 text-gray-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          <span className="text-base">{cat.icon}</span>
+                          <span className="truncate w-full text-center">{cat.id}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                   
