@@ -898,6 +898,8 @@ export default function AccountabilityTracker() {
   // Habit editing state
   const [editingHabit, setEditingHabit] = useState(null); // {id, habit, target, category}
   const [showAddHabitModal, setShowAddHabitModal] = useState(false); // Add habit popup
+  const [showHabitManagerModal, setShowHabitManagerModal] = useState(false); // Habit categorization/normalization manager
+  const [habitManagerTab, setHabitManagerTab] = useState('uncategorized'); // 'uncategorized' | 'groups'
   const [weekHabitSuggestions, setWeekHabitSuggestions] = useState([]); // AI suggestions for new week
   const [weekSuggestLoading, setWeekSuggestLoading] = useState(false);
   const [editingPastWeek, setEditingPastWeek] = useState(false); // Allow editing locked past weeks;
@@ -3232,12 +3234,9 @@ JSON array only:`
     
     setCategorizingHabits(false);
     
-    const remaining = uncategorized.length - categorizedCount;
-    if (categorizedCount > 0) {
-      alert(`✅ Categorized ${categorizedCount} habit${categorizedCount > 1 ? 's' : ''}!${remaining > 0 ? `\n\n${remaining} habit${remaining > 1 ? 's' : ''} couldn't be auto-categorized. You can set ${remaining > 1 ? 'them' : 'it'} manually by clicking Edit on each habit.` : ''}`);
-    } else {
-      alert('Could not auto-categorize any habits. Please set categories manually by clicking Edit on each habit.');
-    }
+    // Open the manager modal to show uncategorized habits
+    setHabitManagerTab('uncategorized');
+    setShowHabitManagerModal(true);
   };
 
   // Normalize similar habits for unified metrics (rule-based)
@@ -3347,16 +3346,38 @@ JSON array only:`
     
     setNormalizingHabits(false);
     
-    const groupCount = Object.keys(groups).length;
-    const habitCount = Object.values(groups).flat().length;
-    
-    if (groupCount > 0) {
-      setHabitNormGroups(groups);
-      localStorage.setItem('habitNormGroups', JSON.stringify(groups));
-      alert(`✅ Found ${groupCount} group${groupCount > 1 ? 's' : ''} of similar habits!\n\n${Object.entries(groups).map(([name, habits]) => `• ${name}: ${habits.join(', ')}`).join('\n')}`);
-    } else {
-      alert('No similar habits found. All your habits appear to be unique!');
+    // Save groups and open the modal
+    setHabitNormGroups(groups);
+    localStorage.setItem('habitNormGroups', JSON.stringify(groups));
+    setHabitManagerTab('groups');
+    setShowHabitManagerModal(true);
+  };
+
+  // Remove a habit from a normalization group
+  const removeFromNormGroup = (groupName, habitName) => {
+    const newGroups = { ...habitNormGroups };
+    if (newGroups[groupName]) {
+      newGroups[groupName] = newGroups[groupName].filter(h => h !== habitName);
+      if (newGroups[groupName].length <= 1) {
+        delete newGroups[groupName]; // Remove group if only 1 or 0 habits left
+      }
     }
+    setHabitNormGroups(newGroups);
+    localStorage.setItem('habitNormGroups', JSON.stringify(newGroups));
+  };
+
+  // Delete an entire normalization group
+  const deleteNormGroup = (groupName) => {
+    const newGroups = { ...habitNormGroups };
+    delete newGroups[groupName];
+    setHabitNormGroups(newGroups);
+    localStorage.setItem('habitNormGroups', JSON.stringify(newGroups));
+  };
+
+  // Clear all normalization groups
+  const clearAllNormGroups = () => {
+    setHabitNormGroups({});
+    localStorage.removeItem('habitNormGroups');
   };
 
   // Get normalized habit name for metrics
@@ -6656,12 +6677,14 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       <Brain className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
                     </div>
                     <div>
-                      <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>AI Habit Tools</h3>
-                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Organize & analyze all habits</p>
+                      <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Habit Manager</h3>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {habits.filter(h => !h.category).length} uncategorized • {Object.keys(habitNormGroups).length} groups
+                      </p>
                     </div>
                   </div>
                   
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={aiCategorizeHabits}
                       disabled={categorizingHabits}
@@ -6670,7 +6693,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       }`}
                     >
                       {categorizingHabits ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      {categorizingHabits ? 'Categorizing...' : 'Auto-Categorize All'}
+                      {categorizingHabits ? 'Categorizing...' : 'Auto-Categorize'}
                     </button>
                     <button
                       onClick={aiNormalizeHabits}
@@ -6680,31 +6703,19 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       }`}
                     >
                       {normalizingHabits ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
-                      {normalizingHabits ? 'Analyzing...' : 'Find Similar Habits'}
+                      {normalizingHabits ? 'Analyzing...' : 'Find Similar'}
+                    </button>
+                    <button
+                      onClick={() => setShowHabitManagerModal(true)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      <Settings className="w-4 h-4" />
+                      Manage
                     </button>
                   </div>
                 </div>
-                
-                {/* Show normalized groups if any exist */}
-                {Object.keys(habitNormGroups).length > 0 && (
-                  <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-purple-500/20' : 'border-purple-200'}`}>
-                    <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Merged Habit Groups ({Object.keys(habitNormGroups).length})
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(habitNormGroups).slice(0, 5).map(([normName, variants]) => (
-                        <span key={normName} className={`text-xs px-2 py-1 rounded-lg ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-600'}`}>
-                          {normName}: {variants.length} habits
-                        </span>
-                      ))}
-                      {Object.keys(habitNormGroups).length > 5 && (
-                        <span className={`text-xs px-2 py-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          +{Object.keys(habitNormGroups).length - 5} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
             
@@ -8342,6 +8353,211 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* HABIT MANAGER MODAL - Categories & Normalization */}
+        {showHabitManagerModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+              className={`absolute inset-0 backdrop-blur-md ${darkMode ? 'bg-black/70' : 'bg-black/50'}`}
+              onClick={() => setShowHabitManagerModal(false)}
+            />
+            {/* Modal */}
+            <div className={`relative w-full max-w-2xl max-h-[85vh] rounded-2xl shadow-2xl flex flex-col ${
+              darkMode 
+                ? 'bg-gray-800 border border-gray-600' 
+                : 'bg-white'
+            }`}>
+              {/* Header */}
+              <div className={`flex items-center justify-between p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${darkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
+                    <Brain className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                  </div>
+                  <div>
+                    <h2 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>Habit Manager</h2>
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Organize categories & similar habits</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowHabitManagerModal(false)}
+                  className={`p-2 rounded-lg transition-colors ${darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-400 hover:bg-gray-100'}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Tabs */}
+              <div className={`flex gap-2 p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <button
+                  onClick={() => setHabitManagerTab('uncategorized')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    habitManagerTab === 'uncategorized'
+                      ? darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Uncategorized
+                  {(() => {
+                    const count = habits.filter(h => !h.category).length;
+                    return count > 0 ? (
+                      <span className={`px-1.5 py-0.5 rounded-full text-xs ${darkMode ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>{count}</span>
+                    ) : null;
+                  })()}
+                </button>
+                <button
+                  onClick={() => setHabitManagerTab('groups')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    habitManagerTab === 'groups'
+                      ? darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+                      : darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  Similar Habits
+                  {Object.keys(habitNormGroups).length > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
+                      {Object.keys(habitNormGroups).length}
+                    </span>
+                  )}
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {habitManagerTab === 'uncategorized' && (
+                  <div className="space-y-3">
+                    {(() => {
+                      const uncategorized = habits.filter(h => !h.category);
+                      if (uncategorized.length === 0) {
+                        return (
+                          <div className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                            <p className="font-medium">All habits are categorized!</p>
+                            <p className="text-sm mt-1">Great job organizing your habits.</p>
+                          </div>
+                        );
+                      }
+                      
+                      return uncategorized.map(habit => (
+                        <div key={habit.id} className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{habit.habit}</p>
+                              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{habit.participant}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {HABIT_CATEGORIES.map(cat => (
+                              <button
+                                key={cat.id}
+                                onClick={() => updateHabitCategory(habit.id, cat.id)}
+                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  darkMode ? cat.darkColor + ' hover:ring-1 hover:ring-white/30' : cat.color + ' hover:ring-1 hover:ring-gray-400'
+                                }`}
+                              >
+                                <span>{cat.icon}</span>
+                                <span>{cat.id}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
+                
+                {habitManagerTab === 'groups' && (
+                  <div className="space-y-4">
+                    {Object.keys(habitNormGroups).length === 0 ? (
+                      <div className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p className="font-medium">No similar habits grouped yet</p>
+                        <p className="text-sm mt-1">Click "Find Similar Habits" to detect groups automatically.</p>
+                        <button
+                          onClick={() => { setShowHabitManagerModal(false); aiNormalizeHabits(); }}
+                          className={`mt-4 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}
+                        >
+                          Find Similar Habits
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {Object.keys(habitNormGroups).length} group{Object.keys(habitNormGroups).length !== 1 ? 's' : ''} • 
+                            {Object.values(habitNormGroups).flat().length} habits merged
+                          </p>
+                          <button
+                            onClick={clearAllNormGroups}
+                            className={`text-xs px-2 py-1 rounded ${darkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-50'}`}
+                          >
+                            Clear All
+                          </button>
+                        </div>
+                        
+                        {Object.entries(habitNormGroups).map(([groupName, habitNames]) => (
+                          <div key={groupName} className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+                                  <Users className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                                </div>
+                                <div>
+                                  <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{groupName}</p>
+                                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{habitNames.length} habits treated as one</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => deleteNormGroup(groupName)}
+                                className={`p-1.5 rounded-lg ${darkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-500 hover:bg-red-50'}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {habitNames.map(name => (
+                                <div
+                                  key={name}
+                                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-white text-gray-700 border border-gray-200'}`}
+                                >
+                                  <span>{name}</span>
+                                  <button
+                                    onClick={() => removeFromNormGroup(groupName, name)}
+                                    className={`p-0.5 rounded hover:bg-gray-500/30 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className={`flex items-center justify-between p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {habitManagerTab === 'uncategorized' 
+                    ? `${habits.filter(h => !h.category).length} uncategorized • ${habits.filter(h => h.category).length} categorized`
+                    : 'Similar habits are treated as one in metrics'
+                  }
+                </div>
+                <button
+                  onClick={() => setShowHabitManagerModal(false)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         )}
