@@ -3179,11 +3179,13 @@ JSON array only:`
     await setDoc(doc(db, 'habits', habit2.id), { ...habit2, order: order1 });
   };
 
-  // AI Categorize uncategorized habits (with rule-based fallback)
+  // AI Categorize uncategorized habits (with rule-based fallback) - personalized per user
   const aiCategorizeHabits = async () => {
-    const uncategorized = habits.filter(h => !h.category);
+    const myHabitsOnly = habits.filter(h => h.participant === myParticipant);
+    const uncategorized = myHabitsOnly.filter(h => !h.category);
     if (uncategorized.length === 0) {
-      alert('All habits already have categories!');
+      setHabitManagerTab('uncategorized');
+      setShowHabitManagerModal(true);
       return;
     }
     
@@ -3239,11 +3241,13 @@ JSON array only:`
     setShowHabitManagerModal(true);
   };
 
-  // Normalize similar habits for unified metrics (rule-based)
+  // Normalize similar habits for unified metrics (rule-based) - personalized per user
   const aiNormalizeHabits = async () => {
-    const allHabitNames = [...new Set(habits.map(h => h.habit))];
+    const myHabitsOnly = habits.filter(h => h.participant === myParticipant);
+    const allHabitNames = [...new Set(myHabitsOnly.map(h => h.habit))];
     if (allHabitNames.length < 2) {
-      alert('Need at least 2 unique habits to find similarities!');
+      setHabitManagerTab('groups');
+      setShowHabitManagerModal(true);
       return;
     }
     
@@ -3346,14 +3350,16 @@ JSON array only:`
     
     setNormalizingHabits(false);
     
-    // Save groups and open the modal
+    // Save groups per participant and open the modal
     setHabitNormGroups(groups);
-    localStorage.setItem('habitNormGroups', JSON.stringify(groups));
+    if (myParticipant) {
+      localStorage.setItem(`habitNormGroups_${myParticipant}`, JSON.stringify(groups));
+    }
     setHabitManagerTab('groups');
     setShowHabitManagerModal(true);
   };
 
-  // Remove a habit from a normalization group
+  // Remove a habit from a normalization group - personalized
   const removeFromNormGroup = (groupName, habitName) => {
     const newGroups = { ...habitNormGroups };
     if (newGroups[groupName]) {
@@ -3363,21 +3369,27 @@ JSON array only:`
       }
     }
     setHabitNormGroups(newGroups);
-    localStorage.setItem('habitNormGroups', JSON.stringify(newGroups));
+    if (myParticipant) {
+      localStorage.setItem(`habitNormGroups_${myParticipant}`, JSON.stringify(newGroups));
+    }
   };
 
-  // Delete an entire normalization group
+  // Delete an entire normalization group - personalized
   const deleteNormGroup = (groupName) => {
     const newGroups = { ...habitNormGroups };
     delete newGroups[groupName];
     setHabitNormGroups(newGroups);
-    localStorage.setItem('habitNormGroups', JSON.stringify(newGroups));
+    if (myParticipant) {
+      localStorage.setItem(`habitNormGroups_${myParticipant}`, JSON.stringify(newGroups));
+    }
   };
 
-  // Clear all normalization groups
+  // Clear all normalization groups - personalized
   const clearAllNormGroups = () => {
     setHabitNormGroups({});
-    localStorage.removeItem('habitNormGroups');
+    if (myParticipant) {
+      localStorage.removeItem(`habitNormGroups_${myParticipant}`);
+    }
   };
 
   // Get normalized habit name for metrics
@@ -3390,17 +3402,22 @@ JSON array only:`
     return habitName;
   };
 
-  // Load habit normalization groups from localStorage on mount
+  // Load habit normalization groups from localStorage when participant changes
   useEffect(() => {
-    const saved = localStorage.getItem('habitNormGroups');
-    if (saved) {
-      try {
-        setHabitNormGroups(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to load habit norm groups');
+    if (myParticipant) {
+      const saved = localStorage.getItem(`habitNormGroups_${myParticipant}`);
+      if (saved) {
+        try {
+          setHabitNormGroups(JSON.parse(saved));
+        } catch (e) {
+          console.error('Failed to load habit norm groups');
+          setHabitNormGroups({});
+        }
+      } else {
+        setHabitNormGroups({});
       }
     }
-  }, []);
+  }, [myParticipant]);
 
   // Check if current user is owner (can see all individual metrics)
   const isOwner = useMemo(() => {
@@ -6668,8 +6685,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
         {activeView === 'tracker' && (
           <div className="space-y-4">
-            {/* Owner Admin Panel - AI Tools for habit management */}
-            {isOwner && (
+            {/* Habit Manager Panel - personalized per user */}
+            {myParticipant && (
               <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20' : 'bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200'}`}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -6677,9 +6694,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       <Brain className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
                     </div>
                     <div>
-                      <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Habit Manager</h3>
+                      <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>My Habit Manager</h3>
                       <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {habits.filter(h => !h.category).length} uncategorized • {Object.keys(habitNormGroups).length} groups
+                        {habits.filter(h => h.participant === myParticipant && !h.category).length} uncategorized • {Object.keys(habitNormGroups).length} groups
                       </p>
                     </div>
                   </div>
@@ -8378,8 +8395,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     <Brain className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
                   </div>
                   <div>
-                    <h2 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>Habit Manager</h2>
-                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Organize categories & similar habits</p>
+                    <h2 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>My Habit Manager</h2>
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Organize your categories & similar habits</p>
                   </div>
                 </div>
                 <button 
@@ -8403,7 +8420,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   <Sparkles className="w-4 h-4" />
                   Uncategorized
                   {(() => {
-                    const count = habits.filter(h => !h.category).length;
+                    const count = habits.filter(h => h.participant === myParticipant && !h.category).length;
                     return count > 0 ? (
                       <span className={`px-1.5 py-0.5 rounded-full text-xs ${darkMode ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>{count}</span>
                     ) : null;
@@ -8432,12 +8449,13 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 {habitManagerTab === 'uncategorized' && (
                   <div className="space-y-3">
                     {(() => {
-                      const uncategorized = habits.filter(h => !h.category);
+                      const myHabitsOnly = habits.filter(h => h.participant === myParticipant);
+                      const uncategorized = myHabitsOnly.filter(h => !h.category);
                       if (uncategorized.length === 0) {
                         return (
                           <div className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                             <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                            <p className="font-medium">All habits are categorized!</p>
+                            <p className="font-medium">All your habits are categorized!</p>
                             <p className="text-sm mt-1">Great job organizing your habits.</p>
                           </div>
                         );
@@ -8448,7 +8466,6 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           <div className="flex items-center justify-between mb-3">
                             <div>
                               <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{habit.habit}</p>
-                              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{habit.participant}</p>
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-1.5">
@@ -8547,8 +8564,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               <div className={`flex items-center justify-between p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                 <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   {habitManagerTab === 'uncategorized' 
-                    ? `${habits.filter(h => !h.category).length} uncategorized • ${habits.filter(h => h.category).length} categorized`
-                    : 'Similar habits are treated as one in metrics'
+                    ? `${habits.filter(h => h.participant === myParticipant && !h.category).length} uncategorized • ${habits.filter(h => h.participant === myParticipant && h.category).length} categorized`
+                    : 'Similar habits are treated as one in your metrics'
                   }
                 </div>
                 <button
