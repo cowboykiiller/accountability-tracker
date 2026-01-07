@@ -8708,8 +8708,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           <div className="space-y-4">
             {/* Accountability Grade Card */}
             {(() => {
-              // Calculate comprehensive accountability score
-              const myHabits = habits.filter(h => h.participant === myParticipant);
+              // Calculate comprehensive accountability score based on LAST QUARTER (13 weeks)
+              const quarterWeeks = ALL_WEEKS.slice(-13);
+              const myHabits = habits.filter(h => h.participant === myParticipant && quarterWeeks.includes(h.weekStart));
               const totalHabits = myHabits.length;
               const completedHabits = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
               const exceededHabits = myHabits.filter(h => getStatus(h) === 'Exceeded').length;
@@ -8722,8 +8723,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               const currentStreak = calculateStreaks[myParticipant] || 0;
               const streakPoints = Math.min(currentStreak * 3, 15);
               
-              // Consistency bonus - based on variance (0-10 points)
-              const weeklyRates = ALL_WEEKS.slice(-8).map(week => {
+              // Consistency bonus - based on variance over the quarter (0-10 points)
+              const weeklyRates = quarterWeeks.map(week => {
                 const weekHabits = myHabits.filter(h => h.weekStart === week);
                 const weekCompleted = weekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
                 return weekHabits.length > 0 ? (weekCompleted / weekHabits.length) * 100 : null;
@@ -8773,6 +8774,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       <div>
                         <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Accountability Score</h2>
                         <p className={`text-3xl font-bold bg-gradient-to-r ${color} bg-clip-text text-transparent`}>{totalScore}/100</p>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last 13 weeks (rolling quarter)</p>
                       </div>
                     </div>
                     
@@ -8809,13 +8811,14 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Life Categories</h3>
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Your performance across all life domains</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Performance across life domains (last 13 weeks)</p>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {(() => {
-                  const myHabits = habits.filter(h => h.participant === myParticipant);
+                  const quarterWeeks = ALL_WEEKS.slice(-13);
+                  const myHabits = habits.filter(h => h.participant === myParticipant && quarterWeeks.includes(h.weekStart));
                   
                   return HABIT_CATEGORIES.map(cat => {
                     const catHabits = myHabits.filter(h => h.category === cat.id);
@@ -8850,7 +8853,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               />
                             </div>
                             <p className={`text-xs mt-2 ${darkMode ? 'text-white/70' : 'opacity-70'}`}>
-                              {completed}/{catHabits.length} habits completed
+                              {completed}/{catHabits.length} completed
                             </p>
                           </>
                         ) : (
@@ -8927,10 +8930,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Radar Chart - Life Balance */}
               <div className={`rounded-2xl p-4 md:p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
-                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance</h3>
+                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance (Last Quarter)</h3>
                 <ResponsiveContainer width="100%" height={220}>
                   <RadarChart data={(() => {
-                    const myHabits = habits.filter(h => h.participant === myParticipant);
+                    const quarterWeeks = ALL_WEEKS.slice(-13);
+                    const myHabits = habits.filter(h => h.participant === myParticipant && quarterWeeks.includes(h.weekStart));
                     return HABIT_CATEGORIES.map(cat => {
                       const catHabits = myHabits.filter(h => h.category === cat.id);
                       const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
@@ -8950,7 +8954,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               <div className={`rounded-2xl p-4 md:p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Activity Heatmap</h3>
-                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last 12 weeks</span>
+                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last 13 weeks</span>
                 </div>
                 
                 {(() => {
@@ -8965,7 +8969,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     return weekHabits.length > 0;
                   });
                   
-                  const weeks = weeksWithData.slice(-12);
+                  const weeks = weeksWithData.slice(-13);
                   
                   if (weeks.length === 0) {
                     return (
@@ -9081,11 +9085,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
             {/* Top Habits */}
             <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
-              <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits</h3>
+              <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits (Last Quarter)</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {(() => {
+                  const quarterWeeks = ALL_WEEKS.slice(-13);
                   const habitStats = {};
-                  habits.filter(h => h.participant === myParticipant).forEach(h => {
+                  habits.filter(h => h.participant === myParticipant && quarterWeeks.includes(h.weekStart)).forEach(h => {
                     const normName = getNormalizedHabitName(h.habit);
                     if (!habitStats[normName]) {
                       habitStats[normName] = { habit: normName, category: h.category, completed: 0, total: 0 };
