@@ -8706,43 +8706,236 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         {/* INSIGHTS VIEW */}
         {activeView === 'insights' && (
           <div className="space-y-4">
-            {/* Main Stats Grid - Mobile: single column */}
+            {/* Accountability Grade Card */}
+            {(() => {
+              // Calculate comprehensive accountability score
+              const myHabits = habits.filter(h => h.participant === myParticipant);
+              const totalHabits = myHabits.length;
+              const completedHabits = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+              const exceededHabits = myHabits.filter(h => getStatus(h) === 'Exceeded').length;
+              
+              // Base completion rate (0-60 points)
+              const completionRate = totalHabits > 0 ? (completedHabits / totalHabits) * 100 : 0;
+              const completionPoints = Math.round(completionRate * 0.6);
+              
+              // Streak bonus (0-15 points)
+              const currentStreak = calculateStreaks[myParticipant] || 0;
+              const streakPoints = Math.min(currentStreak * 3, 15);
+              
+              // Consistency bonus - based on variance (0-10 points)
+              const weeklyRates = ALL_WEEKS.slice(-8).map(week => {
+                const weekHabits = myHabits.filter(h => h.weekStart === week);
+                const weekCompleted = weekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                return weekHabits.length > 0 ? (weekCompleted / weekHabits.length) * 100 : null;
+              }).filter(r => r !== null);
+              const avgRate = weeklyRates.length > 0 ? weeklyRates.reduce((a, b) => a + b, 0) / weeklyRates.length : 0;
+              const variance = weeklyRates.length > 1 ? weeklyRates.reduce((sum, r) => sum + Math.pow(r - avgRate, 2), 0) / weeklyRates.length : 0;
+              const consistencyPoints = Math.max(0, 10 - Math.round(Math.sqrt(variance) / 5));
+              
+              // Excellence bonus - exceeding targets (0-10 points)
+              const excellenceRate = totalHabits > 0 ? (exceededHabits / totalHabits) * 100 : 0;
+              const excellencePoints = Math.round(excellenceRate * 0.1);
+              
+              // Category coverage bonus (0-5 points)
+              const categoriesUsed = new Set(myHabits.map(h => h.category).filter(Boolean)).size;
+              const categoryPoints = Math.min(categoriesUsed, 5);
+              
+              // Total score
+              const totalScore = completionPoints + streakPoints + consistencyPoints + excellencePoints + categoryPoints;
+              
+              // Convert to letter grade
+              const getGrade = (score) => {
+                if (score >= 97) return { grade: 'A+', color: 'from-emerald-400 to-cyan-400' };
+                if (score >= 93) return { grade: 'A', color: 'from-emerald-400 to-cyan-400' };
+                if (score >= 90) return { grade: 'A-', color: 'from-emerald-400 to-teal-400' };
+                if (score >= 87) return { grade: 'B+', color: 'from-blue-400 to-cyan-400' };
+                if (score >= 83) return { grade: 'B', color: 'from-blue-400 to-indigo-400' };
+                if (score >= 80) return { grade: 'B-', color: 'from-blue-400 to-purple-400' };
+                if (score >= 77) return { grade: 'C+', color: 'from-yellow-400 to-amber-400' };
+                if (score >= 73) return { grade: 'C', color: 'from-yellow-400 to-orange-400' };
+                if (score >= 70) return { grade: 'C-', color: 'from-amber-400 to-orange-400' };
+                if (score >= 67) return { grade: 'D+', color: 'from-orange-400 to-red-400' };
+                if (score >= 63) return { grade: 'D', color: 'from-orange-500 to-red-500' };
+                if (score >= 60) return { grade: 'D-', color: 'from-red-400 to-red-500' };
+                return { grade: 'F', color: 'from-red-500 to-red-600' };
+              };
+              
+              const { grade, color } = getGrade(totalScore);
+              
+              return (
+                <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+                  <div className="flex flex-col md:flex-row md:items-center gap-6">
+                    {/* Grade Display */}
+                    <div className="flex items-center gap-4">
+                      <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shadow-lg`}>
+                        <span className="text-4xl font-black text-white">{grade}</span>
+                      </div>
+                      <div>
+                        <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Accountability Score</h2>
+                        <p className={`text-3xl font-bold bg-gradient-to-r ${color} bg-clip-text text-transparent`}>{totalScore}/100</p>
+                      </div>
+                    </div>
+                    
+                    {/* Score Breakdown */}
+                    <div className="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Completion</p>
+                        <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{completionPoints}<span className="text-xs font-normal opacity-60">/60</span></p>
+                      </div>
+                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Streak</p>
+                        <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{streakPoints}<span className="text-xs font-normal opacity-60">/15</span></p>
+                      </div>
+                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Consistency</p>
+                        <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{consistencyPoints}<span className="text-xs font-normal opacity-60">/10</span></p>
+                      </div>
+                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Excellence</p>
+                        <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{excellencePoints}<span className="text-xs font-normal opacity-60">/10</span></p>
+                      </div>
+                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Balance</p>
+                        <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{categoryPoints}<span className="text-xs font-normal opacity-60">/5</span></p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Category Breakdown */}
+            <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Life Categories</h3>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Your performance across all life domains</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {(() => {
+                  const myHabits = habits.filter(h => h.participant === myParticipant);
+                  
+                  return HABIT_CATEGORIES.map(cat => {
+                    const catHabits = myHabits.filter(h => h.category === cat.id);
+                    const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                    const rate = catHabits.length > 0 ? Math.round((completed / catHabits.length) * 100) : 0;
+                    const hasHabits = catHabits.length > 0;
+                    
+                    return (
+                      <div 
+                        key={cat.id} 
+                        className={`p-4 rounded-xl transition-all ${
+                          hasHabits 
+                            ? darkMode ? cat.darkColor : cat.color
+                            : darkMode ? 'bg-gray-700/50 opacity-50' : 'bg-gray-100/50 opacity-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">{cat.icon}</span>
+                            <span className={`font-semibold text-sm ${darkMode && hasHabits ? 'text-white' : ''}`}>{cat.id}</span>
+                          </div>
+                          <span className={`text-lg font-bold ${darkMode && hasHabits ? 'text-white' : ''}`}>
+                            {hasHabits ? `${rate}%` : '—'}
+                          </span>
+                        </div>
+                        {hasHabits ? (
+                          <>
+                            <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-black/20' : 'bg-white/50'}`}>
+                              <div 
+                                className={`h-full rounded-full transition-all ${rate >= 80 ? 'bg-emerald-500' : rate >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                style={{ width: `${rate}%` }}
+                              />
+                            </div>
+                            <p className={`text-xs mt-2 ${darkMode ? 'text-white/70' : 'opacity-70'}`}>
+                              {completed}/{catHabits.length} habits completed
+                            </p>
+                          </>
+                        ) : (
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No habits tracked</p>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Progress Summary - Simple View */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {(() => {
+                const myHabits = habits.filter(h => h.participant === myParticipant);
+                const thisWeekHabits = myHabits.filter(h => h.weekStart === currentWeek);
+                const thisWeekCompleted = thisWeekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                const thisWeekRate = thisWeekHabits.length > 0 ? Math.round((thisWeekCompleted / thisWeekHabits.length) * 100) : 0;
+                
+                // Last week comparison
+                const lastWeekIdx = ALL_WEEKS.indexOf(currentWeek) - 1;
+                const lastWeek = lastWeekIdx >= 0 ? ALL_WEEKS[lastWeekIdx] : null;
+                const lastWeekHabits = lastWeek ? myHabits.filter(h => h.weekStart === lastWeek) : [];
+                const lastWeekCompleted = lastWeekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                const lastWeekRate = lastWeekHabits.length > 0 ? Math.round((lastWeekCompleted / lastWeekHabits.length) * 100) : 0;
+                const weekChange = thisWeekRate - lastWeekRate;
+                
+                // All time
+                const allTimeCompleted = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                const allTimeRate = myHabits.length > 0 ? Math.round((allTimeCompleted / myHabits.length) * 100) : 0;
+                
+                // Best week
+                const weekRates = ALL_WEEKS.map(week => {
+                  const weekHabits = myHabits.filter(h => h.weekStart === week);
+                  const completed = weekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                  return weekHabits.length > 0 ? Math.round((completed / weekHabits.length) * 100) : 0;
+                });
+                const bestWeek = Math.max(...weekRates, 0);
+                
+                return (
+                  <>
+                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
+                      <p className={`text-xs font-medium ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>This Week</p>
+                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{thisWeekRate}%</p>
+                      {weekChange !== 0 && (
+                        <p className={`text-xs flex items-center gap-1 ${weekChange > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {weekChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          {weekChange > 0 ? '+' : ''}{weekChange}% vs last week
+                        </p>
+                      )}
+                    </div>
+                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100'}`}>
+                      <p className={`text-xs font-medium ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>All Time</p>
+                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{allTimeRate}%</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{allTimeCompleted}/{myHabits.length} completed</p>
+                    </div>
+                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-100'}`}>
+                      <p className={`text-xs font-medium ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Best Week</p>
+                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{bestWeek}%</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Personal record</p>
+                    </div>
+                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-orange-50 border border-orange-100'}`}>
+                      <p className={`text-xs font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>Current Streak</p>
+                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{calculateStreaks[myParticipant] || 0}</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>weeks in a row</p>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Life Balance Radar & Activity Heatmap */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Radar Chart - Life Balance - Glass */}
-              <div className={`rounded-2xl p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
-                darkMode 
-                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
-                  : 'bg-white/60 border border-white shadow-xl'
-              }`}>
-                <h3 className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance</h3>
+              {/* Radar Chart - Life Balance */}
+              <div className={`rounded-2xl p-4 md:p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance</h3>
                 <ResponsiveContainer width="100%" height={220}>
                   <RadarChart data={(() => {
-                    const categories = ['Fitness', 'Business', 'Finance', 'Health', 'Learning', 'Relationships', 'Spiritual'];
-                    // Exclude current week for accurate historical balance
-                    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart !== currentWeekStart);
-                    
-                    return categories.map(cat => {
-                      const catHabits = myHabits.filter(h => (h.category || 'Personal') === cat);
-                      if (catHabits.length === 0) {
-                        const keywords = {
-                          'Fitness': ['workout', 'gym', 'run', 'exercise', 'walk', 'fitness'],
-                          'Business': ['work', 'client', 'meeting', 'business', 'call', 'email'],
-                          'Finance': ['budget', 'invest', 'money', 'finance', 'trade', 'save'],
-                          'Health': ['sleep', 'wake', 'meditat', 'health', 'diet', 'water'],
-                          'Learning': ['read', 'learn', 'study', 'course', 'book'],
-                          'Relationships': ['family', 'friend', 'call', 'social', 'team'],
-                          'Spiritual': ['pray', 'church', 'bible', 'spiritual', 'gratitude', 'journal']
-                        };
-                        const matched = myHabits.filter(h => 
-                          keywords[cat]?.some(kw => h.habit.toLowerCase().includes(kw))
-                        );
-                        if (matched.length > 0) {
-                          const completed = matched.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                          return { category: cat, score: matched.length > 0 ? Math.round((completed / matched.length) * 100) : 0, fullMark: 100 };
-                        }
-                      }
+                    const myHabits = habits.filter(h => h.participant === myParticipant);
+                    return HABIT_CATEGORIES.map(cat => {
+                      const catHabits = myHabits.filter(h => h.category === cat.id);
                       const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                      return { category: cat, score: catHabits.length > 0 ? Math.round((completed / catHabits.length) * 100) : 30 + Math.random() * 40, fullMark: 100 };
+                      const score = catHabits.length > 0 ? Math.round((completed / catHabits.length) * 100) : 0;
+                      return { category: cat.id, score, fullMark: 100 };
                     });
                   })()}>
                     <PolarGrid stroke={darkMode ? '#334155' : '#e2e8f0'} />
@@ -8753,196 +8946,109 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 </ResponsiveContainer>
               </div>
 
-              {/* Heatmap + Life Score */}
-              <div className="space-y-4">
-                {/* GitHub-style Heatmap - Glass */}
-                <div className={`rounded-2xl p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
-                  darkMode 
-                    ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
-                    : 'bg-white/60 border border-white shadow-xl'
-                }`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Heatmap</p>
-                      <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Activity</h3>
-                    </div>
-                    <span className="text-emerald-500 text-sm font-medium">
-                      {(() => {
-                        // Exclude current week for accurate historical stats
-                        const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart !== currentWeekStart);
-                        const completed = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                        return myHabits.length > 0 ? Math.round((completed / myHabits.length) * 100) : 0;
-                      })()}% Overall
-                    </span>
-                  </div>
+              {/* Activity Heatmap */}
+              <div className={`rounded-2xl p-4 md:p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Activity Heatmap</h3>
+                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last 12 weeks</span>
+                </div>
+                
+                {(() => {
+                  const today = new Date();
+                  const currentMonday = new Date(today);
+                  currentMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+                  const currentWeekStr = currentMonday.toISOString().split('T')[0];
                   
-                  {/* Heatmap Grid - Days vertical, Weeks horizontal */}
-                  {(() => {
-                    const today = new Date();
-                    const currentMonday = new Date(today);
-                    currentMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-                    const currentWeekStr = currentMonday.toISOString().split('T')[0];
-                    
-                    // Filter to weeks with data, up to and including current week
-                    const weeksWithData = ALL_WEEKS.filter(week => {
-                      if (week > currentWeekStr) return false;
-                      const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
-                      return weekHabits.length > 0;
-                    });
-                    
-                    const weeks = weeksWithData.slice(-12);
-                    
-                    if (weeks.length === 0) {
-                      return (
-                        <div className={`flex items-center justify-center py-8 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
-                          No habit data yet. Start tracking to see your activity!
-                        </div>
-                      );
-                    }
-                    
-                    // Get month labels for the weeks
-                    const monthLabels = weeks.map((week, idx) => {
-                      const weekDate = new Date(week + 'T00:00:00');
-                      const month = weekDate.toLocaleDateString('en-US', { month: 'short' });
-                      // Only show if first week or new month
-                      if (idx === 0) return month;
-                      const prevWeekDate = new Date(weeks[idx - 1] + 'T00:00:00');
-                      if (weekDate.getMonth() !== prevWeekDate.getMonth()) return month;
-                      return null;
-                    });
-                    
+                  const weeksWithData = ALL_WEEKS.filter(week => {
+                    if (week > currentWeekStr) return false;
+                    const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
+                    return weekHabits.length > 0;
+                  });
+                  
+                  const weeks = weeksWithData.slice(-12);
+                  
+                  if (weeks.length === 0) {
                     return (
-                      <div className="flex gap-2">
-                        {/* Day labels - vertical on left */}
-                        <div className="flex flex-col gap-1 pt-5">
-                          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-                            <div key={i} className={`w-4 h-4 flex items-center justify-center text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
-                              {i % 2 === 0 ? d : ''}
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {/* Grid */}
-                        <div className="flex-1 overflow-x-auto">
-                          {/* Month labels */}
-                          <div className="flex gap-1 mb-1">
-                            {monthLabels.map((label, idx) => (
-                              <div key={idx} className={`w-4 text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
-                                {label || ''}
-                              </div>
-                            ))}
-                          </div>
-                          
-                          {/* Weeks grid */}
-                          <div className="flex gap-1">
-                            {weeks.map((week, weekIdx) => {
-                              const weekDate = new Date(week + 'T00:00:00');
-                              const isCurrentWeek = week === currentWeekStr;
-                              
-                              return (
-                                <div key={week} className="flex flex-col gap-1">
-                                  {DAYS.map((day, dayIdx) => {
-                                    const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
-                                    const dayCompleted = weekHabits.filter(h => h.daysCompleted?.includes(dayIdx)).length;
-                                    const dayTotal = weekHabits.length;
-                                    const pct = dayTotal > 0 ? (dayCompleted / dayTotal) * 100 : 0;
-                                    
-                                    const dayDate = new Date(weekDate);
-                                    dayDate.setDate(dayDate.getDate() + dayIdx);
-                                    const isFuture = dayDate > today;
-                                    
-                                    let bgColor = darkMode ? 'bg-gray-700/50' : 'bg-gray-200/60';
-                                    if (isFuture) {
-                                      bgColor = darkMode ? 'bg-gray-800/30' : 'bg-gray-100/50';
-                                    } else if (pct > 0) {
-                                      bgColor = darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200';
-                                    }
-                                    if (!isFuture && pct >= 40) bgColor = darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300';
-                                    if (!isFuture && pct >= 70) bgColor = darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400';
-                                    if (!isFuture && pct >= 90) bgColor = 'bg-emerald-500';
-                                    
-                                    return (
-                                      <div
-                                        key={dayIdx}
-                                        className={`w-4 h-4 rounded-sm ${bgColor} ${isCurrentWeek && !isFuture ? 'ring-1 ring-blue-400/40' : ''} hover:ring-2 hover:ring-blue-400/50 cursor-pointer transition-all`}
-                                        title={`${day}, ${dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${isFuture ? 'Future' : `${Math.round(pct)}% (${dayCompleted}/${dayTotal})`}`}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                      <div className={`flex items-center justify-center py-8 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
+                        No habit data yet. Start tracking!
                       </div>
                     );
-                  })()}
+                  }
                   
-                  {/* Legend */}
-                  <div className={`flex items-center justify-end gap-1 mt-3 text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
-                    <span>Less</span>
-                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-gray-700/50' : 'bg-gray-200'}`}></div>
-                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200'}`}></div>
-                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300'}`}></div>
-                    <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400'}`}></div>
-                    <div className="w-3 h-3 rounded-sm bg-emerald-500"></div>
-                    <span>More</span>
-                  </div>
-                </div>
-
-                {/* Life Score - Glass */}
-                <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
-                  darkMode 
-                    ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
-                    : 'bg-white/60 border border-white shadow-xl'
-                }`}>
-                  <h3 className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Your Accountability Score</h3>
-                  <div className="flex items-end gap-4">
-                    <div className="relative">
-                      <div className="text-6xl font-bold bg-gradient-to-r from-emerald-500 to-cyan-500 bg-clip-text text-transparent">
-                        {(() => {
-                          const myHabits = habits.filter(h => h.participant === myParticipant);
-                          const completed = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                          const rate = myHabits.length > 0 ? Math.round((completed / myHabits.length) * 100) : 0;
-                          const streakBonus = Math.min((calculateStreaks[myParticipant] || 0) * 2, 20);
-                          const challengeBonus = bets.filter(b => b.status === 'accepted' && (b.challenger === myParticipant || (Array.isArray(b.challenged) ? b.challenged.includes(myParticipant) : b.challenged === myParticipant))).length * 5;
-                          return Math.min(rate + streakBonus + challengeBonus, 100);
-                        })()}%
+                  return (
+                    <div className="flex gap-2">
+                      <div className="flex flex-col gap-1 pt-4">
+                        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                          <div key={i} className={`w-4 h-4 flex items-center justify-center text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
+                            {i % 2 === 0 ? d : ''}
+                          </div>
+                        ))}
                       </div>
-                      <div className="absolute -left-2 bottom-0 w-1 h-full bg-gradient-to-t from-emerald-500/0 via-emerald-500/50 to-emerald-500/0"></div>
+                      
+                      <div className="flex-1 overflow-x-auto">
+                        <div className="flex gap-1">
+                          {weeks.map((week) => {
+                            const weekDate = new Date(week + 'T00:00:00');
+                            const isCurrentWeek = week === currentWeekStr;
+                            
+                            return (
+                              <div key={week} className="flex flex-col gap-1">
+                                {DAYS.map((day, dayIdx) => {
+                                  const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
+                                  const dayCompleted = weekHabits.filter(h => h.daysCompleted?.includes(dayIdx)).length;
+                                  const dayTotal = weekHabits.length;
+                                  const pct = dayTotal > 0 ? (dayCompleted / dayTotal) * 100 : 0;
+                                  
+                                  const dayDate = new Date(weekDate);
+                                  dayDate.setDate(dayDate.getDate() + dayIdx);
+                                  const isFuture = dayDate > today;
+                                  
+                                  let bgColor = darkMode ? 'bg-gray-700/50' : 'bg-gray-200/60';
+                                  if (isFuture) bgColor = darkMode ? 'bg-gray-800/30' : 'bg-gray-100/50';
+                                  else if (pct > 0) bgColor = darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200';
+                                  if (!isFuture && pct >= 40) bgColor = darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300';
+                                  if (!isFuture && pct >= 70) bgColor = darkMode ? 'bg-emerald-500/80' : 'bg-emerald-400';
+                                  if (!isFuture && pct >= 90) bgColor = 'bg-emerald-500';
+                                  
+                                  return (
+                                    <div
+                                      key={dayIdx}
+                                      className={`w-4 h-4 rounded-sm ${bgColor} ${isCurrentWeek && !isFuture ? 'ring-1 ring-blue-400/40' : ''}`}
+                                      title={`${day}: ${isFuture ? 'Future' : `${Math.round(pct)}%`}`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                    <div className={`text-xs pb-2 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
-                      <p>Completion + Streaks + Challenges</p>
-                    </div>
-                  </div>
+                  );
+                })()}
+                
+                <div className={`flex items-center justify-end gap-1 mt-3 text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
+                  <span>Less</span>
+                  <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-gray-700/50' : 'bg-gray-200'}`}></div>
+                  <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-900/60' : 'bg-emerald-200'}`}></div>
+                  <div className={`w-3 h-3 rounded-sm ${darkMode ? 'bg-emerald-700/70' : 'bg-emerald-300'}`}></div>
+                  <div className="w-3 h-3 rounded-sm bg-emerald-500"></div>
+                  <span>More</span>
                 </div>
               </div>
             </div>
 
-            {/* Monthly Progress Bars - Glass */}
-            <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
-              darkMode 
-                ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
-                : 'bg-white/60 border border-white shadow-xl'
-            }`}>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className={`text-xs uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>Your Progress</p>
-                  <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Monthly Trend</h3>
-                </div>
-              </div>
+            {/* Monthly Trend */}
+            <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+              <h3 className={`text-sm font-medium mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Monthly Progress</h3>
               
-              <div className="flex items-end justify-around gap-2 h-48">
+              <div className="flex items-end justify-around gap-2 h-40">
                 {(() => {
                   const months = [];
                   const now = new Date();
                   for (let i = 5; i >= 0; i--) {
                     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                    months.push({
-                      month: d.toLocaleDateString('en-US', { month: 'short' }),
-                      year: d.getFullYear(),
-                      monthNum: d.getMonth()
-                    });
+                    months.push({ month: d.toLocaleDateString('en-US', { month: 'short' }), year: d.getFullYear(), monthNum: d.getMonth() });
                   }
                   
                   return months.map((m, idx) => {
@@ -8959,13 +9065,13 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     return (
                       <div key={idx} className="flex flex-col items-center gap-2 flex-1">
                         <span className={`text-xs font-medium ${darkMode ? 'text-white' : 'text-gray-700'}`}>{rate}%</span>
-                        <div className={`w-full max-w-[40px] rounded-t-lg relative ${darkMode ? 'bg-gray-700/30' : 'bg-gray-200/50'}`} style={{ height: '140px' }}>
+                        <div className={`w-full max-w-[40px] rounded-t-lg relative ${darkMode ? 'bg-gray-700/30' : 'bg-gray-200/50'}`} style={{ height: '100px' }}>
                           <div 
-                            className={`absolute bottom-0 left-0 right-0 rounded-t-lg transition-all duration-500 ${isCurrentMonth ? 'bg-gradient-to-t from-blue-600 to-blue-400' : 'bg-gradient-to-t from-blue-500/70 to-blue-400/70'}`}
+                            className={`absolute bottom-0 left-0 right-0 rounded-t-lg transition-all ${isCurrentMonth ? 'bg-gradient-to-t from-blue-600 to-blue-400' : 'bg-gradient-to-t from-blue-500/70 to-blue-400/70'}`}
                             style={{ height: `${rate}%` }}
-                          ></div>
+                          />
                         </div>
-                        <span className={`text-xs ${isCurrentMonth ? darkMode ? 'text-white font-medium' : 'text-blue-600 font-medium' : darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{m.month}</span>
+                        <span className={`text-xs ${isCurrentMonth ? (darkMode ? 'text-white font-medium' : 'text-blue-600 font-medium') : (darkMode ? 'text-gray-400' : 'text-gray-400')}`}>{m.month}</span>
                       </div>
                     );
                   });
@@ -8973,76 +9079,55 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               </div>
             </div>
 
-            {/* Bottom row - Streaks & Top Habits */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Current Streak - Glass */}
-              <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
-                darkMode 
-                  ? 'bg-orange-500/10 border border-orange-500/20' 
-                  : 'bg-orange-50/80 border border-orange-200/50 shadow-xl'
-              }`}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${darkMode ? 'bg-orange-500/20' : 'bg-orange-100'}`}>
-                    <Flame className="w-6 h-6 text-orange-500" />
-                  </div>
-                  <div>
-                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Current Streak</p>
-                    <p className="text-3xl font-bold text-orange-500">{calculateStreaks[myParticipant] || 0} weeks</p>
-                  </div>
-                </div>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Keep your momentum going! Complete this week to extend your streak.</p>
-              </div>
-
-              {/* Top Performing Habits - Glass */}
-              <div className={`rounded-2xl p-5 backdrop-blur-xl transition-all duration-300 ${
-                darkMode 
-                  ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
-                  : 'bg-white/60 border border-white shadow-xl'
-              }`}>
-                <h3 className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits</h3>
-                <div className="space-y-2">
-                  {(() => {
-                    const habitStats = {};
-                    habits.filter(h => h.participant === myParticipant).forEach(h => {
-                      if (!habitStats[h.habit]) {
-                        habitStats[h.habit] = { habit: h.habit, completed: 0, total: 0 };
-                      }
-                      habitStats[h.habit].total++;
-                      if (['Done', 'Exceeded'].includes(getStatus(h))) {
-                        habitStats[h.habit].completed++;
-                      }
-                    });
-                    
-                    return Object.values(habitStats)
-                      .map(h => ({ ...h, rate: h.total > 0 ? Math.round((h.completed / h.total) * 100) : 0 }))
-                      .sort((a, b) => b.rate - a.rate)
-                      .slice(0, 4)
-                      .map((h, idx) => (
-                        <div key={h.habit} className="flex items-center gap-3">
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            idx === 0 
-                              ? 'bg-yellow-400/20 text-yellow-600' 
-                              : idx === 1 
-                                ? darkMode ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-200 text-gray-600'
-                                : idx === 2 
-                                  ? 'bg-orange-400/20 text-orange-500' 
-                                  : darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+            {/* Top Habits */}
+            <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+              <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(() => {
+                  const habitStats = {};
+                  habits.filter(h => h.participant === myParticipant).forEach(h => {
+                    const normName = getNormalizedHabitName(h.habit);
+                    if (!habitStats[normName]) {
+                      habitStats[normName] = { habit: normName, category: h.category, completed: 0, total: 0 };
+                    }
+                    habitStats[normName].total++;
+                    if (['Done', 'Exceeded'].includes(getStatus(h))) {
+                      habitStats[normName].completed++;
+                    }
+                  });
+                  
+                  return Object.values(habitStats)
+                    .map(h => ({ ...h, rate: h.total > 0 ? Math.round((h.completed / h.total) * 100) : 0 }))
+                    .sort((a, b) => b.rate - a.rate)
+                    .slice(0, 6)
+                    .map((h, idx) => {
+                      const cat = HABIT_CATEGORIES.find(c => c.id === h.category);
+                      return (
+                        <div key={h.habit} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            idx === 0 ? 'bg-yellow-400/20 text-yellow-600' 
+                              : idx === 1 ? (darkMode ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-200 text-gray-600')
+                              : idx === 2 ? 'bg-orange-400/20 text-orange-500' 
+                              : (darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600')
                           }`}>
                             {idx + 1}
                           </span>
-                          <div className="flex-1">
-                            <p className={`text-sm font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</p>
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${h.rate}%` }}></div>
+                              <p className={`text-sm font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</p>
+                              {cat && <span className="text-xs">{cat.icon}</span>}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                <div className={`h-full rounded-full ${h.rate >= 80 ? 'bg-emerald-500' : h.rate >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${h.rate}%` }} />
                               </div>
                               <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{h.rate}%</span>
                             </div>
                           </div>
                         </div>
-                      ));
-                  })()}
-                </div>
+                      );
+                    });
+                })()}
               </div>
             </div>
           </div>
