@@ -3177,116 +3177,186 @@ JSON array only:`
     await setDoc(doc(db, 'habits', habit2.id), { ...habit2, order: order1 });
   };
 
-  // AI Categorize uncategorized habits
+  // AI Categorize uncategorized habits (with rule-based fallback)
   const aiCategorizeHabits = async () => {
     const uncategorized = habits.filter(h => !h.category);
-    if (uncategorized.length === 0) return;
+    if (uncategorized.length === 0) {
+      alert('All habits already have categories!');
+      return;
+    }
     
     setCategorizingHabits(true);
     
-    const habitNames = uncategorized.map(h => h.habit).join('\n');
-    const categories = HABIT_CATEGORIES.map(c => c.id).join(', ');
+    // Rule-based categorization keywords
+    const categoryKeywords = {
+      'Fitness': ['exercise', 'workout', 'gym', 'run', 'walk', 'cardio', 'lift', 'weight', 'stretch', 'yoga', 'sport', 'train', 'swim', 'bike', 'hike', 'steps', 'pushup', 'squat', 'plank', 'fitness', 'active', 'physical'],
+      'Business': ['work', 'meeting', 'email', 'project', 'client', 'business', 'sales', 'marketing', 'network', 'linkedin', 'pitch', 'proposal', 'deadline', 'task', 'productivity', 'focus', 'deep work', 'inbox', 'calls'],
+      'Finance': ['budget', 'save', 'invest', 'money', 'expense', 'track spending', 'finance', 'stock', 'crypto', 'retire', 'debt', 'income', 'bill', 'tax', 'portfolio', 'trade', 'savings'],
+      'Health': ['sleep', 'water', 'vitamin', 'medicine', 'medic', 'doctor', 'health', 'diet', 'eat', 'food', 'meal', 'vegetable', 'fruit', 'calorie', 'fast', 'sugar', 'alcohol', 'smoke', 'weight', 'bmi', 'checkup', 'supplement', 'protein'],
+      'Learning': ['read', 'book', 'study', 'learn', 'course', 'tutorial', 'practice', 'skill', 'language', 'write', 'journal', 'podcast', 'video', 'lesson', 'class', 'education', 'research', 'article', 'news'],
+      'Relationships': ['family', 'friend', 'call mom', 'call dad', 'date', 'spouse', 'wife', 'husband', 'kids', 'children', 'parent', 'social', 'connect', 'relationship', 'love', 'partner', 'text', 'message', 'visit', 'quality time'],
+      'Spiritual': ['pray', 'meditat', 'church', 'bible', 'god', 'spirit', 'faith', 'worship', 'gratitude', 'grateful', 'mindful', 'reflect', 'devotion', 'scripture', 'religious', 'soul', 'peace', 'sermon', 'thankful']
+    };
     
-    const prompt = `Categorize each habit into ONE of these categories: ${categories}
-
-Habits to categorize:
-${habitNames}
-
-Respond with ONLY a JSON array of objects, one per habit in the same order:
-[{"habit": "habit name", "category": "Category"}]
-
-Example:
-[{"habit": "Exercise", "category": "Fitness"}, {"habit": "Read 30 min", "category": "Learning"}]`;
-
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
+    let categorizedCount = 0;
+    
+    for (const habit of uncategorized) {
+      const habitLower = habit.habit.toLowerCase();
+      let matchedCategory = null;
+      let highestScore = 0;
       
-      if (response.ok) {
-        const data = await response.json();
-        const text = data.content[0]?.text || '';
-        try {
-          const results = JSON.parse(text);
-          // Update each habit with its category
-          for (const result of results) {
-            const habit = uncategorized.find(h => h.habit.toLowerCase() === result.habit.toLowerCase());
-            if (habit && HABIT_CATEGORIES.find(c => c.id === result.category)) {
-              await setDoc(doc(db, 'habits', habit.id), { ...habit, category: result.category });
-            }
+      // Check each category for keyword matches
+      for (const [category, keywords] of Object.entries(categoryKeywords)) {
+        let score = 0;
+        for (const keyword of keywords) {
+          if (habitLower.includes(keyword)) {
+            score += keyword.length; // Longer matches = higher score
           }
-        } catch (e) {
-          console.error('Failed to parse AI categorization:', text);
+        }
+        if (score > highestScore) {
+          highestScore = score;
+          matchedCategory = category;
         }
       }
-    } catch (error) {
-      console.error('AI categorization error:', error);
+      
+      // If we found a match, update the habit
+      if (matchedCategory) {
+        try {
+          await setDoc(doc(db, 'habits', habit.id), { ...habit, category: matchedCategory });
+          categorizedCount++;
+        } catch (e) {
+          console.error('Failed to update habit:', habit.id, e);
+        }
+      }
     }
     
     setCategorizingHabits(false);
+    
+    const remaining = uncategorized.length - categorizedCount;
+    if (categorizedCount > 0) {
+      alert(`✅ Categorized ${categorizedCount} habit${categorizedCount > 1 ? 's' : ''}!${remaining > 0 ? `\n\n${remaining} habit${remaining > 1 ? 's' : ''} couldn't be auto-categorized. You can set ${remaining > 1 ? 'them' : 'it'} manually by clicking Edit on each habit.` : ''}`);
+    } else {
+      alert('Could not auto-categorize any habits. Please set categories manually by clicking Edit on each habit.');
+    }
   };
 
-  // AI Normalize similar habits for unified metrics
+  // Normalize similar habits for unified metrics (rule-based)
   const aiNormalizeHabits = async () => {
     const allHabitNames = [...new Set(habits.map(h => h.habit))];
-    if (allHabitNames.length < 2) return;
+    if (allHabitNames.length < 2) {
+      alert('Need at least 2 unique habits to find similarities!');
+      return;
+    }
     
     setNormalizingHabits(true);
     
-    const prompt = `Group these habits by semantic similarity. Habits that are essentially the same thing (like "Exercise" and "Workout", or "Read 15 min" and "Read 30 min") should be in the same group.
-
-Habits:
-${allHabitNames.join('\n')}
-
-Respond with ONLY a JSON object where keys are normalized group names and values are arrays of the original habit names that belong to that group:
-{"Exercise": ["Exercise", "Workout", "Gym session"], "Reading": ["Read 15 min", "Read 30 min", "Reading"]}
-
-Only group habits that are clearly the same activity. Leave unique habits as their own single-item group.`;
-
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
+    // Synonyms/similar words that should be grouped together
+    const synonymGroups = [
+      ['exercise', 'workout', 'gym', 'train', 'physical activity'],
+      ['read', 'reading', 'book'],
+      ['meditate', 'meditation', 'mindfulness', 'mindful'],
+      ['run', 'running', 'jog', 'jogging'],
+      ['walk', 'walking', 'steps', '10k steps', '10000 steps'],
+      ['water', 'hydrate', 'drink water', 'hydration'],
+      ['sleep', 'rest', 'bed'],
+      ['journal', 'journaling', 'write', 'writing', 'diary'],
+      ['pray', 'prayer', 'devotion', 'devotional'],
+      ['study', 'studying', 'learn', 'learning'],
+      ['stretch', 'stretching', 'flexibility'],
+      ['call', 'phone', 'contact'],
+      ['clean', 'cleaning', 'tidy', 'organize'],
+      ['cook', 'cooking', 'meal prep', 'prepare food'],
+      ['save', 'saving', 'budget', 'budgeting'],
+      ['invest', 'investing', 'investment'],
+    ];
+    
+    // Helper to normalize habit name for comparison
+    const normalizeForComparison = (name) => {
+      return name.toLowerCase()
+        .replace(/[0-9]+\s*(min|mins|minutes|hour|hours|hr|hrs|times|x|days|weeks)/gi, '')
+        .replace(/[^a-z\s]/g, '')
+        .trim();
+    };
+    
+    // Helper to get the canonical (shortest, cleanest) name for a group
+    const getCanonicalName = (names) => {
+      // Prefer names without numbers, then shortest
+      const withoutNumbers = names.filter(n => !/\d/.test(n));
+      const pool = withoutNumbers.length > 0 ? withoutNumbers : names;
+      return pool.reduce((a, b) => a.length <= b.length ? a : b);
+    };
+    
+    const groups = {};
+    const assigned = new Set();
+    
+    // First pass: group by synonym matches
+    for (const habitName of allHabitNames) {
+      if (assigned.has(habitName)) continue;
       
-      if (response.ok) {
-        const data = await response.json();
-        const text = data.content[0]?.text || '';
-        try {
-          const groups = JSON.parse(text);
-          setHabitNormGroups(groups);
-          // Save to localStorage for persistence
-          localStorage.setItem('habitNormGroups', JSON.stringify(groups));
-        } catch (e) {
-          console.error('Failed to parse AI normalization:', text);
+      const normalized = normalizeForComparison(habitName);
+      
+      // Check if this habit matches any synonym group
+      for (const synonyms of synonymGroups) {
+        const matches = synonyms.some(syn => 
+          normalized.includes(syn) || syn.includes(normalized)
+        );
+        
+        if (matches) {
+          // Find all habits that match this synonym group
+          const matchingHabits = allHabitNames.filter(h => {
+            const hNorm = normalizeForComparison(h);
+            return synonyms.some(syn => hNorm.includes(syn) || syn.includes(hNorm));
+          });
+          
+          if (matchingHabits.length > 1) {
+            const canonical = getCanonicalName(matchingHabits);
+            // Capitalize first letter
+            const groupName = canonical.charAt(0).toUpperCase() + canonical.slice(1);
+            groups[groupName] = matchingHabits;
+            matchingHabits.forEach(h => assigned.add(h));
+          }
+          break;
         }
       }
-    } catch (error) {
-      console.error('AI normalization error:', error);
+    }
+    
+    // Second pass: group by similar prefixes (first 3+ characters)
+    for (const habitName of allHabitNames) {
+      if (assigned.has(habitName)) continue;
+      
+      const normalized = normalizeForComparison(habitName);
+      if (normalized.length < 3) continue;
+      
+      const prefix = normalized.slice(0, Math.min(5, normalized.length));
+      
+      // Find other habits with similar prefix
+      const similar = allHabitNames.filter(h => {
+        if (assigned.has(h) || h === habitName) return false;
+        const hNorm = normalizeForComparison(h);
+        return hNorm.startsWith(prefix) || prefix.startsWith(hNorm.slice(0, 3));
+      });
+      
+      if (similar.length > 0) {
+        const allInGroup = [habitName, ...similar];
+        const canonical = getCanonicalName(allInGroup);
+        const groupName = canonical.charAt(0).toUpperCase() + canonical.slice(1);
+        groups[groupName] = allInGroup;
+        allInGroup.forEach(h => assigned.add(h));
+      }
     }
     
     setNormalizingHabits(false);
+    
+    const groupCount = Object.keys(groups).length;
+    const habitCount = Object.values(groups).flat().length;
+    
+    if (groupCount > 0) {
+      setHabitNormGroups(groups);
+      localStorage.setItem('habitNormGroups', JSON.stringify(groups));
+      alert(`✅ Found ${groupCount} group${groupCount > 1 ? 's' : ''} of similar habits!\n\n${Object.entries(groups).map(([name, habits]) => `• ${name}: ${habits.join(', ')}`).join('\n')}`);
+    } else {
+      alert('No similar habits found. All your habits appear to be unique!');
+    }
   };
 
   // Get normalized habit name for metrics
