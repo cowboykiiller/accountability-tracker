@@ -8709,8 +8709,13 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             {/* Accountability Grade Card */}
             {(() => {
               // Calculate comprehensive accountability score based on LAST QUARTER (13 weeks)
-              const quarterWeeks = ALL_WEEKS.slice(-13);
-              const myHabits = habits.filter(h => h.participant === myParticipant && quarterWeeks.includes(h.weekStart));
+              // Use date math instead of ALL_WEEKS array for reliability
+              const today = new Date();
+              const thirteenWeeksAgo = new Date(today);
+              thirteenWeeksAgo.setDate(thirteenWeeksAgo.getDate() - (13 * 7));
+              const quarterStartDate = thirteenWeeksAgo.toISOString().split('T')[0];
+              
+              const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= quarterStartDate);
               const totalHabits = myHabits.length;
               const completedHabits = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
               const exceededHabits = myHabits.filter(h => getStatus(h) === 'Exceeded').length;
@@ -8724,7 +8729,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               const streakPoints = Math.min(currentStreak * 3, 15);
               
               // Consistency bonus - based on variance over the quarter (0-10 points)
-              const weeklyRates = quarterWeeks.map(week => {
+              const uniqueWeeks = [...new Set(myHabits.map(h => h.weekStart))].sort();
+              const weeklyRates = uniqueWeeks.map(week => {
                 const weekHabits = myHabits.filter(h => h.weekStart === week);
                 const weekCompleted = weekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
                 return weekHabits.length > 0 ? (weekCompleted / weekHabits.length) * 100 : null;
@@ -8817,8 +8823,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {(() => {
-                  const quarterWeeks = ALL_WEEKS.slice(-13);
-                  const myHabits = habits.filter(h => h.participant === myParticipant && quarterWeeks.includes(h.weekStart));
+                  const today = new Date();
+                  const thirteenWeeksAgo = new Date(today);
+                  thirteenWeeksAgo.setDate(thirteenWeeksAgo.getDate() - (13 * 7));
+                  const quarterStartDate = thirteenWeeksAgo.toISOString().split('T')[0];
+                  const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= quarterStartDate);
                   
                   return HABIT_CATEGORIES.map(cat => {
                     const catHabits = myHabits.filter(h => h.category === cat.id);
@@ -8933,8 +8942,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance (Last Quarter)</h3>
                 <ResponsiveContainer width="100%" height={220}>
                   <RadarChart data={(() => {
-                    const quarterWeeks = ALL_WEEKS.slice(-13);
-                    const myHabits = habits.filter(h => h.participant === myParticipant && quarterWeeks.includes(h.weekStart));
+                    const today = new Date();
+                    const thirteenWeeksAgo = new Date(today);
+                    thirteenWeeksAgo.setDate(thirteenWeeksAgo.getDate() - (13 * 7));
+                    const quarterStartDate = thirteenWeeksAgo.toISOString().split('T')[0];
+                    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= quarterStartDate);
                     return HABIT_CATEGORIES.map(cat => {
                       const catHabits = myHabits.filter(h => h.category === cat.id);
                       const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
@@ -9088,9 +9100,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits (Last Quarter)</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {(() => {
-                  const quarterWeeks = ALL_WEEKS.slice(-13);
+                  const today = new Date();
+                  const thirteenWeeksAgo = new Date(today);
+                  thirteenWeeksAgo.setDate(thirteenWeeksAgo.getDate() - (13 * 7));
+                  const quarterStartDate = thirteenWeeksAgo.toISOString().split('T')[0];
                   const habitStats = {};
-                  habits.filter(h => h.participant === myParticipant && quarterWeeks.includes(h.weekStart)).forEach(h => {
+                  habits.filter(h => h.participant === myParticipant && h.weekStart >= quarterStartDate).forEach(h => {
                     const normName = getNormalizedHabitName(h.habit);
                     if (!habitStats[normName]) {
                       habitStats[normName] = { habit: normName, category: h.category, completed: 0, total: 0 };
