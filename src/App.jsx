@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock, Timer, Play, Pause, RotateCcw, Brain, Repeat, FileText, Coffee, ArrowRight, CheckSquare, Settings, Focus, Inbox, ListTodo, CalendarClock } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar } from 'recharts';
 
 // Firebase imports
@@ -884,10 +884,24 @@ export default function AccountabilityTracker() {
   
   // Tasks state
   const [tasks, setTasks] = useState([]);
-  const [newTask, setNewTask] = useState({ task: '', dueDate: '', priority: 'Medium', category: 'Work' });
+  const [newTask, setNewTask] = useState({ task: '', dueDate: '', priority: 'Medium', category: 'Work', timeSlot: '', timeEstimate: 15, notes: '', recurring: null });
   const [showAddTask, setShowAddTask] = useState(false);
-  const [taskFilter, setTaskFilter] = useState('all'); // all, today, overdue, completed
-  const [editingTask, setEditingTask] = useState(null); // Task being edited
+  const [taskFilter, setTaskFilter] = useState('today'); // all, today, inbox, overdue, completed, scheduled
+  const [editingTask, setEditingTask] = useState(null);
+  
+  // Enhanced task features
+  const [quickTaskInput, setQuickTaskInput] = useState('');
+  const [taskViewMode, setTaskViewMode] = useState('list'); // list, planner, focus
+  const [expandedTask, setExpandedTask] = useState(null);
+  const [pomodoroTask, setPomodoroTask] = useState(null);
+  const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
+  const [pomodoroRunning, setPomodoroRunning] = useState(false);
+  const [showMorningPlanning, setShowMorningPlanning] = useState(false);
+  const [top3Today, setTop3Today] = useState([]); // IDs of top 3 tasks for today
+  const [focusTask, setFocusTask] = useState(null); // Currently focused task
+  const [aiScheduling, setAiScheduling] = useState(false); // AI scheduling in progress
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [taskProductivity, setTaskProductivity] = useState({ tasksCompleted: 0, streak: 0, avgPerDay: 0 });
   
   // Non-Negotiables state - 3 core habits that never change
   const [nonNegotiables, setNonNegotiables] = useState([]);
@@ -3241,6 +3255,309 @@ JSON array only:`
       console.error('Update task error:', error);
     }
   };
+
+  // Quick add task with natural language parsing
+  const quickAddTask = async (taskText, defaultDate = 'today') => {
+    if (!taskText.trim()) return;
+    
+    const today = new Date();
+    let dueDateStr = today.toISOString().split('T')[0];
+    let timeSlot = null;
+    let priority = 'Medium';
+    let cleanText = taskText;
+    
+    // Parse priority (!high, !low, !urgent)
+    if (/!high|!urgent|!important/i.test(taskText)) {
+      priority = 'High';
+      cleanText = cleanText.replace(/!high|!urgent|!important/gi, '').trim();
+    } else if (/!low/i.test(taskText)) {
+      priority = 'Low';
+      cleanText = cleanText.replace(/!low/gi, '').trim();
+    }
+    
+    // Parse date keywords
+    if (/\btomorrow\b/i.test(cleanText)) {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dueDateStr = tomorrow.toISOString().split('T')[0];
+      cleanText = cleanText.replace(/\btomorrow\b/gi, '').trim();
+    } else if (/\btoday\b/i.test(cleanText)) {
+      cleanText = cleanText.replace(/\btoday\b/gi, '').trim();
+    } else if (/\bnext week\b/i.test(cleanText)) {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      dueDateStr = nextWeek.toISOString().split('T')[0];
+      cleanText = cleanText.replace(/\bnext week\b/gi, '').trim();
+    } else if (/\bmonday\b|\btuesday\b|\bwednesday\b|\bthursday\b|\bfriday\b|\bsaturday\b|\bsunday\b/i.test(cleanText)) {
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const match = cleanText.match(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
+      if (match) {
+        const targetDay = days.indexOf(match[1].toLowerCase());
+        const currentDay = today.getDay();
+        let daysUntil = targetDay - currentDay;
+        if (daysUntil <= 0) daysUntil += 7;
+        const targetDate = new Date(today);
+        targetDate.setDate(targetDate.getDate() + daysUntil);
+        dueDateStr = targetDate.toISOString().split('T')[0];
+        cleanText = cleanText.replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, '').trim();
+      }
+    } else if (defaultDate === 'tomorrow') {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dueDateStr = tomorrow.toISOString().split('T')[0];
+    } else if (defaultDate === 'nextweek') {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      dueDateStr = nextWeek.toISOString().split('T')[0];
+    } else if (defaultDate === 'inbox') {
+      dueDateStr = null; // No date = inbox
+    }
+    
+    // Parse time (e.g., "at 3pm", "@ 14:00", "morning", "afternoon", "evening")
+    const timeMatch = cleanText.match(/(?:at |@ ?)(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1]);
+      const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+      const period = timeMatch[3]?.toLowerCase();
+      if (period === 'pm' && hours < 12) hours += 12;
+      if (period === 'am' && hours === 12) hours = 0;
+      timeSlot = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      cleanText = cleanText.replace(/(?:at |@ ?)\d{1,2}(?::\d{2})?\s*(?:am|pm)?/gi, '').trim();
+    } else if (/\bmorning\b/i.test(cleanText)) {
+      timeSlot = '09:00';
+      cleanText = cleanText.replace(/\bmorning\b/gi, '').trim();
+    } else if (/\bafternoon\b/i.test(cleanText)) {
+      timeSlot = '14:00';
+      cleanText = cleanText.replace(/\bafternoon\b/gi, '').trim();
+    } else if (/\bevening\b/i.test(cleanText)) {
+      timeSlot = '18:00';
+      cleanText = cleanText.replace(/\bevening\b/gi, '').trim();
+    }
+    
+    // Clean up extra spaces
+    cleanText = cleanText.replace(/\s+/g, ' ').trim();
+    
+    const taskDoc = {
+      id: `task_${Date.now()}`,
+      task: cleanText,
+      due_date: dueDateStr,
+      time_slot: timeSlot,
+      priority: priority,
+      category: 'Work',
+      status: 'Not Started',
+      created_at: new Date().toISOString(),
+      created_by: user?.uid,
+      participant: userProfile?.linkedParticipant || user?.displayName,
+      notes: '',
+      time_estimate: 15,
+      recurring: null
+    };
+    
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(taskDoc)
+      });
+      
+      if (!response.ok) throw new Error('Failed to add task');
+      
+      fetchTasks();
+      setQuickTaskInput('');
+    } catch (error) {
+      console.error('Quick add task error:', error);
+    }
+  };
+
+  // AI-powered time slot recommendation
+  const getAITimeSlot = async (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    setAiScheduling(true);
+    
+    // Get existing scheduled tasks for the day
+    const taskDate = task.dueDate || new Date().toISOString().split('T')[0];
+    const dayTasks = tasks.filter(t => t.dueDate === taskDate && t.time_slot && t.id !== taskId);
+    const busySlots = dayTasks.map(t => ({ time: t.time_slot, duration: t.time_estimate || 30 }));
+    
+    const prompt = `You are a productivity scheduling assistant. Based on the task and context, recommend the best time slot.
+
+Task: "${task.task}"
+Priority: ${task.priority}
+Estimated duration: ${task.time_estimate || 15} minutes
+Date: ${taskDate}
+Already scheduled tasks: ${busySlots.length > 0 ? busySlots.map(s => `${s.time} (${s.duration}min)`).join(', ') : 'None'}
+
+Consider:
+- High priority tasks should be scheduled during peak focus hours (9-11am or 2-4pm)
+- Creative/complex tasks are best in morning
+- Administrative tasks can be afternoon
+- Avoid scheduling during typical lunch (12-1pm) unless necessary
+- Leave buffer time between tasks
+
+Respond with ONLY a JSON object in this exact format:
+{"time": "HH:MM", "reason": "brief explanation"}
+
+Example: {"time": "09:30", "reason": "High priority task scheduled during morning focus hours"}`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 200,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.content[0]?.text || '';
+        try {
+          const suggestion = JSON.parse(text);
+          if (suggestion.time) {
+            await updateTask(taskId, { time_slot: suggestion.time });
+            alert(`Scheduled for ${suggestion.time}\n\n${suggestion.reason}`);
+          }
+        } catch (e) {
+          console.error('Failed to parse AI response:', text);
+        }
+      }
+    } catch (error) {
+      console.error('AI scheduling error:', error);
+    }
+    
+    setAiScheduling(false);
+  };
+
+  // Reschedule task quickly
+  const rescheduleTask = async (taskId, newDate) => {
+    let dueDateStr;
+    const today = new Date();
+    if (newDate === 'today') {
+      dueDateStr = today.toISOString().split('T')[0];
+    } else if (newDate === 'tomorrow') {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dueDateStr = tomorrow.toISOString().split('T')[0];
+    } else if (newDate === 'nextweek') {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      dueDateStr = nextWeek.toISOString().split('T')[0];
+    } else if (newDate === 'inbox') {
+      dueDateStr = null;
+    } else {
+      dueDateStr = newDate;
+    }
+    
+    await updateTask(taskId, { due_date: dueDateStr, time_slot: null });
+  };
+
+  // Snooze task (defer by time)
+  const snoozeTask = async (taskId, duration) => {
+    const now = new Date();
+    let newTime;
+    
+    if (duration === '1h') {
+      now.setHours(now.getHours() + 1);
+    } else if (duration === '3h') {
+      now.setHours(now.getHours() + 3);
+    } else if (duration === 'tomorrow') {
+      now.setDate(now.getDate() + 1);
+      now.setHours(9, 0, 0, 0);
+    } else if (duration === 'nextweek') {
+      now.setDate(now.getDate() + 7);
+      now.setHours(9, 0, 0, 0);
+    }
+    
+    const dueDateStr = now.toISOString().split('T')[0];
+    const timeSlot = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    
+    await updateTask(taskId, { due_date: dueDateStr, time_slot: timeSlot });
+  };
+
+  // Set task as Top 3 for today
+  const toggleTop3 = (taskId) => {
+    if (top3Today.includes(taskId)) {
+      setTop3Today(top3Today.filter(id => id !== taskId));
+    } else if (top3Today.length < 3) {
+      setTop3Today([...top3Today, taskId]);
+    }
+  };
+
+  // Enter focus mode for a task
+  const enterFocusMode = (taskId) => {
+    setFocusTask(taskId);
+    setTaskViewMode('focus');
+    setPomodoroTask(taskId);
+    setPomodoroTime(25 * 60);
+    setPomodoroRunning(false);
+  };
+
+  // Exit focus mode
+  const exitFocusMode = () => {
+    setFocusTask(null);
+    setTaskViewMode('list');
+    setPomodoroRunning(false);
+  };
+
+  // Create recurring task
+  const createRecurringTask = async (taskData, recurrence) => {
+    const taskDoc = {
+      ...taskData,
+      id: `task_${Date.now()}`,
+      recurring: recurrence, // { frequency: 'daily'|'weekly'|'monthly', days: [0-6] for weekly }
+      created_at: new Date().toISOString(),
+      created_by: user?.uid,
+      participant: userProfile?.linkedParticipant || user?.displayName
+    };
+    
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(taskDoc)
+      });
+      
+      if (!response.ok) throw new Error('Failed to create recurring task');
+      fetchTasks();
+    } catch (error) {
+      console.error('Recurring task error:', error);
+    }
+  };
+
+  // Pomodoro timer effect
+  useEffect(() => {
+    let interval;
+    if (pomodoroRunning && pomodoroTime > 0) {
+      interval = setInterval(() => {
+        setPomodoroTime(prev => prev - 1);
+      }, 1000);
+    } else if (pomodoroTime === 0 && pomodoroRunning) {
+      setPomodoroRunning(false);
+      if (Notification.permission === 'granted') {
+        new Notification('Pomodoro Complete!', { body: 'Time for a break!' });
+      }
+    }
+    return () => clearInterval(interval);
+  }, [pomodoroRunning, pomodoroTime]);
 
   // Non-Negotiables management
   const saveNonNegotiable = async () => {
@@ -6781,547 +7098,519 @@ JSON array only:`
           </div>
         )}
 
-        {/* Tasks View */}
+
+        {/* Enhanced Tasks View */}
         {activeView === 'tasks' && (
           <div className="space-y-4">
-            {/* Productivity Header */}
-            <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-[#1E3A5F] to-[#2D4A6F]'}`}>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  {/* Weekly Progress Ring */}
-                  {(() => {
-                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                    const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-                    const weekStart = new Date();
-                    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
-                    weekStart.setHours(0,0,0,0);
-                    const weekTasks = viewTasks.filter(t => new Date(t.dueDate + 'T00:00:00') >= weekStart);
-                    const completedThisWeek = weekTasks.filter(t => t.status === 'Completed').length;
-                    const totalWeekTasks = weekTasks.length || 1;
-                    const progress = Math.round((completedThisWeek / totalWeekTasks) * 100);
-                    const circumference = 2 * Math.PI * 36;
-                    const offset = circumference - (progress / 100) * circumference;
-                    
-                    return (
-                      <div className="relative">
-                        <svg className="w-20 h-20 transform -rotate-90">
-                          <circle cx="40" cy="40" r="36" stroke="rgba(255,255,255,0.2)" strokeWidth="6" fill="none" />
-                          <circle 
-                            cx="40" cy="40" r="36" 
-                            stroke={progress >= 80 ? '#10B981' : progress >= 50 ? '#F5B800' : '#3B82F6'} 
-                            strokeWidth="6" 
-                            fill="none" 
-                            strokeLinecap="round"
-                            strokeDasharray={circumference}
-                            strokeDashoffset={offset}
-                            className="transition-all duration-500"
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className="text-xl font-bold text-white">{progress}%</span>
-                          <span className="text-[10px] text-white/60">weekly</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  
-                  <div>
-                    <h2 className="text-xl font-bold text-white mb-1">Productivity Hub</h2>
-                    <p className="text-white/60 text-sm">
-                      {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {/* View Toggle */}
-                  <div className="flex gap-1 bg-white/10 rounded-lg p-1">
-                    <button 
-                      onClick={() => setSelectedParticipant(myParticipant)} 
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedParticipant === myParticipant ? 'bg-white text-[#1E3A5F]' : 'text-white/70 hover:text-white'}`}
-                    >
-                      My Tasks
-                    </button>
-                    <button 
-                      onClick={() => setSelectedParticipant('All')} 
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedParticipant === 'All' ? 'bg-white text-[#1E3A5F]' : 'text-white/70 hover:text-white'}`}
-                    >
-                      Team
-                    </button>
-                  </div>
-                  
-                  <button 
-                    onClick={() => setShowAddTask(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#F5B800] text-[#1E3A5F] rounded-xl text-sm font-semibold hover:bg-[#FFD000] transition-colors shadow-lg"
-                  >
-                    <Plus className="w-4 h-4" />
-                    New Task
-                  </button>
-                </div>
-              </div>
-              
-              {/* Quick Stats Row */}
-              {(() => {
-                const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-                const today = new Date().toISOString().split('T')[0];
-                const todayTasks = viewTasks.filter(t => t.dueDate === today);
-                const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
-                const overdueTasks = viewTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
-                const weekStart = new Date();
-                weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
-                const completedThisWeek = viewTasks.filter(t => t.status === 'Completed' && new Date(t.dueDate + 'T00:00:00') >= weekStart).length;
-                
-                return (
-                  <div className="grid grid-cols-4 gap-3 mt-4">
-                    <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
-                      <div className="text-2xl font-bold text-white">{todayTasks.length}</div>
-                      <div className="text-[10px] text-white/60 uppercase tracking-wide">Today</div>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
-                      <div className="text-2xl font-bold text-emerald-400">{todayCompleted}/{todayTasks.length}</div>
-                      <div className="text-[10px] text-white/60 uppercase tracking-wide">Done Today</div>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
-                      <div className={`text-2xl font-bold ${overdueTasks.length > 0 ? 'text-red-400' : 'text-white'}`}>{overdueTasks.length}</div>
-                      <div className="text-[10px] text-white/60 uppercase tracking-wide">Overdue</div>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
-                      <div className="text-2xl font-bold text-[#F5B800]">{completedThisWeek}</div>
-                      <div className="text-[10px] text-white/60 uppercase tracking-wide">This Week</div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Today's Focus Section */}
-            {(() => {
-              const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-              const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-              const today = new Date().toISOString().split('T')[0];
-              const todayPriority = viewTasks
-                .filter(t => t.dueDate === today && t.status !== 'Completed')
-                .sort((a, b) => {
-                  const order = { 'High': 0, 'Medium': 1, 'Low': 2, 'Optional': 3 };
-                  return (order[a.priority] || 2) - (order[b.priority] || 2);
-                })
-                .slice(0, 3);
-              
-              if (todayPriority.length === 0) return null;
+            {/* Focus Mode - Full Screen Single Task */}
+            {taskViewMode === 'focus' && focusTask && (() => {
+              const task = tasks.find(t => t.id === focusTask);
+              if (!task) return null;
               
               return (
-                <div className={`rounded-xl p-4 ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
-                      <Zap className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+                <div className={`fixed inset-0 z-40 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
+                  <div className="h-full flex flex-col items-center justify-center p-6 max-w-2xl mx-auto">
+                    {/* Exit button */}
+                    <button onClick={exitFocusMode} className={`absolute top-4 right-4 p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                      <X className="w-6 h-6" />
+                    </button>
+                    
+                    {/* Focus label */}
+                    <div className={`flex items-center gap-2 mb-8 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                      <Target className="w-5 h-5" />
+                      <span className="text-sm font-semibold uppercase tracking-wider">Focus Mode</span>
                     </div>
-                    <div>
-                      <h3 className={`font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Today's Focus</h3>
-                      <p className={`text-xs ${darkMode ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Your top priorities for today</p>
+                    
+                    {/* Task name */}
+                    <h1 className={`text-3xl md:text-4xl font-bold text-center mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {task.task}
+                    </h1>
+                    
+                    {/* Timer */}
+                    <div className="my-12">
+                      <div className={`text-7xl md:text-8xl font-mono font-bold ${pomodoroRunning ? (darkMode ? 'text-red-400' : 'text-red-600') : (darkMode ? 'text-white' : 'text-gray-900')}`}>
+                        {Math.floor(pomodoroTime / 60).toString().padStart(2, '0')}:{(pomodoroTime % 60).toString().padStart(2, '0')}
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    {todayPriority.map((task, idx) => {
-                      const isMyTask = task.participant === myParticipant;
-                      return (
-                        <div 
-                          key={task.id} 
-                          className={`flex items-center gap-3 p-3 rounded-lg transition-all ${
-                            darkMode ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white hover:shadow-md'
-                          }`}
-                        >
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            idx === 0 ? 'bg-amber-500 text-white' : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                    
+                    {/* Timer controls */}
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => setPomodoroRunning(!pomodoroRunning)}
+                        className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${
+                          pomodoroRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'
+                        } text-white shadow-lg`}>
+                        {pomodoroRunning ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
+                      </button>
+                      <button onClick={() => setPomodoroTime(25 * 60)}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}>
+                        <RotateCcw className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    {/* Preset times */}
+                    <div className="flex gap-2 mt-6">
+                      {[15, 25, 45, 60].map(mins => (
+                        <button key={mins} onClick={() => { setPomodoroTime(mins * 60); setPomodoroRunning(false); }}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                            pomodoroTime === mins * 60 && !pomodoroRunning
+                              ? 'bg-blue-500 text-white'
+                              : darkMode ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}>
-                            {idx + 1}
-                          </span>
-                          <button 
-                            onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
-                            disabled={!isMyTask}
-                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              task.status === 'Completed' 
-                                ? 'bg-emerald-500 border-emerald-500' 
-                                : isMyTask 
-                                  ? `${darkMode ? 'border-gray-500 hover:border-emerald-500' : 'border-gray-300 hover:border-emerald-500'}` 
-                                  : 'border-gray-200 cursor-not-allowed'
-                            }`}
-                          >
-                            {task.status === 'Completed' && <Check className="w-3 h-3 text-white" />}
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${
-                              task.status === 'Completed' 
-                                ? 'line-through text-gray-400' 
-                                : darkMode ? 'text-white' : 'text-gray-800'
-                            }`}>
-                              {task.task}
-                            </p>
-                          </div>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            task.priority === 'High' 
-                              ? 'bg-red-100 text-red-700' 
-                              : task.priority === 'Low' 
-                                ? 'bg-gray-100 text-gray-600' 
-                                : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {task.priority}
-                          </span>
-                        </div>
-                      );
-                    })}
+                          {mins}m
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {/* Complete button */}
+                    <button onClick={() => { updateTaskStatus(task.id, 'Completed'); exitFocusMode(); }}
+                      className="mt-12 px-8 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-lg transition-colors">
+                      <Check className="w-5 h-5 inline mr-2" />
+                      Mark Complete
+                    </button>
                   </div>
                 </div>
               );
             })()}
 
-            {/* Filter Pills */}
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {[
-                { id: 'all', label: 'All', icon: Target },
-                { id: 'today', label: 'Today', icon: Calendar },
-                { id: 'week', label: 'This Week', icon: Clock },
-                { id: 'overdue', label: 'Overdue', icon: AlertCircle },
-                { id: 'completed', label: 'Done', icon: CheckCircle2 }
-              ].map(filter => {
-                const Icon = filter.icon;
-                return (
-                  <button 
-                    key={filter.id}
-                    onClick={() => setTaskFilter(filter.id)} 
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-                      taskFilter === filter.id 
-                        ? darkMode 
-                          ? 'bg-white text-gray-900 shadow-lg' 
-                          : 'bg-[#1E3A5F] text-white shadow-lg' 
-                        : darkMode 
-                          ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' 
-                          : 'bg-white text-gray-600 border border-gray-200 hover:border-[#1E3A5F]'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    {filter.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Task List - Card Based */}
-            <div className="space-y-2">
-              {(() => {
-                const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                const today = new Date().toISOString().split('T')[0];
-                const weekEnd = new Date();
-                weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
-                const weekEndStr = weekEnd.toISOString().split('T')[0];
-                
-                let filteredTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-                
-                if (taskFilter === 'today') {
-                  filteredTasks = filteredTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
-                } else if (taskFilter === 'week') {
-                  filteredTasks = filteredTasks.filter(t => t.dueDate >= today && t.dueDate <= weekEndStr && t.status !== 'Completed');
-                } else if (taskFilter === 'overdue') {
-                  filteredTasks = filteredTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
-                } else if (taskFilter === 'completed') {
-                  filteredTasks = filteredTasks.filter(t => t.status === 'Completed');
-                }
-                
-                // Sort: overdue first, then by priority, then by date
-                filteredTasks.sort((a, b) => {
-                  const aOverdue = a.dueDate < today && a.status !== 'Completed';
-                  const bOverdue = b.dueDate < today && b.status !== 'Completed';
-                  if (aOverdue && !bOverdue) return -1;
-                  if (!aOverdue && bOverdue) return 1;
-                  const order = { 'High': 0, 'Medium': 1, 'Low': 2, 'Optional': 3 };
-                  const priorityDiff = (order[a.priority] || 2) - (order[b.priority] || 2);
-                  if (priorityDiff !== 0) return priorityDiff;
-                  return a.dueDate.localeCompare(b.dueDate);
-                });
-
-                if (filteredTasks.length === 0) {
-                  return (
-                    <div className={`rounded-2xl p-8 text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                      <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                        {taskFilter === 'completed' ? (
-                          <Trophy className={`w-8 h-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                        ) : (
-                          <CheckCircle2 className={`w-8 h-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                        )}
+            {/* Regular Task View (when not in focus mode) */}
+            {taskViewMode !== 'focus' && (
+              <>
+                {/* Quick Add Bar */}
+                <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                  <form onSubmit={(e) => { e.preventDefault(); quickAddTask(quickTaskInput); }} className="p-3">
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          value={quickTaskInput}
+                          onChange={(e) => setQuickTaskInput(e.target.value)}
+                          placeholder='Add task... (e.g., "Call John tomorrow at 3pm !high")'
+                          className={`w-full px-4 py-3 rounded-lg text-sm ${
+                            darkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-800 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]`}
+                        />
                       </div>
-                      <h3 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        {taskFilter === 'completed' ? 'No completed tasks yet' : 'All caught up!'}
-                      </h3>
-                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {taskFilter === 'completed' 
-                          ? 'Complete some tasks to see them here' 
-                          : 'No tasks match this filter. Add a new task to get started.'}
-                      </p>
-                      <button 
-                        onClick={() => setShowAddTask(true)}
-                        className="mt-4 px-4 py-2 bg-[#1E3A5F] text-white rounded-xl text-sm font-medium hover:bg-[#162D4D] transition-colors"
-                      >
-                        <Plus className="w-4 h-4 inline mr-1" />
-                        Add Task
+                      <button type="submit" disabled={!quickTaskInput.trim()}
+                        className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] disabled:opacity-30 transition-colors">
+                        <Plus className="w-5 h-5" />
                       </button>
                     </div>
+                    
+                    {/* Quick date buttons */}
+                    <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
+                      <button type="button" onClick={() => quickAddTask(quickTaskInput, 'today')} disabled={!quickTaskInput.trim()}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                        Today
+                      </button>
+                      <button type="button" onClick={() => quickAddTask(quickTaskInput, 'tomorrow')} disabled={!quickTaskInput.trim()}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-600'}`}>
+                        Tomorrow
+                      </button>
+                      <button type="button" onClick={() => quickAddTask(quickTaskInput, 'nextweek')} disabled={!quickTaskInput.trim()}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                        Next Week
+                      </button>
+                      <button type="button" onClick={() => quickAddTask(quickTaskInput, 'inbox')} disabled={!quickTaskInput.trim()}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                        <Inbox className="w-3 h-3 inline mr-1" /> Inbox
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Stats Row - Compact */}
+                {(() => {
+                  const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                  const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
+                  const today = new Date().toISOString().split('T')[0];
+                  const todayTasks = viewTasks.filter(t => t.dueDate === today);
+                  const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
+                  const overdueTasks = viewTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== 'Completed');
+                  const inboxTasks = viewTasks.filter(t => !t.dueDate && t.status !== 'Completed');
+                  
+                  return (
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                        <p className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}/{todayTasks.length}</p>
+                        <p className={`text-[10px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today</p>
+                      </div>
+                      <div className={`p-3 rounded-xl text-center ${overdueTasks.length > 0 ? (darkMode ? 'bg-red-500/10' : 'bg-red-50') : (darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100')}`}>
+                        <p className={`text-xl font-bold ${overdueTasks.length > 0 ? 'text-red-500' : (darkMode ? 'text-white' : 'text-gray-900')}`}>{overdueTasks.length}</p>
+                        <p className={`text-[10px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Overdue</p>
+                      </div>
+                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                        <p className={`text-xl font-bold ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>{inboxTasks.length}</p>
+                        <p className={`text-[10px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Inbox</p>
+                      </div>
+                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                        <p className={`text-xl font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                          {viewTasks.filter(t => t.status === 'Completed').length}
+                        </p>
+                        <p className={`text-[10px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Done</p>
+                      </div>
+                    </div>
                   );
-                }
+                })()}
 
-                return filteredTasks.map(task => {
-                  const isOverdue = task.dueDate < today && task.status !== 'Completed';
-                  const isToday = task.dueDate === today;
-                  const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG['Medium'];
-                  const categoryCfg = TASK_CATEGORIES.find(c => c.id === task.category) || TASK_CATEGORIES[0];
-                  const isMyTask = task.participant === myParticipant;
-                  const isEditing = editingTask?.id === task.id;
+                {/* Top 3 Today - Morning Planning */}
+                {top3Today.length > 0 && (
+                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20' : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Star className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+                      <span className={`text-sm font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Today's Top 3</span>
+                    </div>
+                    <div className="space-y-2">
+                      {top3Today.map((taskId, idx) => {
+                        const task = tasks.find(t => t.id === taskId);
+                        if (!task) return null;
+                        return (
+                          <div key={taskId} className={`flex items-center gap-3 p-2 rounded-lg ${darkMode ? 'bg-gray-800/50' : 'bg-white/70'}`}>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                              task.status === 'Completed' ? 'bg-green-500 text-white' : 'bg-amber-500 text-white'
+                            }`}>{idx + 1}</span>
+                            <span className={`flex-1 text-sm ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-white' : 'text-gray-800')}`}>
+                              {task.task}
+                            </span>
+                            {task.status !== 'Completed' && (
+                              <button onClick={() => enterFocusMode(taskId)} className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-amber-400' : 'hover:bg-amber-100 text-amber-600'}`}>
+                                <Target className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                  if (isEditing) {
-                    return (
-                      <div key={task.id} className={`rounded-xl p-4 ${darkMode ? 'bg-blue-900/30 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
-                        <div className="space-y-3">
-                          <input
-                            type="text"
-                            value={editingTask.task}
-                            onChange={(e) => setEditingTask({ ...editingTask, task: e.target.value })}
-                            className={`w-full px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} border focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                            placeholder="Task name"
-                            autoFocus
-                          />
-                          <div className="flex flex-wrap gap-2">
-                            <input
-                              type="date"
-                              value={editingTask.dueDate}
-                              onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value })}
-                              className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} border`}
-                            />
-                            <select
-                              value={editingTask.priority}
-                              onChange={(e) => setEditingTask({ ...editingTask, priority: e.target.value })}
-                              className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} border`}
-                            >
-                              <option value="High">🔴 High</option>
-                              <option value="Medium">🟡 Medium</option>
-                              <option value="Low">🟢 Low</option>
-                              <option value="Optional">⚪ Optional</option>
-                            </select>
-                            <select
-                              value={editingTask.category}
-                              onChange={(e) => setEditingTask({ ...editingTask, category: e.target.value })}
-                              className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} border`}
-                            >
-                              {TASK_CATEGORIES.map(cat => (
-                                <option key={cat.id} value={cat.id}>{cat.icon} {cat.id}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => setEditingTask(null)}
-                              className={`px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => updateTask(task.id, {
-                                task: editingTask.task,
-                                due_date: editingTask.dueDate,
-                                priority: editingTask.priority,
-                                status: editingTask.status,
-                                category: editingTask.category
-                              })}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-                            >
-                              Save Changes
-                            </button>
-                          </div>
+                {/* Pomodoro Timer (when active but not in focus mode) */}
+                {pomodoroTask && taskViewMode !== 'focus' && (
+                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Timer className={`w-5 h-5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                        <div>
+                          <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            {tasks.find(t => t.id === pomodoroTask)?.task}
+                          </p>
+                          <p className={`text-2xl font-bold font-mono ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                            {Math.floor(pomodoroTime / 60).toString().padStart(2, '0')}:{(pomodoroTime % 60).toString().padStart(2, '0')}
+                          </p>
                         </div>
                       </div>
-                    );
-                  }
-
-                  return (
-                    <div 
-                      key={task.id} 
-                      className={`group rounded-xl p-4 transition-all ${
-                        task.status === 'Completed'
-                          ? darkMode ? 'bg-gray-800/50 opacity-60' : 'bg-gray-50 opacity-70'
-                          : isOverdue
-                            ? darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
-                            : darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white border border-gray-100 hover:shadow-md hover:border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        {/* Checkbox */}
-                        <button 
-                          onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
-                          disabled={!isMyTask}
-                          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                            task.status === 'Completed' 
-                              ? 'bg-emerald-500 border-emerald-500' 
-                              : isMyTask 
-                                ? `${darkMode ? 'border-gray-500 hover:border-emerald-500 hover:bg-emerald-500/10' : 'border-gray-300 hover:border-emerald-500 hover:bg-emerald-50'}` 
-                                : 'border-gray-200 cursor-not-allowed opacity-50'
-                          }`}
-                        >
-                          {task.status === 'Completed' && <Check className="w-3 h-3 text-white" />}
+                      <div className="flex gap-2">
+                        <button onClick={() => enterFocusMode(pomodoroTask)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-700'}`}>
+                          Focus
                         </button>
-                        
-                        {/* Task Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className={`font-medium ${
-                                task.status === 'Completed' 
-                                  ? 'line-through text-gray-400' 
-                                  : darkMode ? 'text-white' : 'text-gray-800'
-                              }`}>
-                                {task.task}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                {/* Due Date */}
-                                <span className={`inline-flex items-center gap-1 text-xs ${
-                                  isOverdue 
-                                    ? 'text-red-500 font-medium' 
-                                    : isToday 
-                                      ? darkMode ? 'text-amber-400' : 'text-amber-600' 
-                                      : darkMode ? 'text-gray-400' : 'text-gray-500'
-                                }`}>
-                                  <Calendar className="w-3 h-3" />
-                                  {isOverdue && '⚠️ '}
-                                  {isToday ? 'Today' : new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </span>
-                                
-                                {/* Priority Badge */}
-                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
-                                  task.priority === 'High' 
-                                    ? 'bg-red-100 text-red-700' 
-                                    : task.priority === 'Low' 
-                                      ? darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600' 
-                                      : task.priority === 'Optional'
-                                        ? darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-500'
-                                        : 'bg-amber-100 text-amber-700'
-                                }`}>
-                                  {priorityCfg.icon} {task.priority}
-                                </span>
-                                
-                                {/* Category */}
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${categoryCfg.color}`}>
-                                  {categoryCfg.icon} {task.category}
-                                </span>
-                                
-                                {/* Owner (if viewing all) */}
-                                {selectedParticipant === 'All' && (
-                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                    • {task.participant}
-                                  </span>
-                                )}
+                        <button onClick={() => setPomodoroRunning(!pomodoroRunning)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${pomodoroRunning ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'}`}>
+                          {pomodoroRunning ? 'Pause' : 'Start'}
+                        </button>
+                        <button onClick={() => { setPomodoroTask(null); setPomodoroTime(25 * 60); setPomodoroRunning(false); }}
+                          className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-500'}`}>
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Filters */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    {[
+                      { id: 'today', label: 'Today', icon: Calendar },
+                      { id: 'inbox', label: 'Inbox', icon: Inbox },
+                      { id: 'scheduled', label: 'Scheduled', icon: CalendarClock },
+                      { id: 'all', label: 'All', icon: ListTodo },
+                      { id: 'completed', label: 'Done', icon: CheckCircle2 }
+                    ].map(filter => {
+                      const Icon = filter.icon;
+                      return (
+                        <button key={filter.id} onClick={() => setTaskFilter(filter.id)}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                            taskFilter === filter.id
+                              ? darkMode ? 'bg-white text-gray-900' : 'bg-[#1E3A5F] text-white'
+                              : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-600 border border-gray-200'
+                          }`}>
+                          <Icon className="w-3.5 h-3.5" />
+                          {filter.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <div className={`flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <button onClick={() => setSelectedParticipant(myParticipant)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium ${selectedParticipant === myParticipant ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                        Mine
+                      </button>
+                      <button onClick={() => setSelectedParticipant('All')}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium ${selectedParticipant === 'All' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                        All
+                      </button>
+                    </div>
+                    <button onClick={() => setShowAddTask(true)} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white border border-gray-200 text-gray-500'}`}>
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Task List */}
+                <div className="space-y-2">
+                  {(() => {
+                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                    const today = new Date().toISOString().split('T')[0];
+                    
+                    let filteredTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
+                    
+                    if (taskFilter === 'today') {
+                      filteredTasks = filteredTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
+                    } else if (taskFilter === 'inbox') {
+                      filteredTasks = filteredTasks.filter(t => !t.dueDate && t.status !== 'Completed');
+                    } else if (taskFilter === 'scheduled') {
+                      filteredTasks = filteredTasks.filter(t => t.dueDate && t.dueDate >= today && t.status !== 'Completed');
+                    } else if (taskFilter === 'completed') {
+                      filteredTasks = filteredTasks.filter(t => t.status === 'Completed');
+                    } else if (taskFilter === 'all') {
+                      filteredTasks = filteredTasks.filter(t => t.status !== 'Completed');
+                    }
+                    
+                    // Sort by priority then date
+                    filteredTasks.sort((a, b) => {
+                      // Top 3 first
+                      const aIsTop3 = top3Today.includes(a.id);
+                      const bIsTop3 = top3Today.includes(b.id);
+                      if (aIsTop3 && !bIsTop3) return -1;
+                      if (!aIsTop3 && bIsTop3) return 1;
+                      
+                      // Then overdue
+                      const aOverdue = a.dueDate && a.dueDate < today && a.status !== 'Completed';
+                      const bOverdue = b.dueDate && b.dueDate < today && b.status !== 'Completed';
+                      if (aOverdue && !bOverdue) return -1;
+                      if (!aOverdue && bOverdue) return 1;
+                      
+                      // Then priority
+                      const order = { 'High': 0, 'Medium': 1, 'Low': 2 };
+                      const priorityDiff = (order[a.priority] || 1) - (order[b.priority] || 1);
+                      if (priorityDiff !== 0) return priorityDiff;
+                      
+                      // Then time slot
+                      if (a.time_slot && b.time_slot) return a.time_slot.localeCompare(b.time_slot);
+                      if (a.time_slot) return -1;
+                      if (b.time_slot) return 1;
+                      
+                      // Then date
+                      return (a.dueDate || 'z').localeCompare(b.dueDate || 'z');
+                    });
+
+                    if (filteredTasks.length === 0) {
+                      return (
+                        <div className={`rounded-xl p-8 text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                          <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <CheckCircle2 className={`w-7 h-7 ${darkMode ? 'text-green-400' : 'text-green-500'}`} />
+                          </div>
+                          <h3 className={`font-semibold mb-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            {taskFilter === 'completed' ? 'No completed tasks' : taskFilter === 'inbox' ? 'Inbox empty' : 'All clear!'}
+                          </h3>
+                          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {taskFilter === 'today' ? 'No tasks for today. Enjoy!' : 'Use the quick add above to create tasks.'}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return filteredTasks.map(task => {
+                      const isOverdue = task.dueDate && task.dueDate < today && task.status !== 'Completed';
+                      const isToday = task.dueDate === today;
+                      const isMyTask = task.participant === myParticipant;
+                      const isExpanded = expandedTask === task.id;
+                      const isTop3 = top3Today.includes(task.id);
+                      
+                      return (
+                        <div key={task.id} className={`group rounded-xl transition-all ${
+                          task.status === 'Completed'
+                            ? darkMode ? 'bg-gray-800/50 opacity-60' : 'bg-gray-50 opacity-70'
+                            : isTop3
+                              ? darkMode ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
+                              : isOverdue
+                                ? darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
+                                : darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'
+                        }`}>
+                          <div className="p-3 sm:p-4">
+                            <div className="flex items-start gap-3">
+                              {/* Checkbox */}
+                              <button
+                                onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                                disabled={!isMyTask}
+                                className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                  task.status === 'Completed'
+                                    ? 'bg-green-500 border-green-500'
+                                    : isMyTask
+                                      ? `${darkMode ? 'border-gray-500 hover:border-green-500' : 'border-gray-300 hover:border-green-500'}`
+                                      : 'border-gray-200 cursor-not-allowed opacity-50'
+                                }`}
+                              >
+                                {task.status === 'Completed' && <Check className="w-3 h-3 text-white" />}
+                              </button>
+                              
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`font-medium ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-white' : 'text-gray-800')}`}>
+                                      {task.task}
+                                    </p>
+                                    
+                                    {/* Meta info */}
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                      {/* Time slot */}
+                                      {task.time_slot && (
+                                        <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
+                                          <Clock className="w-3 h-3" />
+                                          {task.time_slot}
+                                        </span>
+                                      )}
+                                      
+                                      {/* Date */}
+                                      {task.dueDate && (
+                                        <span className={`inline-flex items-center gap-1 text-xs ${
+                                          isOverdue ? 'text-red-500 font-medium' : isToday ? (darkMode ? 'text-amber-400' : 'text-amber-600') : (darkMode ? 'text-gray-400' : 'text-gray-500')
+                                        }`}>
+                                          <Calendar className="w-3 h-3" />
+                                          {isOverdue && '⚠️ '}
+                                          {isToday ? 'Today' : new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </span>
+                                      )}
+                                      
+                                      {!task.dueDate && (
+                                        <span className={`inline-flex items-center gap-1 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                          <Inbox className="w-3 h-3" /> Inbox
+                                        </span>
+                                      )}
+                                      
+                                      {/* Priority */}
+                                      {task.priority === 'High' && (
+                                        <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                                          🔴 High
+                                        </span>
+                                      )}
+                                      
+                                      {/* Time estimate */}
+                                      {task.time_estimate && (
+                                        <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                          ~{task.time_estimate}m
+                                        </span>
+                                      )}
+                                      
+                                      {/* Recurring */}
+                                      {task.recurring && (
+                                        <Repeat className={`w-3 h-3 ${darkMode ? 'text-purple-400' : 'text-purple-500'}`} />
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Actions - Desktop */}
+                                  {isMyTask && task.status !== 'Completed' && (
+                                    <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      {/* AI Schedule */}
+                                      <button onClick={() => getAITimeSlot(task.id)} disabled={aiScheduling} title="AI suggest time"
+                                        className={`p-1.5 rounded-lg ${aiScheduling ? 'opacity-50' : ''} ${darkMode ? 'hover:bg-purple-500/20 text-purple-400' : 'hover:bg-purple-50 text-purple-500'}`}>
+                                        <Brain className="w-4 h-4" />
+                                      </button>
+                                      
+                                      {/* Top 3 */}
+                                      <button onClick={() => toggleTop3(task.id)} title={isTop3 ? 'Remove from Top 3' : 'Add to Top 3'}
+                                        className={`p-1.5 rounded-lg ${isTop3 ? (darkMode ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600') : (darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400')}`}>
+                                        <Star className={`w-4 h-4 ${isTop3 ? 'fill-current' : ''}`} />
+                                      </button>
+                                      
+                                      {/* Focus */}
+                                      <button onClick={() => enterFocusMode(task.id)} title="Focus mode"
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-blue-500/20 text-blue-400' : 'hover:bg-blue-50 text-blue-500'}`}>
+                                        <Target className="w-4 h-4" />
+                                      </button>
+                                      
+                                      {/* Expand */}
+                                      <button onClick={() => setExpandedTask(isExpanded ? null : task.id)} title="More options"
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}>
+                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                      </button>
+                                      
+                                      {/* Delete */}
+                                      <button onClick={() => deleteTask(task.id)} title="Delete"
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`}>
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Mobile action button */}
+                              {isMyTask && task.status !== 'Completed' && (
+                                <button onClick={() => setExpandedTask(isExpanded ? null : task.id)}
+                                  className={`sm:hidden p-1.5 rounded-lg ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
+                                  {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Expanded Actions */}
+                          {isExpanded && isMyTask && task.status !== 'Completed' && (
+                            <div className={`px-4 pb-4 pt-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                              {/* Quick actions row */}
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                <button onClick={() => enterFocusMode(task.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                                  <Target className="w-3.5 h-3.5" /> Focus
+                                </button>
+                                <button onClick={() => getAITimeSlot(task.id)} disabled={aiScheduling} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-600'}`}>
+                                  <Brain className="w-3.5 h-3.5" /> {aiScheduling ? 'Scheduling...' : 'AI Schedule'}
+                                </button>
+                                <button onClick={() => toggleTop3(task.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${isTop3 ? (darkMode ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600') : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600')}`}>
+                                  <Star className={`w-3.5 h-3.5 ${isTop3 ? 'fill-current' : ''}`} /> {isTop3 ? 'In Top 3' : 'Add to Top 3'}
+                                </button>
+                              </div>
+                              
+                              {/* Reschedule */}
+                              <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Reschedule</p>
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                <button onClick={() => rescheduleTask(task.id, 'today')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>Today</button>
+                                <button onClick={() => rescheduleTask(task.id, 'tomorrow')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>Tomorrow</button>
+                                <button onClick={() => rescheduleTask(task.id, 'nextweek')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>Next Week</button>
+                                <button onClick={() => rescheduleTask(task.id, 'inbox')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>Inbox</button>
+                              </div>
+                              
+                              {/* Snooze */}
+                              <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Snooze</p>
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                <button onClick={() => snoozeTask(task.id, '1h')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>+1 hour</button>
+                                <button onClick={() => snoozeTask(task.id, '3h')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>+3 hours</button>
+                                <button onClick={() => snoozeTask(task.id, 'tomorrow')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>Tomorrow 9am</button>
+                              </div>
+                              
+                              {/* Edit/Delete */}
+                              <div className="flex gap-2 pt-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'}">
+                                <button onClick={() => setEditingTask({ id: task.id, task: task.task, dueDate: task.dueDate || '', priority: task.priority, status: task.status, category: task.category, timeSlot: task.time_slot || '', timeEstimate: task.time_estimate || 15, notes: task.notes || '' })}
+                                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                                  <Edit3 className="w-4 h-4" /> Edit
+                                </button>
+                                <button onClick={() => deleteTask(task.id)}
+                                  className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600'}`}>
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
-                            
-                            {/* Status & Actions */}
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {/* Status Dropdown (if my task and not completed) */}
-                              {isMyTask && task.status !== 'Completed' && (
-                                <select 
-                                  value={task.status}
-                                  onChange={(e) => updateTaskStatus(task.id, e.target.value)}
-                                  className={`text-xs px-2 py-1 rounded-lg border ${
-                                    task.status === 'In Progress' 
-                                      ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                                      : darkMode 
-                                        ? 'bg-gray-700 text-gray-300 border-gray-600' 
-                                        : 'bg-gray-50 text-gray-600 border-gray-200'
-                                  }`}
-                                >
-                                  <option value="Not Started">Not Started</option>
-                                  <option value="In Progress">In Progress</option>
-                                  <option value="Completed">Completed</option>
-                                </select>
-                              )}
-                              
-                              {/* Action Buttons */}
-                              {isMyTask && (
-                                <div className={`flex gap-1 ${task.status === 'Completed' ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-                                  <button 
-                                    onClick={() => setEditingTask({
-                                      id: task.id,
-                                      task: task.task,
-                                      dueDate: task.dueDate,
-                                      priority: task.priority,
-                                      status: task.status,
-                                      category: task.category
-                                    })}
-                                    className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}
-                                    title="Edit task"
-                                  >
-                                    <Edit3 className="w-4 h-4" />
-                                  </button>
-                                  <button 
-                                    onClick={() => deleteTask(task.id)}
-                                    className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-red-900/30 text-gray-400 hover:text-red-400' : 'hover:bg-red-50 text-gray-400 hover:text-red-500'}`}
-                                    title="Delete task"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                          )}
                         </div>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-            
-            {/* Productivity Tips */}
-            {(() => {
-              const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-              const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-              const today = new Date().toISOString().split('T')[0];
-              const overdueTasks = viewTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
-              const highPriorityPending = viewTasks.filter(t => t.priority === 'High' && t.status !== 'Completed');
-              
-              if (overdueTasks.length >= 3) {
-                return (
-                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-orange-900/20 border border-orange-500/30' : 'bg-orange-50 border border-orange-200'}`}>
-                    <div className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${darkMode ? 'bg-orange-500/20' : 'bg-orange-100'}`}>
-                        <AlertCircle className={`w-5 h-5 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`} />
-                      </div>
-                      <div>
-                        <h4 className={`font-semibold ${darkMode ? 'text-orange-300' : 'text-orange-800'}`}>Time to catch up!</h4>
-                        <p className={`text-sm mt-1 ${darkMode ? 'text-orange-400/80' : 'text-orange-700/80'}`}>
-                          You have {overdueTasks.length} overdue tasks. Consider rescheduling or breaking them into smaller tasks.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-              
-              if (highPriorityPending.length >= 5) {
-                return (
-                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-blue-900/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
-                    <div className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${darkMode ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
-                        <Lightbulb className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      </div>
-                      <div>
-                        <h4 className={`font-semibold ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>Pro tip: Prioritize ruthlessly</h4>
-                        <p className={`text-sm mt-1 ${darkMode ? 'text-blue-400/80' : 'text-blue-700/80'}`}>
-                          You have {highPriorityPending.length} high-priority tasks. Consider if any can be lowered to keep your focus sharp.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-              
-              return null;
-            })()}
+                      );
+                    });
+                  })()}
+                </div>
+              </>
+            )}
           </div>
         )}
 
