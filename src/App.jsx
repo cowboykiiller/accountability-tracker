@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar } from 'recharts';
 
 // Firebase imports
@@ -6089,871 +6089,402 @@ JSON array only:`
         )}
 
         {activeView === 'tracker' && (
-          <div className="space-y-3">
-            {/* Non-Negotiables - Pretty highlight at top */}
-            {visionData && (visionData.nonNegotiable1 || visionData.nonNegotiable2 || visionData.nonNegotiable3) && (
-              <div className={`rounded-xl p-3 ${darkMode ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20' : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/60'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Lock className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                  <span className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>Non-Negotiables</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {[visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).map((nn, idx) => {
-                    const nnLower = nn.toLowerCase().trim();
-                    const matchingHabit = currentWeekHabits.find(h => {
-                      if (h.participant !== myParticipant) return false;
-                      const habitLower = (h.habit || '').toLowerCase().trim();
-                      // Exact match
-                      if (habitLower === nnLower) return true;
-                      // Habit starts with non-negotiable or vice versa
-                      const shorter = habitLower.length < nnLower.length ? habitLower : nnLower;
-                      const longer = habitLower.length < nnLower.length ? nnLower : habitLower;
-                      if (longer.startsWith(shorter) && shorter.length >= longer.length * 0.5) return true;
-                      // Check if first significant word matches exactly
-                      const habitFirstWord = habitLower.split(/\s+/)[0];
-                      const nnFirstWord = nnLower.split(/\s+/)[0];
-                      if (habitFirstWord.length > 3 && habitFirstWord === nnFirstWord) {
-                        const habitWords = habitLower.split(/\s+/).filter(w => w.length > 2);
-                        const nnWords = nnLower.split(/\s+/).filter(w => w.length > 2);
-                        const matchCount = habitWords.filter(hw => nnWords.some(nw => nw === hw || nw.includes(hw) || hw.includes(nw))).length;
-                        return matchCount >= 2;
-                      }
-                      return false;
-                    });
-                    const isTracked = !!matchingHabit;
-                    const completedDays = matchingHabit?.daysCompleted?.length || 0;
-                    const target = matchingHabit?.target || 5;
-                    const isComplete = completedDays >= target;
-                    const isMissing = !isTracked;
-                    const today = new Date();
-                    const dayOfWeek = today.getDay();
-                    const dayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                    const isBehind = isTracked && dayIndex >= 3 && completedDays === 0;
-                    
-                    return (
-                      <div 
-                        key={idx}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
-                          isComplete
-                            ? darkMode ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-green-100 text-green-700 border border-green-300'
-                            : isBehind
-                              ? darkMode ? 'bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse' : 'bg-red-100 text-red-700 border border-red-300 animate-pulse'
-                              : isMissing
-                                ? darkMode ? 'bg-gray-500/20 text-gray-400 border border-gray-500/30' : 'bg-gray-100 text-gray-500 border border-gray-300'
-                                : darkMode ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-amber-100 text-amber-700 border border-amber-300'
-                        }`}
-                      >
-                        {isComplete ? (
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        ) : isBehind ? (
-                          <XCircle className="w-3.5 h-3.5" />
-                        ) : isTracked ? (
-                          <span className="text-xs font-bold">{completedDays}/{target}</span>
-                        ) : (
-                          <span className="text-xs">—</span>
-                        )}
-                        <span className="font-medium">{nn}</span>
-                        {isMissing && (
-                          <button
-                            onClick={() => {
-                              setNewHabit({ habit: nn, participant: myParticipant, target: 5, habitType: 'daily' });
-                              setShowAddHabitModal(true);
-                            }}
-                            className={`ml-1 p-0.5 rounded hover:bg-gray-600`}
+          <div className="space-y-4">
+            {(() => {
+              const today = new Date();
+              const dayOfWeek = today.getDay();
+              const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+              const isCurrentWeek = currentWeek === getCurrentMonday();
+              const myHabits = currentWeekHabits.filter(h => h.participant === myParticipant);
+              const dailyHabits = myHabits.filter(h => h.habitType !== 'percentage');
+              const todayCompleted = dailyHabits.filter(h => (h.daysCompleted || []).includes(todayIndex)).length;
+              const todayTotal = dailyHabits.length;
+              const weekCompleted = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+              const weekTarget = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+              const weekPct = weekTarget > 0 ? Math.round((weekCompleted / weekTarget) * 100) : 0;
+              
+              // Non-negotiables check
+              const nonNegotiablesList = visionData ? [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean) : [];
+              const isNonNegotiable = (habit) => {
+                if (!habit || nonNegotiablesList.length === 0) return false;
+                const habitLower = (habit.habit || '').toLowerCase().trim();
+                return nonNegotiablesList.some(nn => {
+                  const nnLower = nn.toLowerCase().trim();
+                  if (habitLower === nnLower) return true;
+                  const shorter = habitLower.length < nnLower.length ? habitLower : nnLower;
+                  const longer = habitLower.length < nnLower.length ? nnLower : habitLower;
+                  return longer.startsWith(shorter) && shorter.length >= longer.length * 0.5;
+                });
+              };
+              
+              return (
+                <>
+                  {/* Week Navigation Bar */}
+                  <div className={`flex items-center justify-between p-2 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                    <div className="flex items-center gap-1">
+                      {DAYS.map((day, i) => {
+                        const dayDate = new Date(currentWeek + 'T00:00:00');
+                        dayDate.setDate(dayDate.getDate() + i);
+                        const isToday = isCurrentWeek && i === todayIndex;
+                        const dayHabits = dailyHabits.filter(h => (h.daysCompleted || []).includes(i));
+                        const dayPct = dailyHabits.length > 0 ? Math.round((dayHabits.length / dailyHabits.length) * 100) : 0;
+                        
+                        return (
+                          <div
+                            key={day}
+                            className={`flex flex-col items-center px-2 py-1.5 rounded-lg transition-all ${
+                              isToday ? darkMode ? 'bg-[#1E3A5F] text-white' : 'bg-[#1E3A5F] text-white' : ''
+                            }`}
                           >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Header with view toggle */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className={`flex gap-1 rounded-xl p-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                <button 
-                  onClick={() => setSelectedParticipant(myParticipant)} 
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    selectedParticipant === myParticipant 
-                      ? darkMode ? 'bg-white/20 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
-                      : darkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}
-                >
-                  My Habits ({currentWeekHabits.filter(h => h.participant === myParticipant).length})
-                </button>
-                <button 
-                  onClick={() => setSelectedParticipant('All')} 
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    selectedParticipant === 'All' 
-                      ? darkMode ? 'bg-white/20 text-white shadow-sm' : 'bg-white text-[#1E3A5F] shadow-sm'
-                      : darkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}
-                >
-                  Team ({currentWeekHabits.length})
-                </button>
-              </div>
-              <button 
-                onClick={() => setShowAddHabitModal(true)} 
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#1E3A5F] text-white rounded-xl text-sm font-medium active:bg-[#162D4D]"
-              >
-                <Plus className="w-4 h-4" />
-                Add
-              </button>
-            </div>
-            
-            {/* Quick Actions Bar */}
-            <div className={`flex flex-wrap gap-2 p-3 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-              {/* Copy from Last Week */}
-              {getPreviousWeekHabits.length > 0 && currentWeekHabits.filter(h => h.participant === myParticipant).length === 0 && (
-                <button
-                  onClick={copyHabitsFromLastWeek}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    darkMode 
-                      ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' 
-                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  }`}
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Copy Last Week ({getPreviousWeekHabits.length})
-                </button>
-              )}
-              
-              {/* Analytics */}
-              <button
-                onClick={() => setShowAnalytics(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  darkMode 
-                    ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
-                    : 'bg-green-100 text-green-700 hover:bg-green-200'
-                }`}
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                Analytics
-              </button>
-              
-              {/* Monthly Report */}
-              <button
-                onClick={() => setShowMonthlyReport(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  darkMode 
-                    ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30' 
-                    : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                Monthly Report
-              </button>
-              
-              {/* Current Streak Display */}
-              {calculateStreaks[myParticipant] > 0 && (
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
-                  darkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-700'
-                }`}>
-                  <Flame className="w-3.5 h-3.5" />
-                  {calculateStreaks[myParticipant]} week streak 🔥
-                </div>
-              )}
-            </div>
-            
-            {/* No habits - Show AI suggestions */}
-            {currentWeekHabits.length === 0 ? (
-              <div className={`rounded-xl p-6 ${darkMode ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' : 'bg-white border border-gray-100'}`}>
-                <div className="text-center mb-6">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-gray-700' : 'bg-[#F5F3E8]'}`}>
-                    <Calendar className={`w-8 h-8 ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`} />
-                  </div>
-                  <h3 className={`text-lg font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Start Your Week Fresh!</h3>
-                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No habits set for this week yet. Get AI suggestions based on your past performance, or add habits manually.</p>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
-                  <button 
-                    onClick={suggestWeeklyHabits}
-                    disabled={weekSuggestLoading}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50"
-                  >
-                    {weekSuggestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    AI Suggest Habits
-                  </button>
-                  <button 
-                    onClick={() => setShowAddHabitModal(true)} 
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Manually
-                  </button>
-                </div>
-                
-                {/* AI Suggestions */}
-                {weekHabitSuggestions.length > 0 && (
-                  <div className="border-t border-gray-100 pt-4">
-                    <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-purple-500" />
-                      AI Suggested Habits
-                    </h4>
-                    <div className="space-y-2">
-                      {weekHabitSuggestions.map((habit, idx) => (
-                        <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${habit.added ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
-                          <div className="flex-1">
-                            <p className={`text-sm font-medium ${habit.added ? 'text-green-700' : 'text-gray-800'}`}>{habit.habit}</p>
-                            <p className="text-xs text-gray-500">{habit.target} times</p>
+                            <span className={`text-[10px] font-semibold uppercase ${
+                              isToday ? 'text-white/80' : darkMode ? 'text-gray-500' : 'text-gray-400'
+                            }`}>{day.slice(0, 1)}</span>
+                            <span className={`text-sm font-bold ${
+                              isToday ? 'text-white' : darkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>{dayDate.getDate()}</span>
+                            {dailyHabits.length > 0 && (
+                              <div className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                                dayPct >= 100 ? 'bg-green-500' : dayPct > 0 ? 'bg-amber-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-200')
+                              }`} />
+                            )}
                           </div>
-                          {habit.added ? (
-                            <span className="flex items-center gap-1 text-green-600 text-sm">
-                              <CheckCircle2 className="w-4 h-4" />
-                              Added!
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => addWeeklyHabit(habit, idx)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm hover:bg-[#162D4D] transition-colors"
-                            >
-                              <Plus className="w-3 h-3" />
-                              Add
-                            </button>
-                          )}
+                        );
+                      })}
+                    </div>
+                    <button 
+                      onClick={() => setShowAddHabitModal(true)} 
+                      className="flex items-center gap-1.5 px-3 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Add Habit</span>
+                    </button>
+                  </div>
+
+                  {/* Progress Summary Cards */}
+                  {myHabits.length > 0 && (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      {/* Today's Progress */}
+                      {isCurrentWeek && (
+                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today</span>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                              todayCompleted === todayTotal && todayTotal > 0 ? 'bg-green-500 text-white' : darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                            }`}>
+                              {todayCompleted === todayTotal && todayTotal > 0 ? (
+                                <CheckCircle2 className="w-4 h-4" />
+                              ) : (
+                                <Target className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <span className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}</span>
+                            <span className={`text-lg mb-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/ {todayTotal}</span>
+                          </div>
+                          <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <div className={`h-full rounded-full transition-all duration-500 ${todayTotal > 0 && todayCompleted === todayTotal ? 'bg-green-500' : 'bg-[#1E3A5F]'}`}
+                              style={{ width: `${todayTotal > 0 ? (todayCompleted / todayTotal) * 100 : 0}%` }} />
+                          </div>
                         </div>
-                      ))}
+                      )}
+                      
+                      {/* Weekly Progress */}
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'} ${!isCurrentWeek ? 'col-span-2' : ''}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>This Week</span>
+                          <div className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                            weekPct >= 100 ? 'bg-green-100 text-green-700' : weekPct >= 70 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                          }`}>{weekPct}%</div>
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <span className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{weekCompleted}</span>
+                          <span className={`text-lg mb-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/ {weekTarget}</span>
+                        </div>
+                        <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                          <div className={`h-full rounded-full transition-all duration-500 ${weekPct >= 100 ? 'bg-green-500' : weekPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                            style={{ width: `${Math.min(weekPct, 100)}%` }} />
+                        </div>
+                      </div>
+                      
+                      {/* Streak */}
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-500/20' : 'bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>Streak</span>
+                          <Flame className={`w-5 h-5 ${darkMode ? 'text-orange-400' : 'text-orange-500'}`} />
+                        </div>
+                        <div className="flex items-end gap-1">
+                          <span className={`text-3xl font-bold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{calculateStreaks[myParticipant] || 0}</span>
+                          <span className={`text-lg mb-1 ${darkMode ? 'text-orange-400/60' : 'text-orange-400'}`}>weeks</span>
+                        </div>
+                      </div>
+                      
+                      {/* Quick Actions */}
+                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                        <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Quick Actions</span>
+                        <div className="flex flex-col gap-1.5 mt-2">
+                          <button onClick={() => setShowAnalytics(true)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-600'}`}>
+                            <BarChart3 className="w-3.5 h-3.5" /> Analytics
+                          </button>
+                          <button onClick={() => setShowMonthlyReport(true)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-600'}`}>
+                            <Calendar className="w-3.5 h-3.5" /> Monthly Report
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* View Toggle & Actions Row */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className={`inline-flex p-1 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <button onClick={() => setSelectedParticipant(myParticipant)} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                        selectedParticipant === myParticipant ? darkMode ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm' : darkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>My Habits</button>
+                      <button onClick={() => setSelectedParticipant('All')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                        selectedParticipant === 'All' ? darkMode ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm' : darkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>Team View</button>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      {getPreviousWeekHabits.length > 0 && myHabits.length === 0 && (
+                        <button onClick={copyHabitsFromLastWeek} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700'}`}>
+                          <RefreshCw className="w-4 h-4" /> Copy Last Week
+                        </button>
+                      )}
+                      <button onClick={suggestWeeklyHabits} disabled={weekSuggestLoading} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-700'}`}>
+                        {weekSuggestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} AI Suggest
+                      </button>
                     </div>
                   </div>
-                )}
+
+                  {/* Past Week Notice */}
+                  {isWeekPast && (
+                    <div className={`flex items-center justify-between p-3 rounded-xl ${
+                      editingPastWeek ? darkMode ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
+                        : darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {editingPastWeek ? <Edit3 className="w-4 h-4 text-amber-500" /> : <Lock className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />}
+                        <span className={`text-sm ${editingPastWeek ? 'text-amber-600 font-medium' : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                          {editingPastWeek ? 'Editing mode active' : 'This week is locked'}
+                        </span>
+                      </div>
+                      <button onClick={() => setEditingPastWeek(!editingPastWeek)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        editingPastWeek ? 'bg-amber-500 text-white' : (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-700 border border-gray-200')
+                      }`}>{editingPastWeek ? 'Done' : 'Edit'}</button>
+                    </div>
+                  )}
+
+                  {/* AI Suggestions Panel */}
+                  {weekHabitSuggestions.length > 0 && (
+                    <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-100'}`}>
+                      <div className={`flex items-center justify-between px-4 py-3 ${darkMode ? 'bg-purple-500/10' : 'bg-purple-100/50'}`}>
+                        <div className="flex items-center gap-2">
+                          <Sparkles className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                          <span className={`font-semibold text-sm ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>AI Suggestions</span>
+                        </div>
+                        <button onClick={() => setWeekHabitSuggestions([])} className={darkMode ? 'text-purple-400' : 'text-purple-500'}><X className="w-4 h-4" /></button>
+                      </div>
+                      <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {weekHabitSuggestions.map((habit, idx) => (
+                          <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${
+                            habit.added ? (darkMode ? 'bg-green-500/20' : 'bg-green-100') : (darkMode ? 'bg-gray-800/50' : 'bg-white')
+                          }`}>
+                            <div className="flex-1 min-w-0 mr-3">
+                              <p className={`font-medium truncate ${habit.added ? 'text-green-600' : (darkMode ? 'text-white' : 'text-gray-800')}`}>{habit.habit}</p>
+                              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{habit.target} days/week</p>
+                            </div>
+                            {habit.added ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : (
+                              <button onClick={() => addWeeklyHabit(habit, idx)} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">Add</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* Habit List */}
+            {currentWeekHabits.filter(h => selectedParticipant === 'All' || h.participant === selectedParticipant).length === 0 ? (
+              <div className={`rounded-2xl p-8 text-center ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                  <Target className={`w-8 h-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                </div>
+                <h3 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Start Your Week</h3>
+                <p className={`text-sm mb-6 max-w-sm mx-auto ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Add habits to track your progress and build consistent routines.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button onClick={() => setShowAddHabitModal(true)} className="px-5 py-2.5 bg-[#1E3A5F] text-white rounded-xl text-sm font-medium">
+                    <Plus className="w-4 h-4 inline mr-2" />Add Habit
+                  </button>
+                  {getPreviousWeekHabits.length > 0 && (
+                    <button onClick={copyHabitsFromLastWeek} className={`px-5 py-2.5 rounded-xl text-sm font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                      <RefreshCw className="w-4 h-4 inline mr-2" />Copy Last Week
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
-                {/* Past week lock banner and edit button */}
-                {isWeekPast && (
-                  <div className={`flex items-center justify-between p-3 rounded-xl mb-2 ${
-                    editingPastWeek 
-                      ? darkMode ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
-                      : darkMode ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' : 'bg-gray-50 border border-gray-200'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      {editingPastWeek ? (
-                        <>
-                          <Edit3 className="w-4 h-4 text-amber-500" />
-                          <span className={`text-sm font-medium ${darkMode ? 'text-amber-400' : 'text-amber-800'}`}>Editing past week</span>
-                        </>
-                      ) : (
-                        <>
-                          <Lock className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-400'}`} />
-                          <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>This week is complete and locked</span>
-                        </>
-                      )}
-                    </div>
-                    <button 
-                      onClick={() => setEditingPastWeek(!editingPastWeek)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        editingPastWeek 
-                          ? 'bg-amber-500 text-white active:bg-amber-600' 
-                          : darkMode ? 'bg-gray-700 text-white active:bg-gray-500' : 'bg-white text-gray-600 border border-gray-300 active:bg-gray-100'
-                      }`}
-                    >
-                      {editingPastWeek ? 'Done Editing' : 'Edit Week'}
-                    </button>
-                  </div>
-                )}
-                
-                {/* AI Suggest button when some habits exist */}
-                <div className="flex justify-end mb-2">
-                  <button 
-                    onClick={suggestWeeklyHabits}
-                    disabled={weekSuggestLoading}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                      darkMode 
-                        ? 'bg-purple-500/20 text-purple-300 active:bg-purple-500/30' 
-                        : 'bg-purple-100 text-purple-700 active:bg-purple-200'
-                    }`}
-                  >
-                    {weekSuggestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    AI Suggest More
-                  </button>
-                </div>
-                
-                {/* AI Suggestions panel */}
-                {weekHabitSuggestions.length > 0 && (
-                  <div className={`rounded-xl p-4 mb-4 ${
-                    darkMode 
-                      ? 'bg-purple-500/10 border border-purple-500/20' 
-                      : 'bg-purple-50 border border-purple-200'
-                  }`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className={`font-semibold flex items-center gap-2 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
-                        <Sparkles className="w-4 h-4" />
-                        AI Suggested Habits
-                      </h4>
-                      <button onClick={() => setWeekHabitSuggestions([])} className={darkMode ? 'text-purple-400' : 'text-purple-400'}>
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {weekHabitSuggestions.map((habit, idx) => (
-                        <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${
-                          habit.added 
-                            ? darkMode ? 'bg-green-500/20' : 'bg-green-100'
-                            : darkMode ? 'bg-gray-800' : 'bg-white'
-                        }`}>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${
-                              habit.added 
-                                ? darkMode ? 'text-green-400' : 'text-green-700'
-                                : darkMode ? 'text-white' : 'text-gray-800'
-                            }`}>{habit.habit}</p>
-                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{habit.target} days</p>
-                          </div>
-                          {habit.added ? (
-                            <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                          ) : (
-                            <button onClick={() => addWeeklyHabit(habit, idx)} className="px-2 py-1 bg-purple-600 text-white rounded text-xs active:bg-purple-700 flex-shrink-0">
-                              Add
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Compact Habit Table - Desktop */}
-                <div className={`hidden md:block rounded-xl border overflow-hidden ${
-                  darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-                }`}>
-                  <table className="w-full">
-                    <thead>
-                      <tr className={`border-b ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-100'}`}>
-                        <th className={`text-left p-2 pl-3 text-xs font-semibold w-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}></th>
-                        <th className={`text-left p-2 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Habit</th>
-                        <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'} w-12`}>Status</th>
-                        {DAYS.map(d => (
-                          <th key={d} className={`text-center p-1 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-500'} w-8`}>{d[0]}</th>
-                        ))}
-                        <th className={`text-center p-2 text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'} w-16`}>Progress</th>
-                        <th className="w-16"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        // Check which habits match non-negotiables - STRICT matching
-                        const nonNegotiablesList = visionData ? [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean) : [];
-                        const isNonNegotiable = (habit) => {
-                          if (!habit || nonNegotiablesList.length === 0) return false;
-                          const habitLower = (habit.habit || '').toLowerCase().trim();
-                          return nonNegotiablesList.some(nn => {
-                            const nnLower = nn.toLowerCase().trim();
-                            // Exact match
-                            if (habitLower === nnLower) return true;
-                            // Habit starts with non-negotiable or vice versa (at least 80% of shorter one)
-                            const shorter = habitLower.length < nnLower.length ? habitLower : nnLower;
-                            const longer = habitLower.length < nnLower.length ? nnLower : habitLower;
-                            if (longer.startsWith(shorter) && shorter.length >= longer.length * 0.5) return true;
-                            // Check if first significant word matches exactly
-                            const habitFirstWord = habitLower.split(/\s+/)[0];
-                            const nnFirstWord = nnLower.split(/\s+/)[0];
-                            if (habitFirstWord.length > 3 && habitFirstWord === nnFirstWord) {
-                              // First word matches, check if at least one more word matches
-                              const habitWords = habitLower.split(/\s+/).filter(w => w.length > 2);
-                              const nnWords = nnLower.split(/\s+/).filter(w => w.length > 2);
-                              const matchCount = habitWords.filter(hw => nnWords.some(nw => nw === hw || nw.includes(hw) || hw.includes(nw))).length;
-                              return matchCount >= 2;
-                            }
-                            return false;
-                          });
-                        };
-                        
-                        // Sort: non-negotiables first (for current user), then by order
-                        const sortedHabits = filteredHabits.sort((a, b) => {
-                          const aIsNN = a.participant === myParticipant && isNonNegotiable(a);
-                          const bIsNN = b.participant === myParticipant && isNonNegotiable(b);
-                          if (aIsNN && !bIsNN) return -1;
-                          if (!aIsNN && bIsNN) return 1;
-                          return (a.order || 0) - (b.order || 0);
-                        });
-                        const myHabitsOnly = sortedHabits.filter(h => h.participant === myParticipant);
-                        
-                        return sortedHabits.map((h, idx) => {
-                          const st = getStatus(h), cfg = STATUS_CONFIG[st];
-                          const isEditing = editingHabit?.id === h.id;
-                          const isMyHabit = h.participant === myParticipant;
-                          const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
-                          const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
-                          const isPercentage = h.habitType === 'percentage';
-                          const instances = h.instances || [];
-                          const successCount = instances.filter(i => i.success).length;
-                          const currentPct = instances.length > 0 ? Math.round((successCount / instances.length) * 100) : 0;
-                          const progressPct = isPercentage 
-                            ? (instances.length > 0 ? Math.round((currentPct / h.target) * 100) : 0)
-                            : (h.target > 0 ? Math.round(((h.daysCompleted || []).length / h.target) * 100) : 0);
-                          const habitIsNN = isMyHabit && isNonNegotiable(h);
-                          
-                          if (isEditing && canEdit) {
-                            return (
-                              <tr key={h.id} className={`border-b ${darkMode ? 'border-gray-600 bg-blue-500/10' : 'border-gray-50 bg-blue-50'}`}>
-                                <td colSpan="11" className="p-3">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <input
-                                      type="text"
-                                      value={editingHabit.habit}
-                                      onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
-                                      className={`flex-1 min-w-[200px] border rounded px-2 py-1 text-sm focus:outline-none ${
-                                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200 focus:border-[#F5B800]'
-                                      }`}
-                                    />
-                                    {isPercentage ? (
-                                      <div className="flex items-center gap-1">
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          max="100"
-                                          value={editingHabit.target}
-                                          onChange={(e) => setEditingHabit({ ...editingHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })}
-                                          className={`w-16 border rounded px-2 py-1 text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'}`}
-                                        />
-                                        <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>%</span>
-                                      </div>
-                                    ) : (
-                                      <select
-                                        value={editingHabit.target}
-                                        onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                                        className={`border rounded px-2 py-1 text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'}`}
-                                      >
-                                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}d</option>)}
-                                      </select>
-                                    )}
-                                    <button onClick={updateHabit} className="px-3 py-1 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600">Save</button>
-                                    <button onClick={() => setEditingHabit(null)} className={`px-3 py-1 rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          }
-                          
-                          return (
-                            <tr key={h.id} className={`border-b ${
-                              habitIsNN 
-                                ? darkMode 
-                                  ? 'border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-500/5' 
-                                  : 'border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/50'
-                                : darkMode ? 'border-gray-700 hover:bg-gray-800' : 'border-gray-50 hover:bg-gray-50'
-                            } ${!isMyHabit ? 'opacity-60' : ''}`}>
-                              {/* Move arrows */}
-                              <td className="p-1 pl-2">
-                                {canEdit && (
-                                  <div className="flex flex-col">
-                                    <button onClick={() => moveHabit(h.id, 'up')} disabled={myHabitIndex === 0} className={`${darkMode ? 'text-gray-300 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'} disabled:opacity-30`}>
-                                      <ChevronUp className="w-3 h-3" />
-                                    </button>
-                                    <button onClick={() => moveHabit(h.id, 'down')} disabled={myHabitIndex === myHabitsOnly.length - 1} className={`${darkMode ? 'text-gray-300 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'} disabled:opacity-30`}>
-                                      <ChevronDown className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
-                              {/* Habit name */}
-                              <td className="p-2">
-                                <div className="flex items-center gap-2">
-                                  {habitIsNN && <Lock className={`w-3 h-3 flex-shrink-0 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />}
-                                  {isPercentage && !habitIsNN && <span className="text-xs">📊</span>}
-                                  <span className={`text-sm font-medium truncate max-w-[200px] ${habitIsNN ? (darkMode ? 'text-amber-300' : 'text-amber-800') : (darkMode ? 'text-white' : 'text-gray-800')}`} title={h.habit}>{h.habit}</span>
-                                  {selectedParticipant === 'All' && (
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'text-gray-300 bg-gray-700' : 'text-gray-400 bg-gray-100'}`}>{h.participant}</span>
-                                  )}
-                                </div>
-                              </td>
-                              {/* Status badge */}
-                              <td className="p-1 text-center">
-                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${darkMode ? cfg.darkBg : cfg.bgColor} ${darkMode ? cfg.darkText : cfg.textColor}`}>{st}</span>
-                              </td>
-                              {/* Day toggles OR Percentage instances */}
-                              {isPercentage ? (
-                                <td colSpan="7" className="p-1">
-                                  <div className="flex items-center gap-1 justify-center flex-wrap">
-                                    {/* Show existing instances */}
-                                    {instances.map((inst, idx) => (
-                                      <button
-                                        key={inst.id}
-                                        onClick={() => canEdit && togglePercentageInstance(h.id, inst.id)}
-                                        onContextMenu={(e) => { e.preventDefault(); canEdit && removePercentageInstance(h.id, inst.id); }}
-                                        disabled={!canEdit}
-                                        title={canEdit ? "Click to toggle, right-click to remove" : ""}
-                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                                          inst.success
-                                            ? 'bg-green-500 text-white hover:bg-green-600'
-                                            : 'bg-red-500 text-white hover:bg-red-600'
-                                        } ${!canEdit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                      >
-                                        {inst.success ? '✓' : '✗'}
-                                      </button>
-                                    ))}
-                                    {/* Add buttons */}
-                                    {canEdit && (
-                                      <div className="flex gap-0.5 ml-1">
-                                        <button
-                                          onClick={() => addPercentageInstance(h.id, true)}
-                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 border-dashed transition-all ${
-                                            darkMode 
-                                              ? 'border-green-500/50 text-green-400 hover:bg-green-500/20' 
-                                              : 'border-green-400 text-green-500 hover:bg-green-50'
-                                          }`}
-                                          title="Add success"
-                                        >
-                                          +
-                                        </button>
-                                        <button
-                                          onClick={() => addPercentageInstance(h.id, false)}
-                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 border-dashed transition-all ${
-                                            darkMode 
-                                              ? 'border-red-500/50 text-red-400 hover:bg-red-500/20' 
-                                              : 'border-red-400 text-red-500 hover:bg-red-50'
-                                          }`}
-                                          title="Add fail"
-                                        >
-                                          +
-                                        </button>
-                                      </div>
-                                    )}
-                                    {/* Show percentage */}
-                                    {instances.length > 0 && (
-                                      <span className={`text-xs ml-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                        {successCount}/{instances.length} = {currentPct}%
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                              ) : (
-                                DAYS.map((d, i) => {
-                                  const isCompleted = (h.daysCompleted || []).includes(i);
-                                  const dayDate = new Date(currentWeek + 'T00:00:00');
-                                  dayDate.setDate(dayDate.getDate() + i);
-                                  const isToday = dayDate.toDateString() === new Date().toDateString();
-                                  
-                                  return (
-                                    <td key={d} className="p-0.5 text-center">
-                                      <button 
-                                        onClick={() => canEdit && toggleDay(h.id, i)} 
-                                        disabled={!canEdit}
-                                        className={`w-6 h-6 rounded border-2 transition-all flex items-center justify-center ${
-                                          isCompleted 
-                                            ? 'bg-green-500 border-green-500 text-white' 
-                                            : isToday
-                                              ? 'border-[#F5B800] bg-amber-50'
-                                              : canEdit 
-                                                ? darkMode ? 'border-gray-600 hover:border-green-400 bg-gray-800' : 'border-gray-300 hover:border-green-400 bg-white'
-                                                : darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
-                                        }`}
-                                      >
-                                        {isCompleted && <Check className="w-4 h-4" />}
-                                      </button>
-                                    </td>
-                                  );
-                                })
-                              )}
-                              {/* Progress */}
-                              <td className="p-1">
-                                <div className="flex items-center gap-1">
-                                  <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                                    <div className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(progressPct, 100)}%` }}></div>
-                                  </div>
-                                  <span className={`text-[10px] w-10 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {isPercentage ? `${currentPct}%` : `${(h.daysCompleted || []).length}/${h.target}`}
-                                  </span>
-                                </div>
-                              </td>
-                              {/* Actions */}
-                              <td className="p-1 pr-2">
-                                {canEdit && (
-                                  <div className="flex gap-0.5">
-                                    <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })} className={`w-6 h-6 rounded ${darkMode ? 'text-blue-400 hover:bg-blue-500/20' : 'text-blue-400 hover:bg-blue-50'}`}>
-                                      <Edit3 className="w-3 h-3 mx-auto" />
-                                    </button>
-                                    <button onClick={() => deleteHabit(h.id)} className={`w-6 h-6 rounded ${darkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-400 hover:bg-red-50'}`}>
-                                      <Trash2 className="w-3 h-3 mx-auto" />
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-                
-                {/* Mobile Card View */}
-                <div className="md:hidden space-y-2">
-                  {(() => {
-                    // Check which habits match non-negotiables - STRICT matching
-                    const nonNegotiablesList = visionData ? [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean) : [];
-                    const isNonNegotiable = (habit) => {
-                      if (!habit || nonNegotiablesList.length === 0) return false;
-                      const habitLower = (habit.habit || '').toLowerCase().trim();
-                      return nonNegotiablesList.some(nn => {
-                        const nnLower = nn.toLowerCase().trim();
-                        // Exact match
-                        if (habitLower === nnLower) return true;
-                        // Habit starts with non-negotiable or vice versa (at least 80% of shorter one)
-                        const shorter = habitLower.length < nnLower.length ? habitLower : nnLower;
-                        const longer = habitLower.length < nnLower.length ? nnLower : habitLower;
-                        if (longer.startsWith(shorter) && shorter.length >= longer.length * 0.5) return true;
-                        // Check if first significant word matches exactly
-                        const habitFirstWord = habitLower.split(/\s+/)[0];
-                        const nnFirstWord = nnLower.split(/\s+/)[0];
-                        if (habitFirstWord.length > 3 && habitFirstWord === nnFirstWord) {
-                          // First word matches, check if at least one more word matches
-                          const habitWords = habitLower.split(/\s+/).filter(w => w.length > 2);
-                          const nnWords = nnLower.split(/\s+/).filter(w => w.length > 2);
-                          const matchCount = habitWords.filter(hw => nnWords.some(nw => nw === hw || nw.includes(hw) || hw.includes(nw))).length;
-                          return matchCount >= 2;
-                        }
-                        return false;
-                      });
-                    };
-                    
-                    // Sort: non-negotiables first (for current user), then by order
-                    const sortedHabits = filteredHabits.sort((a, b) => {
-                      const aIsNN = a.participant === myParticipant && isNonNegotiable(a);
-                      const bIsNN = b.participant === myParticipant && isNonNegotiable(b);
-                      if (aIsNN && !bIsNN) return -1;
-                      if (!aIsNN && bIsNN) return 1;
-                      return (a.order || 0) - (b.order || 0);
+                {(() => {
+                  const today = new Date();
+                  const dayOfWeek = today.getDay();
+                  const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                  const isCurrentWeek = currentWeek === getCurrentMonday();
+                  
+                  const nonNegotiablesList = visionData ? [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean) : [];
+                  const isNonNegotiable = (habit) => {
+                    if (!habit || nonNegotiablesList.length === 0) return false;
+                    const habitLower = (habit.habit || '').toLowerCase().trim();
+                    return nonNegotiablesList.some(nn => {
+                      const nnLower = nn.toLowerCase().trim();
+                      if (habitLower === nnLower) return true;
+                      const shorter = habitLower.length < nnLower.length ? habitLower : nnLower;
+                      const longer = habitLower.length < nnLower.length ? nnLower : habitLower;
+                      return longer.startsWith(shorter) && shorter.length >= longer.length * 0.5;
                     });
-                    const myHabitsOnly = sortedHabits.filter(h => h.participant === myParticipant);
+                  };
+                  
+                  const sortedHabits = filteredHabits.sort((a, b) => {
+                    const aIsNN = a.participant === myParticipant && isNonNegotiable(a);
+                    const bIsNN = b.participant === myParticipant && isNonNegotiable(b);
+                    if (aIsNN && !bIsNN) return -1;
+                    if (!aIsNN && bIsNN) return 1;
+                    return (a.order || 0) - (b.order || 0);
+                  });
+                  
+                  return sortedHabits.map((h) => {
+                    const isMyHabit = h.participant === myParticipant;
+                    const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
+                    const isPercentage = h.habitType === 'percentage';
+                    const instances = h.instances || [];
+                    const successCount = instances.filter(i => i.success).length;
+                    const currentPct = instances.length > 0 ? Math.round((successCount / instances.length) * 100) : 0;
+                    const daysCompleted = h.daysCompleted || [];
+                    const target = h.target || 5;
+                    const progress = isPercentage ? (instances.length > 0 ? Math.round((currentPct / target) * 100) : 0) : Math.round((daysCompleted.length / target) * 100);
+                    const isComplete = progress >= 100;
+                    const habitIsNN = isMyHabit && isNonNegotiable(h);
+                    const isEditing = editingHabit?.id === h.id;
+                    const isTodayComplete = daysCompleted.includes(todayIndex);
                     
-                    return sortedHabits.map((h, idx) => {
-                      const st = getStatus(h), cfg = STATUS_CONFIG[st];
-                      const isEditing = editingHabit?.id === h.id;
-                      const isMyHabit = h.participant === myParticipant;
-                      const canEdit = isMyHabit && (!isWeekPast || editingPastWeek);
-                      const myHabitIndex = myHabitsOnly.findIndex(mh => mh.id === h.id);
-                      const isPercentage = h.habitType === 'percentage';
-                      const instances = h.instances || [];
-                      const successCount = instances.filter(i => i.success).length;
-                      const currentPct = instances.length > 0 ? Math.round((successCount / instances.length) * 100) : 0;
-                      const progressPct = isPercentage 
-                        ? (instances.length > 0 ? Math.round((currentPct / h.target) * 100) : 0)
-                        : (h.target > 0 ? Math.round(((h.daysCompleted || []).length / h.target) * 100) : 0);
-                      const habitIsNN = isMyHabit && isNonNegotiable(h);
-                      
-                      if (isEditing && canEdit) {
-                        return (
-                          <div key={h.id} className={`rounded-xl p-4 ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-200'}`}>
-                            <input
-                              type="text"
-                              value={editingHabit.habit}
-                              onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
-                              className={`w-full rounded-lg px-3 py-2 text-sm mb-2 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'} border focus:outline-none`}
-                            />
-                            <div className="flex items-center gap-2">
-                              {isPercentage ? (
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    max="100"
-                                    value={editingHabit.target}
-                                    onChange={(e) => setEditingHabit({ ...editingHabit, target: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) })}
-                                    className={`w-16 rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'} border`}
-                                  />
-                                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>% target</span>
-                                </div>
-                              ) : (
-                                <select
-                                  value={editingHabit.target}
-                                  onChange={(e) => setEditingHabit({ ...editingHabit, target: e.target.value })}
-                                  className={`rounded-lg px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200'} border`}
-                                >
-                                  {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} times</option>)}
-                                </select>
-                              )}
-                              <button onClick={updateHabit} className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium">Save</button>
-                              <button onClick={() => setEditingHabit(null)} className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-600'}`}>Cancel</button>
-                            </div>
-                          </div>
-                        );
-                      }
-                      
+                    if (isEditing && canEdit) {
                       return (
-                        <div 
-                          key={h.id} 
-                          className={`rounded-xl p-3 transition-colors ${
-                            habitIsNN
-                              ? darkMode 
-                                ? 'bg-gradient-to-r from-amber-500/15 to-orange-500/10 border border-amber-500/30'
-                                : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'
-                              : darkMode 
-                                ? `bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 ${!isMyHabit ? 'opacity-50' : ''}` 
-                                : `bg-white border border-gray-100 ${!isMyHabit ? 'opacity-60' : ''}`
-                          }`}
-                        >
-                          {/* Header row: Habit name + Status */}
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1">
-                                {habitIsNN && <Lock className={`w-3.5 h-3.5 flex-shrink-0 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />}
-                                {isPercentage && !habitIsNN && <span className="text-xs">📊</span>}
-                                <p className={`text-sm font-medium ${habitIsNN ? (darkMode ? 'text-amber-300' : 'text-amber-800') : (darkMode ? 'text-white' : 'text-gray-800')}`}>{h.habit}</p>
-                              </div>
-                              {selectedParticipant === 'All' && (
-                                <span className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{h.participant}</span>
-                              )}
+                        <div key={h.id} className={`rounded-xl p-4 ${darkMode ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <input type="text" value={editingHabit.habit} onChange={(e) => setEditingHabit({ ...editingHabit, habit: e.target.value })}
+                              className={`flex-1 px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500`} />
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target:</span>
+                              <input type="number" value={editingHabit.target} onChange={(e) => setEditingHabit({ ...editingHabit, target: parseInt(e.target.value) || 1 })}
+                                className={`w-16 px-2 py-2 rounded-lg text-sm text-center ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-200'} border`} min="1" max="7" />
                             </div>
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${darkMode ? cfg.darkBg : cfg.bgColor} ${darkMode ? cfg.darkText : cfg.textColor}`}>
-                              {st}
-                            </span>
+                            <div className="flex gap-2">
+                              <button onClick={() => { updateHabit(h.id, editingHabit.habit, editingHabit.target); setEditingHabit(null); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Save</button>
+                              <button onClick={() => setEditingHabit(null)} className={`px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-700'}`}>Cancel</button>
+                            </div>
                           </div>
-                          
-                          {/* Days row OR Percentage instances */}
-                          {isPercentage ? (
-                            <div className={`py-3 mb-2 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
-                              {/* Instance circles */}
-                              <div className="flex items-center justify-center gap-2 flex-wrap px-2 mb-2">
-                                {instances.map((inst) => (
-                                  <button
-                                    key={inst.id}
-                                    onClick={() => canEdit && togglePercentageInstance(h.id, inst.id)}
-                                    disabled={!canEdit}
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                                      inst.success
-                                        ? 'bg-green-500 text-white active:bg-green-600'
-                                        : 'bg-red-500 text-white active:bg-red-600'
-                                    } ${!canEdit ? 'opacity-50' : ''}`}
-                                    onContextMenu={(e) => { e.preventDefault(); canEdit && removePercentageInstance(h.id, inst.id); }}
-                                  >
-                                    {inst.success ? '✓' : '✗'}
-                                  </button>
-                                ))}
-                                {instances.length === 0 && (
-                                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
-                                    No entries yet
-                                  </span>
-                                )}
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div key={h.id} className={`group rounded-xl transition-all ${
+                        darkMode ? `bg-gray-800 ${habitIsNN ? 'ring-1 ring-amber-500/30' : 'hover:bg-gray-750'}` : `bg-white border ${habitIsNN ? 'border-amber-200 bg-amber-50/30' : 'border-gray-100 hover:border-gray-200'}`
+                      }`}>
+                        <div className="p-4">
+                          {/* Top Row: Habit info + Quick toggle for today */}
+                          <div className="flex items-center gap-3 mb-3">
+                            {/* Today's quick toggle */}
+                            {isCurrentWeek && !isPercentage && (
+                              <button onClick={() => canEdit && toggleDay(h.id, todayIndex)} disabled={!canEdit}
+                                className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
+                                  isTodayComplete ? 'bg-green-500 text-white shadow-lg shadow-green-500/25' : darkMode ? `bg-gray-700 ${canEdit ? 'hover:bg-gray-600' : ''}` : `bg-gray-100 ${canEdit ? 'hover:bg-gray-200' : ''}`
+                                }`}>
+                                {isTodayComplete ? <Check className="w-5 h-5" /> : <span className={`text-lg font-bold ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{DAYS[todayIndex]?.slice(0,1)}</span>}
+                              </button>
+                            )}
+                            
+                            {/* Habit name and meta */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className={`font-semibold truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</h3>
+                                {habitIsNN && <Lock className={`w-3.5 h-3.5 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`} />}
+                                {!isMyHabit && <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>{h.participant}</span>}
                               </div>
-                              
-                              {/* Add buttons + Stats */}
-                              <div className="flex items-center justify-between px-3">
-                                {canEdit ? (
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => addPercentageInstance(h.id, true)}
-                                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                                        darkMode 
-                                          ? 'bg-green-500/20 text-green-400 active:bg-green-500/30' 
-                                          : 'bg-green-100 text-green-600 active:bg-green-200'
-                                      }`}
-                                    >
-                                      <Plus className="w-3 h-3" /> Success
-                                    </button>
-                                    <button
-                                      onClick={() => addPercentageInstance(h.id, false)}
-                                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                                        darkMode 
-                                          ? 'bg-red-500/20 text-red-400 active:bg-red-500/30' 
-                                          : 'bg-red-100 text-red-600 active:bg-red-200'
-                                      }`}
-                                    >
-                                      <Plus className="w-3 h-3" /> Fail
-                                    </button>
-                                  </div>
-                                ) : <div />}
-                                {instances.length > 0 && (
-                                  <div className={`text-sm font-medium ${
-                                    currentPct >= h.target ? 'text-green-500' : currentPct >= h.target * 0.75 ? 'text-blue-500' : 'text-amber-500'
-                                  }`}>
-                                    {successCount}/{instances.length} = {currentPct}%
-                                  </div>
-                                )}
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {isPercentage ? `${currentPct}% of ${target}%` : `${daysCompleted.length}/${target} days`}
+                                </span>
+                                <div className={`flex-1 max-w-[120px] h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                                  <div className={`h-full rounded-full transition-all ${isComplete ? 'bg-green-500' : progress >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                    style={{ width: `${Math.min(progress, 100)}%` }} />
+                                </div>
                               </div>
-                              
-                              {/* Long press hint */}
-                              {canEdit && instances.length > 0 && (
-                                <p className={`text-[10px] text-center mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-400'}`}>
-                                  Tap to toggle • Long press to remove
-                                </p>
-                              )}
                             </div>
-                          ) : (
-                            <div className="flex items-center justify-between gap-1 mb-2">
-                              {DAYS.map((d, i) => {
-                                const isCompleted = (h.daysCompleted || []).includes(i);
-                                const dayDate = new Date(currentWeek + 'T00:00:00');
-                                dayDate.setDate(dayDate.getDate() + i);
-                                const isToday = dayDate.toDateString() === new Date().toDateString();
-                                
-                                return (
-                                  <button
-                                    key={d}
-                                    onClick={() => canEdit && toggleDay(h.id, i)}
-                                    disabled={!canEdit}
-                                    className={`flex-1 flex flex-col items-center py-1.5 rounded-lg transition-all ${
-                                      isCompleted 
-                                        ? 'bg-green-500 text-white' 
-                                        : isToday
-                                          ? darkMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-amber-50 border border-amber-300'
-                                          : darkMode 
-                                            ? canEdit ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20 active:bg-gray-700' : 'bg-gray-800 border border-gray-700'
-                                            : canEdit ? 'bg-gray-50 border border-gray-200 active:bg-gray-100' : 'bg-gray-50 border border-gray-100'
-                                    }`}
-                                  >
-                                    <span className={`text-[10px] font-medium ${
-                                      isCompleted ? 'text-white' : isToday ? 'text-amber-600' : darkMode ? 'text-gray-400' : 'text-gray-400'
-                                    }`}>
-                                      {d[0]}
-                                    </span>
-                                    {isCompleted ? (
-                                      <Check className="w-4 h-4" />
-                                    ) : (
-                                      <div className={`w-4 h-4 rounded-full border-2 ${
-                                        isToday ? 'border-amber-400' : darkMode ? 'border-gray-600' : 'border-gray-300'
-                                      }`} />
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          
-                          {/* Footer: Progress + Actions */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className={`flex-1 h-1.5 rounded-full overflow-hidden max-w-[120px] ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                                <div 
-                                  className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`} 
-                                  style={{ width: `${Math.min(progressPct, 100)}%` }}
-                                />
-                              </div>
-                              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
-                                {isPercentage ? (instances.length > 0 ? `${currentPct}% of ${h.target}%` : `Target: ${h.target}%`) : `${(h.daysCompleted || []).length}/${h.target}`}
-                              </span>
-                            </div>
+                            
+                            {/* Actions */}
                             {canEdit && (
-                              <div className="flex gap-1">
-                                <button 
-                                  onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })} 
-                                  className={`p-2 rounded-lg ${darkMode ? 'text-blue-400 active:bg-blue-500/20' : 'text-blue-500 active:bg-blue-50'}`}
-                                >
+                              <div className={`flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
+                                <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target })} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
                                   <Edit3 className="w-4 h-4" />
                                 </button>
-                                <button 
-                                  onClick={() => deleteHabit(h.id)} 
-                                  className={`p-2 rounded-lg ${darkMode ? 'text-red-400 active:bg-red-500/20' : 'text-red-500 active:bg-red-50'}`}
-                                >
+                                <button onClick={() => deleteHabit(h.id)} className={`p-2 rounded-lg ${darkMode ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`}>
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
                             )}
                           </div>
+                          
+                          {/* Day buttons grid */}
+                          {isPercentage ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {instances.map((inst, idx) => (
+                                <button key={idx} onClick={() => canEdit && toggleInstance(h.id, idx)} onContextMenu={(e) => { e.preventDefault(); canEdit && removeInstance(h.id, idx); }} disabled={!canEdit}
+                                  className={`w-8 h-8 rounded-lg text-sm font-medium ${inst.success ? 'bg-green-500 text-white' : 'bg-red-500 text-white'} ${canEdit ? 'hover:opacity-80' : ''}`}>
+                                  {inst.success ? '✓' : '✗'}
+                                </button>
+                              ))}
+                              {canEdit && (
+                                <>
+                                  <button onClick={() => addPercentageInstance(h.id, true)} className={`w-8 h-8 rounded-lg border-2 border-dashed flex items-center justify-center ${darkMode ? 'border-green-500/50 text-green-400 hover:bg-green-500/10' : 'border-green-400 text-green-500 hover:bg-green-50'}`}><Plus className="w-4 h-4" /></button>
+                                  <button onClick={() => addPercentageInstance(h.id, false)} className={`w-8 h-8 rounded-lg border-2 border-dashed flex items-center justify-center ${darkMode ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : 'border-red-400 text-red-500 hover:bg-red-50'}`}><Plus className="w-4 h-4" /></button>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-7 gap-1.5">
+                              {DAYS.map((day, i) => {
+                                const isCompleted = daysCompleted.includes(i);
+                                const dayDate = new Date(currentWeek + 'T00:00:00');
+                                dayDate.setDate(dayDate.getDate() + i);
+                                const isToday = dayDate.toDateString() === new Date().toDateString() && isCurrentWeek;
+                                
+                                return (
+                                  <button key={day} onClick={() => canEdit && toggleDay(h.id, i)} disabled={!canEdit}
+                                    className={`relative py-2 rounded-lg transition-all flex flex-col items-center ${
+                                      isCompleted ? 'bg-green-500 text-white' : isToday ? darkMode ? 'bg-[#1E3A5F]/30 border border-[#1E3A5F]' : 'bg-[#1E3A5F]/10 border border-[#1E3A5F]/30'
+                                        : darkMode ? `bg-gray-700/50 ${canEdit ? 'hover:bg-gray-700' : ''}` : `bg-gray-50 ${canEdit ? 'hover:bg-gray-100' : ''}`
+                                    }`}>
+                                    <span className={`text-[10px] font-semibold ${isCompleted ? 'text-white/70' : isToday ? 'text-[#1E3A5F]' : (darkMode ? 'text-gray-500' : 'text-gray-400')}`}>{day.slice(0, 3)}</span>
+                                    {isCompleted ? <Check className="w-4 h-4 mt-0.5" /> : <div className={`w-4 h-4 mt-0.5 rounded-full border-2 ${isToday ? 'border-[#1E3A5F]/50' : (darkMode ? 'border-gray-600' : 'border-gray-300')}`} />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      );
-                    });
-                  })()}
-                </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
         )}
-
         {/* Monthly Habit Grid View */}
         {activeView === 'monthly' && (
           <div className="space-y-4">
@@ -7252,314 +6783,545 @@ JSON array only:`
 
         {/* Tasks View */}
         {activeView === 'tasks' && (
-          <div className="space-y-3">
-            {/* Header with view toggle */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-bold text-gray-800">Tasks</h2>
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="space-y-4">
+            {/* Productivity Header */}
+            <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-[#1E3A5F] to-[#2D4A6F]'}`}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  {/* Weekly Progress Ring */}
+                  {(() => {
+                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                    const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
+                    const weekStart = new Date();
+                    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
+                    weekStart.setHours(0,0,0,0);
+                    const weekTasks = viewTasks.filter(t => new Date(t.dueDate + 'T00:00:00') >= weekStart);
+                    const completedThisWeek = weekTasks.filter(t => t.status === 'Completed').length;
+                    const totalWeekTasks = weekTasks.length || 1;
+                    const progress = Math.round((completedThisWeek / totalWeekTasks) * 100);
+                    const circumference = 2 * Math.PI * 36;
+                    const offset = circumference - (progress / 100) * circumference;
+                    
+                    return (
+                      <div className="relative">
+                        <svg className="w-20 h-20 transform -rotate-90">
+                          <circle cx="40" cy="40" r="36" stroke="rgba(255,255,255,0.2)" strokeWidth="6" fill="none" />
+                          <circle 
+                            cx="40" cy="40" r="36" 
+                            stroke={progress >= 80 ? '#10B981' : progress >= 50 ? '#F5B800' : '#3B82F6'} 
+                            strokeWidth="6" 
+                            fill="none" 
+                            strokeLinecap="round"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={offset}
+                            className="transition-all duration-500"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-xl font-bold text-white">{progress}%</span>
+                          <span className="text-[10px] text-white/60">weekly</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
+                  <div>
+                    <h2 className="text-xl font-bold text-white mb-1">Productivity Hub</h2>
+                    <p className="text-white/60 text-sm">
+                      {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {/* View Toggle */}
+                  <div className="flex gap-1 bg-white/10 rounded-lg p-1">
+                    <button 
+                      onClick={() => setSelectedParticipant(myParticipant)} 
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedParticipant === myParticipant ? 'bg-white text-[#1E3A5F]' : 'text-white/70 hover:text-white'}`}
+                    >
+                      My Tasks
+                    </button>
+                    <button 
+                      onClick={() => setSelectedParticipant('All')} 
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedParticipant === 'All' ? 'bg-white text-[#1E3A5F]' : 'text-white/70 hover:text-white'}`}
+                    >
+                      Team
+                    </button>
+                  </div>
+                  
                   <button 
-                    onClick={() => setSelectedParticipant(myParticipant)} 
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${selectedParticipant === myParticipant ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
+                    onClick={() => setShowAddTask(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[#F5B800] text-[#1E3A5F] rounded-xl text-sm font-semibold hover:bg-[#FFD000] transition-colors shadow-lg"
                   >
-                    My Tasks
-                  </button>
-                  <button 
-                    onClick={() => setSelectedParticipant('All')} 
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${selectedParticipant === 'All' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
-                  >
-                    Team
+                    <Plus className="w-4 h-4" />
+                    New Task
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={fetchTasks}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  Sync
-                </button>
-                <button 
-                  onClick={() => setShowAddTask(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]"
-                >
-                  <Plus className="w-3 h-3" />
-                  Add Task
-                </button>
-              </div>
+              
+              {/* Quick Stats Row */}
+              {(() => {
+                const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
+                const today = new Date().toISOString().split('T')[0];
+                const todayTasks = viewTasks.filter(t => t.dueDate === today);
+                const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
+                const overdueTasks = viewTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
+                const weekStart = new Date();
+                weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
+                const completedThisWeek = viewTasks.filter(t => t.status === 'Completed' && new Date(t.dueDate + 'T00:00:00') >= weekStart).length;
+                
+                return (
+                  <div className="grid grid-cols-4 gap-3 mt-4">
+                    <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-white">{todayTasks.length}</div>
+                      <div className="text-[10px] text-white/60 uppercase tracking-wide">Today</div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-emerald-400">{todayCompleted}/{todayTasks.length}</div>
+                      <div className="text-[10px] text-white/60 uppercase tracking-wide">Done Today</div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
+                      <div className={`text-2xl font-bold ${overdueTasks.length > 0 ? 'text-red-400' : 'text-white'}`}>{overdueTasks.length}</div>
+                      <div className="text-[10px] text-white/60 uppercase tracking-wide">Overdue</div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-[#F5B800]">{completedThisWeek}</div>
+                      <div className="text-[10px] text-white/60 uppercase tracking-wide">This Week</div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
-            {/* Stats Cards */}
+            {/* Today's Focus Section */}
             {(() => {
               const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
               const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
               const today = new Date().toISOString().split('T')[0];
-              const todayTasks = viewTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
-              const overdueTasks = viewTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
-              const completedTasks = viewTasks.filter(t => t.status === 'Completed');
+              const todayPriority = viewTasks
+                .filter(t => t.dueDate === today && t.status !== 'Completed')
+                .sort((a, b) => {
+                  const order = { 'High': 0, 'Medium': 1, 'Low': 2, 'Optional': 3 };
+                  return (order[a.priority] || 2) - (order[b.priority] || 2);
+                })
+                .slice(0, 3);
+              
+              if (todayPriority.length === 0) return null;
               
               return (
-                <div className="grid grid-cols-4 gap-2">
-                  <div className="bg-blue-50 rounded-lg p-2 border border-blue-200">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <Calendar className="w-3 h-3 text-blue-500" />
-                      <span className="text-[10px] text-blue-600 font-medium">Today</span>
+                <div className={`rounded-xl p-4 ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
+                      <Zap className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
                     </div>
-                    <p className="text-xl font-bold text-blue-700">{todayTasks.length}</p>
+                    <div>
+                      <h3 className={`font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Today's Focus</h3>
+                      <p className={`text-xs ${darkMode ? 'text-amber-400/60' : 'text-amber-600/70'}`}>Your top priorities for today</p>
+                    </div>
                   </div>
-                  <div className="bg-white rounded-lg p-2 border border-gray-200">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <Target className="w-3 h-3 text-gray-500" />
-                      <span className="text-[10px] text-gray-600 font-medium">Total</span>
-                    </div>
-                    <p className="text-xl font-bold text-gray-700">{viewTasks.length}</p>
-                  </div>
-                  <div className="bg-red-50 rounded-lg p-2 border border-red-200">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <XCircle className="w-3 h-3 text-red-500" />
-                      <span className="text-[10px] text-red-600 font-medium">Overdue</span>
-                    </div>
-                    <p className="text-xl font-bold text-red-700">{overdueTasks.length}</p>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-2 border border-green-200">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <CheckCircle2 className="w-3 h-3 text-green-500" />
-                      <span className="text-[10px] text-green-600 font-medium">Done</span>
-                    </div>
-                    <p className="text-xl font-bold text-green-700">{completedTasks.length}</p>
+                  <div className="space-y-2">
+                    {todayPriority.map((task, idx) => {
+                      const isMyTask = task.participant === myParticipant;
+                      return (
+                        <div 
+                          key={task.id} 
+                          className={`flex items-center gap-3 p-3 rounded-lg transition-all ${
+                            darkMode ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white hover:shadow-md'
+                          }`}
+                        >
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                            idx === 0 ? 'bg-amber-500 text-white' : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <button 
+                            onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                            disabled={!isMyTask}
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              task.status === 'Completed' 
+                                ? 'bg-emerald-500 border-emerald-500' 
+                                : isMyTask 
+                                  ? `${darkMode ? 'border-gray-500 hover:border-emerald-500' : 'border-gray-300 hover:border-emerald-500'}` 
+                                  : 'border-gray-200 cursor-not-allowed'
+                            }`}
+                          >
+                            {task.status === 'Completed' && <Check className="w-3 h-3 text-white" />}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${
+                              task.status === 'Completed' 
+                                ? 'line-through text-gray-400' 
+                                : darkMode ? 'text-white' : 'text-gray-800'
+                            }`}>
+                              {task.task}
+                            </p>
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            task.priority === 'High' 
+                              ? 'bg-red-100 text-red-700' 
+                              : task.priority === 'Low' 
+                                ? 'bg-gray-100 text-gray-600' 
+                                : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {task.priority}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
             })()}
 
-            {/* Filter Tabs */}
-            <div className="flex gap-2 flex-wrap">
+            {/* Filter Pills */}
+            <div className="flex gap-2 overflow-x-auto pb-1">
               {[
-                { id: 'all', label: 'All Tasks' },
-                { id: 'today', label: 'Due Today' },
-                { id: 'overdue', label: 'Overdue' },
-                { id: 'completed', label: 'Completed' }
-              ].map(filter => (
-                <button 
-                  key={filter.id}
-                  onClick={() => setTaskFilter(filter.id)} 
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${taskFilter === filter.id ? 'bg-[#1E3A5F] text-white' : 'bg-white text-gray-600 border border-gray-200'}`}
-                >
-                  {filter.label}
-                </button>
-              ))}
+                { id: 'all', label: 'All', icon: Target },
+                { id: 'today', label: 'Today', icon: Calendar },
+                { id: 'week', label: 'This Week', icon: Clock },
+                { id: 'overdue', label: 'Overdue', icon: AlertCircle },
+                { id: 'completed', label: 'Done', icon: CheckCircle2 }
+              ].map(filter => {
+                const Icon = filter.icon;
+                return (
+                  <button 
+                    key={filter.id}
+                    onClick={() => setTaskFilter(filter.id)} 
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+                      taskFilter === filter.id 
+                        ? darkMode 
+                          ? 'bg-white text-gray-900 shadow-lg' 
+                          : 'bg-[#1E3A5F] text-white shadow-lg' 
+                        : darkMode 
+                          ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' 
+                          : 'bg-white text-gray-600 border border-gray-200 hover:border-[#1E3A5F]'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {filter.label}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Task List */}
-            <div className={`rounded-xl border overflow-hidden ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="w-8 p-2"></th>
-                    <th className="text-left p-2 font-semibold text-gray-700 text-xs">Task</th>
-                    <th className="text-left p-2 font-semibold text-gray-700 w-24 text-xs">Due</th>
-                    <th className="text-left p-2 font-semibold text-gray-700 w-20 text-xs">Priority</th>
-                    <th className="text-left p-2 font-semibold text-gray-700 w-24 text-xs">Status</th>
-                    <th className="text-left p-2 font-semibold text-gray-700 w-24 text-xs">Category</th>
-                    <th className="w-16 p-2 text-xs font-semibold text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                    const today = new Date().toISOString().split('T')[0];
-                    let filteredTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-                    
-                    if (taskFilter === 'today') {
-                      filteredTasks = filteredTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
-                    } else if (taskFilter === 'overdue') {
-                      filteredTasks = filteredTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
-                    } else if (taskFilter === 'completed') {
-                      filteredTasks = filteredTasks.filter(t => t.status === 'Completed');
-                    }
+            {/* Task List - Card Based */}
+            <div className="space-y-2">
+              {(() => {
+                const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                const today = new Date().toISOString().split('T')[0];
+                const weekEnd = new Date();
+                weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+                const weekEndStr = weekEnd.toISOString().split('T')[0];
+                
+                let filteredTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
+                
+                if (taskFilter === 'today') {
+                  filteredTasks = filteredTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
+                } else if (taskFilter === 'week') {
+                  filteredTasks = filteredTasks.filter(t => t.dueDate >= today && t.dueDate <= weekEndStr && t.status !== 'Completed');
+                } else if (taskFilter === 'overdue') {
+                  filteredTasks = filteredTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
+                } else if (taskFilter === 'completed') {
+                  filteredTasks = filteredTasks.filter(t => t.status === 'Completed');
+                }
+                
+                // Sort: overdue first, then by priority, then by date
+                filteredTasks.sort((a, b) => {
+                  const aOverdue = a.dueDate < today && a.status !== 'Completed';
+                  const bOverdue = b.dueDate < today && b.status !== 'Completed';
+                  if (aOverdue && !bOverdue) return -1;
+                  if (!aOverdue && bOverdue) return 1;
+                  const order = { 'High': 0, 'Medium': 1, 'Low': 2, 'Optional': 3 };
+                  const priorityDiff = (order[a.priority] || 2) - (order[b.priority] || 2);
+                  if (priorityDiff !== 0) return priorityDiff;
+                  return a.dueDate.localeCompare(b.dueDate);
+                });
 
-                    if (filteredTasks.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan="7" className="p-6 text-center text-gray-400 text-sm">
-                            No tasks found. Add your first task!
-                          </td>
-                        </tr>
-                      );
-                    }
+                if (filteredTasks.length === 0) {
+                  return (
+                    <div className={`rounded-2xl p-8 text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        {taskFilter === 'completed' ? (
+                          <Trophy className={`w-8 h-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                        ) : (
+                          <CheckCircle2 className={`w-8 h-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                        )}
+                      </div>
+                      <h3 className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        {taskFilter === 'completed' ? 'No completed tasks yet' : 'All caught up!'}
+                      </h3>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {taskFilter === 'completed' 
+                          ? 'Complete some tasks to see them here' 
+                          : 'No tasks match this filter. Add a new task to get started.'}
+                      </p>
+                      <button 
+                        onClick={() => setShowAddTask(true)}
+                        className="mt-4 px-4 py-2 bg-[#1E3A5F] text-white rounded-xl text-sm font-medium hover:bg-[#162D4D] transition-colors"
+                      >
+                        <Plus className="w-4 h-4 inline mr-1" />
+                        Add Task
+                      </button>
+                    </div>
+                  );
+                }
 
-                    return filteredTasks.map(task => {
-                      const isOverdue = task.dueDate < today && task.status !== 'Completed';
-                      const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG['Medium'];
-                      const categoryCfg = TASK_CATEGORIES.find(c => c.id === task.category) || TASK_CATEGORIES[0];
-                      const isMyTask = task.participant === myParticipant;
-                      const isEditing = editingTask?.id === task.id;
+                return filteredTasks.map(task => {
+                  const isOverdue = task.dueDate < today && task.status !== 'Completed';
+                  const isToday = task.dueDate === today;
+                  const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG['Medium'];
+                  const categoryCfg = TASK_CATEGORIES.find(c => c.id === task.category) || TASK_CATEGORIES[0];
+                  const isMyTask = task.participant === myParticipant;
+                  const isEditing = editingTask?.id === task.id;
 
-                      if (isEditing) {
-                        return (
-                          <tr key={task.id} className="border-b border-gray-50 bg-blue-50">
-                            <td className="p-2"></td>
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                value={editingTask.task}
-                                onChange={(e) => setEditingTask({ ...editingTask, task: e.target.value })}
-                                className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
-                                autoFocus
-                              />
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="date"
-                                value={editingTask.dueDate}
-                                onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value })}
-                                className="px-2 py-1 text-xs border border-blue-300 rounded focus:outline-none focus:border-blue-500"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <select
-                                value={editingTask.priority}
-                                onChange={(e) => setEditingTask({ ...editingTask, priority: e.target.value })}
-                                className="text-xs px-1 py-1 border border-blue-300 rounded focus:outline-none focus:border-blue-500"
-                              >
-                                <option value="High">High</option>
-                                <option value="Medium">Medium</option>
-                                <option value="Low">Low</option>
-                                <option value="Optional">Optional</option>
-                              </select>
-                            </td>
-                            <td className="p-2">
-                              <select
-                                value={editingTask.status}
-                                onChange={(e) => setEditingTask({ ...editingTask, status: e.target.value })}
-                                className="text-xs px-1 py-1 border border-blue-300 rounded focus:outline-none focus:border-blue-500"
-                              >
-                                <option value="Not Started">Not Started</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Completed">Completed</option>
-                              </select>
-                            </td>
-                            <td className="p-2">
-                              <select
-                                value={editingTask.category}
-                                onChange={(e) => setEditingTask({ ...editingTask, category: e.target.value })}
-                                className="text-xs px-1 py-1 border border-blue-300 rounded focus:outline-none focus:border-blue-500"
-                              >
-                                {TASK_CATEGORIES.map(cat => (
-                                  <option key={cat.id} value={cat.id}>{cat.icon} {cat.id}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="p-2">
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => updateTask(task.id, {
-                                    task: editingTask.task,
-                                    due_date: editingTask.dueDate,
-                                    priority: editingTask.priority,
-                                    status: editingTask.status,
-                                    category: editingTask.category
-                                  })}
-                                  className="p-1 text-green-600 hover:bg-green-100 rounded"
-                                  title="Save"
-                                >
-                                  <Check className="w-3 h-3" />
-                                </button>
-                                <button
-                                  onClick={() => setEditingTask(null)}
-                                  className="p-1 text-gray-400 hover:bg-gray-100 rounded"
-                                  title="Cancel"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      }
-
-                      return (
-                        <tr key={task.id} className={`border-b border-gray-50 hover:bg-gray-50 ${task.status === 'Completed' ? 'opacity-50' : ''}`}>
-                          <td className="p-2">
-                            <button 
-                              onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
-                              disabled={!isMyTask}
-                              className={`w-4 h-4 rounded border-2 flex items-center justify-center ${isMyTask ? 'border-gray-300 hover:border-green-500' : 'border-gray-200 cursor-not-allowed'}`}
+                  if (isEditing) {
+                    return (
+                      <div key={task.id} className={`rounded-xl p-4 ${darkMode ? 'bg-blue-900/30 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
+                        <div className="space-y-3">
+                          <input
+                            type="text"
+                            value={editingTask.task}
+                            onChange={(e) => setEditingTask({ ...editingTask, task: e.target.value })}
+                            className={`w-full px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} border focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            placeholder="Task name"
+                            autoFocus
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <input
+                              type="date"
+                              value={editingTask.dueDate}
+                              onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value })}
+                              className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} border`}
+                            />
+                            <select
+                              value={editingTask.priority}
+                              onChange={(e) => setEditingTask({ ...editingTask, priority: e.target.value })}
+                              className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} border`}
                             >
-                              {task.status === 'Completed' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                              <option value="High">🔴 High</option>
+                              <option value="Medium">🟡 Medium</option>
+                              <option value="Low">🟢 Low</option>
+                              <option value="Optional">⚪ Optional</option>
+                            </select>
+                            <select
+                              value={editingTask.category}
+                              onChange={(e) => setEditingTask({ ...editingTask, category: e.target.value })}
+                              className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} border`}
+                            >
+                              {TASK_CATEGORIES.map(cat => (
+                                <option key={cat.id} value={cat.id}>{cat.icon} {cat.id}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => setEditingTask(null)}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                            >
+                              Cancel
                             </button>
-                          </td>
-                          <td className={`p-2 text-sm ${task.status === 'Completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                            <span className="truncate block max-w-[200px]" title={task.task}>{task.task}</span>
-                            {selectedParticipant === 'All' && (
-                              <span className="text-[10px] text-gray-400">{task.participant}</span>
-                            )}
-                          </td>
-                          <td className={`p-2 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                            {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </td>
-                          <td className="p-2">
-                            <span className={`text-[10px] font-medium ${priorityCfg.textColor}`}>
-                              {priorityCfg.icon}
-                            </span>
-                          </td>
-                          <td className="p-2">
-                            {isMyTask ? (
-                              <select 
-                                value={task.status}
-                                onChange={(e) => updateTaskStatus(task.id, e.target.value)}
-                                className={`text-[10px] px-1.5 py-0.5 rounded border ${task.status === 'Completed' ? 'bg-green-100 text-green-700' : task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}
-                              >
-                                <option value="Not Started">Not Started</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Completed">Completed</option>
-                              </select>
-                            ) : (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.status === 'Completed' ? 'bg-green-100 text-green-700' : task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
-                                {task.status}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-2">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${categoryCfg.color}`}>
-                              {categoryCfg.icon}
-                            </span>
-                          </td>
-                          <td className="p-2">
-                            {isMyTask && (
-                              <div className="flex gap-1">
-                                <button 
-                                  onClick={() => setEditingTask({
-                                    id: task.id,
-                                    task: task.task,
-                                    dueDate: task.dueDate,
-                                    priority: task.priority,
-                                    status: task.status,
-                                    category: task.category
-                                  })}
-                                  className="text-gray-400 hover:text-blue-500"
-                                  title="Edit task"
-                                >
-                                  <Edit3 className="w-3 h-3" />
-                                </button>
-                                <button 
-                                  onClick={() => deleteTask(task.id)}
-                                  className="text-gray-300 hover:text-red-500"
-                                  title="Delete task"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
+                            <button
+                              onClick={() => updateTask(task.id, {
+                                task: editingTask.task,
+                                due_date: editingTask.dueDate,
+                                priority: editingTask.priority,
+                                status: editingTask.status,
+                                category: editingTask.category
+                              })}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                            >
+                              Save Changes
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div 
+                      key={task.id} 
+                      className={`group rounded-xl p-4 transition-all ${
+                        task.status === 'Completed'
+                          ? darkMode ? 'bg-gray-800/50 opacity-60' : 'bg-gray-50 opacity-70'
+                          : isOverdue
+                            ? darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
+                            : darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white border border-gray-100 hover:shadow-md hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Checkbox */}
+                        <button 
+                          onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                          disabled={!isMyTask}
+                          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                            task.status === 'Completed' 
+                              ? 'bg-emerald-500 border-emerald-500' 
+                              : isMyTask 
+                                ? `${darkMode ? 'border-gray-500 hover:border-emerald-500 hover:bg-emerald-500/10' : 'border-gray-300 hover:border-emerald-500 hover:bg-emerald-50'}` 
+                                : 'border-gray-200 cursor-not-allowed opacity-50'
+                          }`}
+                        >
+                          {task.status === 'Completed' && <Check className="w-3 h-3 text-white" />}
+                        </button>
+                        
+                        {/* Task Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className={`font-medium ${
+                                task.status === 'Completed' 
+                                  ? 'line-through text-gray-400' 
+                                  : darkMode ? 'text-white' : 'text-gray-800'
+                              }`}>
+                                {task.task}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                {/* Due Date */}
+                                <span className={`inline-flex items-center gap-1 text-xs ${
+                                  isOverdue 
+                                    ? 'text-red-500 font-medium' 
+                                    : isToday 
+                                      ? darkMode ? 'text-amber-400' : 'text-amber-600' 
+                                      : darkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  <Calendar className="w-3 h-3" />
+                                  {isOverdue && '⚠️ '}
+                                  {isToday ? 'Today' : new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                                
+                                {/* Priority Badge */}
+                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                                  task.priority === 'High' 
+                                    ? 'bg-red-100 text-red-700' 
+                                    : task.priority === 'Low' 
+                                      ? darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600' 
+                                      : task.priority === 'Optional'
+                                        ? darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-500'
+                                        : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {priorityCfg.icon} {task.priority}
+                                </span>
+                                
+                                {/* Category */}
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${categoryCfg.color}`}>
+                                  {categoryCfg.icon} {task.category}
+                                </span>
+                                
+                                {/* Owner (if viewing all) */}
+                                {selectedParticipant === 'All' && (
+                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    • {task.participant}
+                                  </span>
+                                )}
                               </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })()}
-                </tbody>
-              </table>
+                            </div>
+                            
+                            {/* Status & Actions */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {/* Status Dropdown (if my task and not completed) */}
+                              {isMyTask && task.status !== 'Completed' && (
+                                <select 
+                                  value={task.status}
+                                  onChange={(e) => updateTaskStatus(task.id, e.target.value)}
+                                  className={`text-xs px-2 py-1 rounded-lg border ${
+                                    task.status === 'In Progress' 
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                      : darkMode 
+                                        ? 'bg-gray-700 text-gray-300 border-gray-600' 
+                                        : 'bg-gray-50 text-gray-600 border-gray-200'
+                                  }`}
+                                >
+                                  <option value="Not Started">Not Started</option>
+                                  <option value="In Progress">In Progress</option>
+                                  <option value="Completed">Completed</option>
+                                </select>
+                              )}
+                              
+                              {/* Action Buttons */}
+                              {isMyTask && (
+                                <div className={`flex gap-1 ${task.status === 'Completed' ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                                  <button 
+                                    onClick={() => setEditingTask({
+                                      id: task.id,
+                                      task: task.task,
+                                      dueDate: task.dueDate,
+                                      priority: task.priority,
+                                      status: task.status,
+                                      category: task.category
+                                    })}
+                                    className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}
+                                    title="Edit task"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => deleteTask(task.id)}
+                                    className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-red-900/30 text-gray-400 hover:text-red-400' : 'hover:bg-red-50 text-gray-400 hover:text-red-500'}`}
+                                    title="Delete task"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
+            
+            {/* Productivity Tips */}
+            {(() => {
+              const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+              const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
+              const today = new Date().toISOString().split('T')[0];
+              const overdueTasks = viewTasks.filter(t => t.dueDate < today && t.status !== 'Completed');
+              const highPriorityPending = viewTasks.filter(t => t.priority === 'High' && t.status !== 'Completed');
+              
+              if (overdueTasks.length >= 3) {
+                return (
+                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-orange-900/20 border border-orange-500/30' : 'bg-orange-50 border border-orange-200'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${darkMode ? 'bg-orange-500/20' : 'bg-orange-100'}`}>
+                        <AlertCircle className={`w-5 h-5 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`} />
+                      </div>
+                      <div>
+                        <h4 className={`font-semibold ${darkMode ? 'text-orange-300' : 'text-orange-800'}`}>Time to catch up!</h4>
+                        <p className={`text-sm mt-1 ${darkMode ? 'text-orange-400/80' : 'text-orange-700/80'}`}>
+                          You have {overdueTasks.length} overdue tasks. Consider rescheduling or breaking them into smaller tasks.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              
+              if (highPriorityPending.length >= 5) {
+                return (
+                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-blue-900/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${darkMode ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+                        <Lightbulb className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                      </div>
+                      <div>
+                        <h4 className={`font-semibold ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>Pro tip: Prioritize ruthlessly</h4>
+                        <p className={`text-sm mt-1 ${darkMode ? 'text-blue-400/80' : 'text-blue-700/80'}`}>
+                          You have {highPriorityPending.length} high-priority tasks. Consider if any can be lowered to keep your focus sharp.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              
+              return null;
+            })()}
           </div>
         )}
 
