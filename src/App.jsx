@@ -803,6 +803,7 @@ export default function AccountabilityTracker() {
   const [selectedWeek, setSelectedWeek] = useState(null); // Store week string, not index
   const [selectedParticipant, setSelectedParticipant] = useState('All');
   const [scorecardRange, setScorecardRange] = useState('4weeks');
+  const [insightsTimePeriod, setInsightsTimePeriod] = useState('quarter'); // 'month', 'quarter', 'year'
   const [newHabit, setNewHabit] = useState({ habit: '', participant: 'Taylor', target: 5, habitType: 'daily', category: '' }); // habitType: 'daily' or 'percentage'
   const [bulkHabits, setBulkHabits] = useState('');
   const [bulkParticipant, setBulkParticipant] = useState('Taylor');
@@ -8706,16 +8707,44 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         {/* INSIGHTS VIEW */}
         {activeView === 'insights' && (
           <div className="space-y-4">
+            {/* Time Period Selector */}
+            <div className="flex items-center justify-between">
+              <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>My Insights</h2>
+              <div className={`flex rounded-lg p-1 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                {[
+                  { id: 'month', label: 'Month', weeks: 4 },
+                  { id: 'quarter', label: 'Quarter', weeks: 13 },
+                  { id: 'year', label: 'Year', weeks: 52 }
+                ].map(period => (
+                  <button
+                    key={period.id}
+                    onClick={() => setInsightsTimePeriod(period.id)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      insightsTimePeriod === period.id
+                        ? darkMode ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 shadow-sm'
+                        : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {period.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Accountability Grade Card */}
             {(() => {
-              // Calculate comprehensive accountability score based on LAST QUARTER (13 weeks)
-              // Use date math instead of ALL_WEEKS array for reliability
-              const today = new Date();
-              const thirteenWeeksAgo = new Date(today);
-              thirteenWeeksAgo.setDate(thirteenWeeksAgo.getDate() - (13 * 7));
-              const quarterStartDate = thirteenWeeksAgo.toISOString().split('T')[0];
+              // Calculate date range based on selected time period
+              const periodWeeks = { month: 4, quarter: 13, year: 52 };
+              const weeksBack = periodWeeks[insightsTimePeriod] || 13;
+              const periodLabels = { month: 'Last 4 weeks', quarter: 'Last 13 weeks', year: 'Last 52 weeks' };
+              const periodLabel = periodLabels[insightsTimePeriod] || 'Last 13 weeks';
               
-              const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= quarterStartDate);
+              const today = new Date();
+              const startDate = new Date(today);
+              startDate.setDate(startDate.getDate() - (weeksBack * 7));
+              const periodStartDate = startDate.toISOString().split('T')[0];
+              
+              const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate);
               const totalHabits = myHabits.length;
               const completedHabits = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
               const exceededHabits = myHabits.filter(h => getStatus(h) === 'Exceeded').length;
@@ -8780,7 +8809,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       <div>
                         <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Accountability Score</h2>
                         <p className={`text-3xl font-bold bg-gradient-to-r ${color} bg-clip-text text-transparent`}>{totalScore}/100</p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last 13 weeks (rolling quarter)</p>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{periodLabel}</p>
                       </div>
                     </div>
                     
@@ -8817,17 +8846,21 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Life Categories</h3>
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Performance across life domains (last 13 weeks)</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Performance across life domains ({insightsTimePeriod === 'month' ? 'last 4 weeks' : insightsTimePeriod === 'quarter' ? 'last 13 weeks' : 'last 52 weeks'})
+                  </p>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {(() => {
+                  const periodWeeks = { month: 4, quarter: 13, year: 52 };
+                  const weeksBack = periodWeeks[insightsTimePeriod] || 13;
                   const today = new Date();
-                  const thirteenWeeksAgo = new Date(today);
-                  thirteenWeeksAgo.setDate(thirteenWeeksAgo.getDate() - (13 * 7));
-                  const quarterStartDate = thirteenWeeksAgo.toISOString().split('T')[0];
-                  const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= quarterStartDate);
+                  const startDate = new Date(today);
+                  startDate.setDate(startDate.getDate() - (weeksBack * 7));
+                  const periodStartDate = startDate.toISOString().split('T')[0];
+                  const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate);
                   
                   return HABIT_CATEGORIES.map(cat => {
                     const catHabits = myHabits.filter(h => h.category === cat.id);
@@ -8939,14 +8972,18 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Radar Chart - Life Balance */}
               <div className={`rounded-2xl p-4 md:p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
-                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Life Balance (Last Quarter)</h3>
+                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Life Balance ({insightsTimePeriod === 'month' ? 'Month' : insightsTimePeriod === 'quarter' ? 'Quarter' : 'Year'})
+                </h3>
                 <ResponsiveContainer width="100%" height={220}>
                   <RadarChart data={(() => {
+                    const periodWeeks = { month: 4, quarter: 13, year: 52 };
+                    const weeksBack = periodWeeks[insightsTimePeriod] || 13;
                     const today = new Date();
-                    const thirteenWeeksAgo = new Date(today);
-                    thirteenWeeksAgo.setDate(thirteenWeeksAgo.getDate() - (13 * 7));
-                    const quarterStartDate = thirteenWeeksAgo.toISOString().split('T')[0];
-                    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= quarterStartDate);
+                    const startDate = new Date(today);
+                    startDate.setDate(startDate.getDate() - (weeksBack * 7));
+                    const periodStartDate = startDate.toISOString().split('T')[0];
+                    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate);
                     return HABIT_CATEGORIES.map(cat => {
                       const catHabits = myHabits.filter(h => h.category === cat.id);
                       const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
@@ -8966,10 +9003,14 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               <div className={`rounded-2xl p-4 md:p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Activity Heatmap</h3>
-                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last 13 weeks</span>
+                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {insightsTimePeriod === 'month' ? 'Last 4 weeks' : insightsTimePeriod === 'quarter' ? 'Last 13 weeks' : 'Last 52 weeks'}
+                  </span>
                 </div>
                 
                 {(() => {
+                  const periodWeeks = { month: 4, quarter: 13, year: 52 };
+                  const weeksToShow = periodWeeks[insightsTimePeriod] || 13;
                   const today = new Date();
                   const currentMonday = new Date(today);
                   currentMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
@@ -8981,7 +9022,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     return weekHabits.length > 0;
                   });
                   
-                  const weeks = weeksWithData.slice(-13);
+                  const weeks = weeksWithData.slice(-weeksToShow);
                   
                   if (weeks.length === 0) {
                     return (
@@ -9097,15 +9138,19 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
             {/* Top Habits */}
             <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
-              <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Top Performing Habits (Last Quarter)</h3>
+              <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Top Performing Habits ({insightsTimePeriod === 'month' ? 'Month' : insightsTimePeriod === 'quarter' ? 'Quarter' : 'Year'})
+              </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {(() => {
+                  const periodWeeks = { month: 4, quarter: 13, year: 52 };
+                  const weeksBack = periodWeeks[insightsTimePeriod] || 13;
                   const today = new Date();
-                  const thirteenWeeksAgo = new Date(today);
-                  thirteenWeeksAgo.setDate(thirteenWeeksAgo.getDate() - (13 * 7));
-                  const quarterStartDate = thirteenWeeksAgo.toISOString().split('T')[0];
+                  const startDate = new Date(today);
+                  startDate.setDate(startDate.getDate() - (weeksBack * 7));
+                  const periodStartDate = startDate.toISOString().split('T')[0];
                   const habitStats = {};
-                  habits.filter(h => h.participant === myParticipant && h.weekStart >= quarterStartDate).forEach(h => {
+                  habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate).forEach(h => {
                     const normName = getNormalizedHabitName(h.habit);
                     if (!habitStats[normName]) {
                       habitStats[normName] = { habit: normName, category: h.category, completed: 0, total: 0 };
