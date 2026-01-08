@@ -6685,58 +6685,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         )}
 
         {activeView === 'tracker' && (
-          <div className="space-y-4">
-            {/* Habit Manager Panel - personalized per user */}
-            {myParticipant && (
-              <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20' : 'bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200'}`}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
-                      <Brain className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                    </div>
-                    <div>
-                      <h3 className={`font-semibold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>My Habit Manager</h3>
-                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {habits.filter(h => h.participant === myParticipant && !h.category).length} uncategorized • {Object.keys(habitNormGroups).length} groups
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={aiCategorizeHabits}
-                      disabled={categorizingHabits}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        darkMode ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 disabled:opacity-50' : 'bg-purple-100 text-purple-700 hover:bg-purple-200 disabled:opacity-50'
-                      }`}
-                    >
-                      {categorizingHabits ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      {categorizingHabits ? 'Categorizing...' : 'Auto-Categorize'}
-                    </button>
-                    <button
-                      onClick={aiNormalizeHabits}
-                      disabled={normalizingHabits}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        darkMode ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 disabled:opacity-50' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50'
-                      }`}
-                    >
-                      {normalizingHabits ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
-                      {normalizingHabits ? 'Analyzing...' : 'Find Similar'}
-                    </button>
-                    <button
-                      onClick={() => setShowHabitManagerModal(true)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-                      }`}
-                    >
-                      <Settings className="w-4 h-4" />
-                      Manage
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            
+          <div className="space-y-3">
             {(() => {
               const today = new Date();
               const dayOfWeek = today.getDay();
@@ -6766,189 +6715,36 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               
               return (
                 <>
-                  {/* Week Navigation Bar */}
-                  <div className={`flex items-center justify-between p-2 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                    <div className="flex items-center gap-1">
-                      {DAYS.map((day, i) => {
-                        const dayDate = new Date(currentWeek + 'T00:00:00');
-                        dayDate.setDate(dayDate.getDate() + i);
-                        const isToday = isCurrentWeek && i === todayIndex;
-                        const dayHabits = dailyHabits.filter(h => (h.daysCompleted || []).includes(i));
-                        const dayPct = dailyHabits.length > 0 ? Math.round((dayHabits.length / dailyHabits.length) * 100) : 0;
-                        
-                        return (
-                          <div
-                            key={day}
-                            className={`flex flex-col items-center px-2 py-1.5 rounded-lg transition-all ${
-                              isToday ? darkMode ? 'bg-[#1E3A5F] text-white' : 'bg-[#1E3A5F] text-white' : ''
-                            }`}
-                          >
-                            <span className={`text-[10px] font-semibold uppercase ${
-                              isToday ? 'text-white/80' : darkMode ? 'text-gray-500' : 'text-gray-400'
-                            }`}>{day.slice(0, 1)}</span>
-                            <span className={`text-sm font-bold ${
-                              isToday ? 'text-white' : darkMode ? 'text-gray-300' : 'text-gray-700'
-                            }`}>{dayDate.getDate()}</span>
-                            {dailyHabits.length > 0 && (
-                              <div className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
-                                dayPct >= 100 ? 'bg-green-500' : dayPct > 0 ? 'bg-amber-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-200')
-                              }`} />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <button 
-                      onClick={() => setShowAddHabitModal(true)} 
-                      className="flex items-center gap-1.5 px-3 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span className="hidden sm:inline">Add Habit</span>
-                    </button>
-                  </div>
-
-                  {/* Progress Summary Cards */}
-                  {myHabits.length > 0 && (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      {/* Today's Progress */}
-                      {isCurrentWeek && (
-                        <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today</span>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                              todayCompleted === todayTotal && todayTotal > 0 ? 'bg-green-500 text-white' : darkMode ? 'bg-gray-700' : 'bg-gray-100'
-                            }`}>
-                              {todayCompleted === todayTotal && todayTotal > 0 ? (
-                                <CheckCircle2 className="w-4 h-4" />
-                              ) : (
-                                <Target className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-end gap-2">
-                            <span className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}</span>
-                            <span className={`text-lg mb-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/ {todayTotal}</span>
-                          </div>
-                          <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                            <div className={`h-full rounded-full transition-all duration-500 ${todayTotal > 0 && todayCompleted === todayTotal ? 'bg-green-500' : 'bg-[#1E3A5F]'}`}
-                              style={{ width: `${todayTotal > 0 ? (todayCompleted / todayTotal) * 100 : 0}%` }} />
-                          </div>
-                        </div>
+                  {/* Simple Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`inline-flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                        <button onClick={() => setSelectedParticipant(myParticipant)} className={`px-3 py-1.5 rounded text-xs font-medium ${
+                          selectedParticipant === myParticipant ? darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm' : darkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>Mine</button>
+                        <button onClick={() => setSelectedParticipant('All')} className={`px-3 py-1.5 rounded text-xs font-medium ${
+                          selectedParticipant === 'All' ? darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm' : darkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>Team</button>
+                      </div>
+                      {myHabits.length > 0 && (
+                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {weekPct}% this week
+                        </span>
                       )}
-                      
-                      {/* Weekly Progress */}
-                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'} ${!isCurrentWeek ? 'col-span-2' : ''}`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>This Week</span>
-                          <div className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                            weekPct >= 100 ? 'bg-green-100 text-green-700' : weekPct >= 70 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                          }`}>{weekPct}%</div>
-                        </div>
-                        <div className="flex items-end gap-2">
-                          <span className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{weekCompleted}</span>
-                          <span className={`text-lg mb-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/ {weekTarget}</span>
-                        </div>
-                        <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <div className={`h-full rounded-full transition-all duration-500 ${weekPct >= 100 ? 'bg-green-500' : weekPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
-                            style={{ width: `${Math.min(weekPct, 100)}%` }} />
-                        </div>
-                      </div>
-                      
-                      {/* Streak */}
-                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-500/20' : 'bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200'}`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>Streak</span>
-                          <Flame className={`w-5 h-5 ${darkMode ? 'text-orange-400' : 'text-orange-500'}`} />
-                        </div>
-                        <div className="flex items-end gap-1">
-                          <span className={`text-3xl font-bold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{calculateStreaks[myParticipant] || 0}</span>
-                          <span className={`text-lg mb-1 ${darkMode ? 'text-orange-400/60' : 'text-orange-400'}`}>weeks</span>
-                        </div>
-                      </div>
-                      
-                      {/* Quick Actions */}
-                      <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                        <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Quick Actions</span>
-                        <div className="flex flex-col gap-1.5 mt-2">
-                          <button onClick={() => setShowAnalytics(true)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-600'}`}>
-                            <BarChart3 className="w-3.5 h-3.5" /> Analytics
-                          </button>
-                          <button onClick={() => setShowMonthlyReport(true)} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-600'}`}>
-                            <Calendar className="w-3.5 h-3.5" /> Monthly Report
-                          </button>
-                        </div>
-                      </div>
                     </div>
-                  )}
-
-                  {/* View Toggle & Actions Row */}
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className={`inline-flex p-1 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <button onClick={() => setSelectedParticipant(myParticipant)} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                        selectedParticipant === myParticipant ? darkMode ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm' : darkMode ? 'text-gray-400' : 'text-gray-500'
-                      }`}>My Habits</button>
-                      <button onClick={() => setSelectedParticipant('All')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                        selectedParticipant === 'All' ? darkMode ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm' : darkMode ? 'text-gray-400' : 'text-gray-500'
-                      }`}>Team View</button>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      {getPreviousWeekHabits.length > 0 && myHabits.length === 0 && (
-                        <button onClick={copyHabitsFromLastWeek} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-700'}`}>
-                          <RefreshCw className="w-4 h-4" /> Copy Last Week
+                    <div className="flex items-center gap-2">
+                      {isWeekPast && (
+                        <button onClick={() => setEditingPastWeek(!editingPastWeek)} className={`p-1.5 rounded ${
+                          editingPastWeek ? 'bg-amber-500 text-white' : (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500')
+                        }`}>
+                          {editingPastWeek ? <Check className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                         </button>
                       )}
-                      <button onClick={suggestWeeklyHabits} disabled={weekSuggestLoading} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-700'}`}>
-                        {weekSuggestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} AI Suggest
+                      <button onClick={() => setShowAddHabitModal(true)} className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-xs font-medium">
+                        <Plus className="w-3.5 h-3.5" /> Add
                       </button>
                     </div>
                   </div>
-
-                  {/* Past Week Notice */}
-                  {isWeekPast && (
-                    <div className={`flex items-center justify-between p-3 rounded-xl ${
-                      editingPastWeek ? darkMode ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
-                        : darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'
-                    }`}>
-                      <div className="flex items-center gap-2">
-                        {editingPastWeek ? <Edit3 className="w-4 h-4 text-amber-500" /> : <Lock className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />}
-                        <span className={`text-sm ${editingPastWeek ? 'text-amber-600 font-medium' : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                          {editingPastWeek ? 'Editing mode active' : 'This week is locked'}
-                        </span>
-                      </div>
-                      <button onClick={() => setEditingPastWeek(!editingPastWeek)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                        editingPastWeek ? 'bg-amber-500 text-white' : (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-700 border border-gray-200')
-                      }`}>{editingPastWeek ? 'Done' : 'Edit'}</button>
-                    </div>
-                  )}
-
-                  {/* AI Suggestions Panel */}
-                  {weekHabitSuggestions.length > 0 && (
-                    <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-100'}`}>
-                      <div className={`flex items-center justify-between px-4 py-3 ${darkMode ? 'bg-purple-500/10' : 'bg-purple-100/50'}`}>
-                        <div className="flex items-center gap-2">
-                          <Sparkles className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                          <span className={`font-semibold text-sm ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>AI Suggestions</span>
-                        </div>
-                        <button onClick={() => setWeekHabitSuggestions([])} className={darkMode ? 'text-purple-400' : 'text-purple-500'}><X className="w-4 h-4" /></button>
-                      </div>
-                      <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {weekHabitSuggestions.map((habit, idx) => (
-                          <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${
-                            habit.added ? (darkMode ? 'bg-green-500/20' : 'bg-green-100') : (darkMode ? 'bg-gray-800/50' : 'bg-white')
-                          }`}>
-                            <div className="flex-1 min-w-0 mr-3">
-                              <p className={`font-medium truncate ${habit.added ? 'text-green-600' : (darkMode ? 'text-white' : 'text-gray-800')}`}>{habit.habit}</p>
-                              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{habit.target} days/week</p>
-                            </div>
-                            {habit.added ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : (
-                              <button onClick={() => addWeeklyHabit(habit, idx)} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">Add</button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               );
             })()}
