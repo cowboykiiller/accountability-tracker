@@ -6835,14 +6835,14 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     
                     return (
                       <div key={h.id} className={`group rounded-lg p-3 transition-all ${
-                        habitIsNN ? (darkMode ? 'bg-amber-500/5 border border-amber-500/20' : 'bg-amber-50/50 border border-amber-200/50') 
+                        habitIsNN ? (darkMode ? 'bg-amber-500/5 border border-amber-500/20' : 'bg-amber-50/50 border border-amber-200/50')
                         : darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white border border-gray-100 hover:border-gray-200'
                       }`}>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                           {/* Habit Info */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className={`font-medium text-sm truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`font-medium text-sm break-words ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</span>
                               {h.category && (() => {
                                 const cat = HABIT_CATEGORIES.find(c => c.id === h.category);
                                 return cat ? <span className="text-xs">{cat.icon}</span> : null;
@@ -6861,53 +6861,56 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                             </div>
                           </div>
                           
-                          {/* Day Toggles - Compact */}
-                          {isPercentage ? (
-                            <div className="flex items-center gap-1">
-                              {instances.slice(-5).map((inst, idx) => (
-                                <button key={idx} onClick={() => canEdit && toggleInstance(h.id, instances.length - 5 + idx)} disabled={!canEdit}
-                                  className={`w-6 h-6 rounded text-xs font-bold ${inst.success ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                                  {inst.success ? '✓' : '✗'}
-                                </button>
-                              ))}
-                              {canEdit && (
-                                <button onClick={() => addPercentageInstance(h.id, true)} className={`w-6 h-6 rounded border border-dashed ${darkMode ? 'border-gray-600 text-gray-400' : 'border-gray-300 text-gray-400'}`}>
-                                  <Plus className="w-3 h-3 mx-auto" />
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-0.5">
-                              {DAYS.map((day, i) => {
-                                const isCompleted = daysCompleted.includes(i);
-                                const isToday = isCurrentWeek && i === todayIndex;
-                                return (
-                                  <button key={day} onClick={() => canEdit && toggleDay(h.id, i)} disabled={!canEdit}
-                                    className={`w-7 h-7 rounded text-[10px] font-medium transition-all ${
-                                      isCompleted ? 'bg-green-500 text-white' 
-                                      : isToday ? (darkMode ? 'bg-[#1E3A5F]/30 text-[#1E3A5F] border border-[#1E3A5F]/50' : 'bg-[#1E3A5F]/10 text-[#1E3A5F] border border-[#1E3A5F]/30')
-                                      : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-50 text-gray-400'
-                                    } ${canEdit ? 'hover:opacity-80' : ''}`}>
-                                    {isCompleted ? <Check className="w-3 h-3 mx-auto" /> : day.slice(0, 1)}
+                          {/* Day Toggles and Actions - wrapped for mobile */}
+                          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3">
+                            {/* Day Toggles - Compact */}
+                            {isPercentage ? (
+                              <div className="flex items-center gap-1">
+                                {instances.slice(-5).map((inst, idx) => (
+                                  <button key={idx} onClick={() => canEdit && toggleInstance(h.id, instances.length - 5 + idx)} disabled={!canEdit}
+                                    className={`w-6 h-6 rounded text-xs font-bold ${inst.success ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                                    {inst.success ? '✓' : '✗'}
                                   </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          
-                          {/* Actions */}
-                          {canEdit && (
-                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100">
-                              <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target, category: h.category || '' })} 
-                                className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}>
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => deleteHabit(h.id)} 
-                                className={`p-1.5 rounded ${darkMode ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
+                                ))}
+                                {canEdit && (
+                                  <button onClick={() => addPercentageInstance(h.id, true)} className={`w-6 h-6 rounded border border-dashed ${darkMode ? 'border-gray-600 text-gray-400' : 'border-gray-300 text-gray-400'}`}>
+                                    <Plus className="w-3 h-3 mx-auto" />
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-0.5">
+                                {DAYS.map((day, i) => {
+                                  const isCompleted = daysCompleted.includes(i);
+                                  const isToday = isCurrentWeek && i === todayIndex;
+                                  return (
+                                    <button key={day} onClick={() => canEdit && toggleDay(h.id, i)} disabled={!canEdit}
+                                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-[10px] font-medium transition-all ${
+                                        isCompleted ? 'bg-green-500 text-white'
+                                        : isToday ? (darkMode ? 'bg-[#1E3A5F]/30 text-[#1E3A5F] border border-[#1E3A5F]/50' : 'bg-[#1E3A5F]/10 text-[#1E3A5F] border border-[#1E3A5F]/30')
+                                        : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-50 text-gray-400'
+                                      } ${canEdit ? 'hover:opacity-80' : ''}`}>
+                                      {isCompleted ? <Check className="w-3 h-3 mx-auto" /> : day.slice(0, 1)}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Actions */}
+                            {canEdit && (
+                              <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100">
+                                <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target, category: h.category || '' })}
+                                  className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}>
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => deleteHabit(h.id)}
+                                  className={`p-1.5 rounded ${darkMode ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
