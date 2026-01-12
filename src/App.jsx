@@ -6838,7 +6838,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         habitIsNN ? (darkMode ? 'bg-amber-500/5 border border-amber-500/20' : 'bg-amber-50/50 border border-amber-200/50')
                         : darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white border border-gray-100 hover:border-gray-200'
                       }`}>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
                           {/* Habit Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -6862,7 +6862,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           </div>
                           
                           {/* Day Toggles and Actions - wrapped for mobile */}
-                          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3">
+                          <div className="flex items-center justify-between md:justify-end gap-2 md:gap-3">
                             {/* Day Toggles - Compact */}
                             {isPercentage ? (
                               <div className="flex items-center gap-1">
@@ -6885,7 +6885,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                   const isToday = isCurrentWeek && i === todayIndex;
                                   return (
                                     <button key={day} onClick={() => canEdit && toggleDay(h.id, i)} disabled={!canEdit}
-                                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-[10px] font-medium transition-all ${
+                                      className={`w-6 h-6 md:w-7 md:h-7 rounded text-[10px] font-medium transition-all ${
                                         isCompleted ? 'bg-green-500 text-white'
                                         : isToday ? (darkMode ? 'bg-[#1E3A5F]/30 text-[#1E3A5F] border border-[#1E3A5F]/50' : 'bg-[#1E3A5F]/10 text-[#1E3A5F] border border-[#1E3A5F]/30')
                                         : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-50 text-gray-400'
@@ -6899,7 +6899,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
                             {/* Actions */}
                             {canEdit && (
-                              <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100">
+                              <div className="flex gap-0.5 md:opacity-0 md:group-hover:opacity-100">
                                 <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target, category: h.category || '' })}
                                   className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}>
                                   <Edit3 className="w-3.5 h-3.5" />
