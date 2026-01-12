@@ -412,7 +412,8 @@ const getWeekStartFromDate = (date) => {
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
-  return d.toISOString().split('T')[0];
+  // Use local date formatting to avoid timezone issues with toISOString()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
 // Components
@@ -1512,7 +1513,8 @@ export default function AccountabilityTracker() {
         const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
         const monday = new Date(today);
         monday.setDate(today.getDate() + mondayOffset);
-        const weekStart = monday.toISOString().split('T')[0];
+        // Use local date formatting to avoid timezone issues with toISOString()
+        const weekStart = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
         
         for (const habitName of initialHabits) {
           const habitDoc = {
@@ -1572,7 +1574,8 @@ export default function AccountabilityTracker() {
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(today);
     monday.setDate(today.getDate() + mondayOffset);
-    return monday.toISOString().split('T')[0];
+    // Use local date formatting to avoid timezone issues with toISOString()
+    return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
   }, []);
 
   // Calculate streaks for each participant (excluding current week)
@@ -2531,21 +2534,24 @@ JSON array only:`
 
   // Computed values - generate weeks from earliest habit through future
   const ALL_WEEKS = useMemo(() => {
+    // Helper to format date as YYYY-MM-DD using local time (avoids timezone issues with toISOString)
+    const formatLocalDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
     // Get weeks from existing habits
     const habitWeeks = [...new Set(habits.map(h => h.weekStart))].filter(Boolean);
-    
+
     // Get current week's Monday
     const getMonday = (d) => {
       const date = new Date(d);
       const day = date.getDay();
       const diff = date.getDate() - day + (day === 0 ? -6 : 1);
       const monday = new Date(date.getFullYear(), date.getMonth(), diff);
-      return monday.toISOString().split('T')[0];
+      return formatLocalDate(monday);
     };
-    
+
     const today = new Date();
     const currentMonday = getMonday(new Date(today)); // Pass a copy
-    
+
     // Find the earliest week (from habits or default to 8 weeks ago)
     let earliestWeek = currentMonday;
     if (habitWeeks.length > 0) {
@@ -2556,25 +2562,25 @@ JSON array only:`
       eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
       earliestWeek = getMonday(new Date(eightWeeksAgo));
     }
-    
+
     // Generate all weeks from earliest through 52 weeks into future (1 year ahead)
     const weeks = [];
     const startDate = new Date(earliestWeek + 'T00:00:00');
     const futureDate = new Date();
     futureDate.setFullYear(futureDate.getFullYear() + 1); // 1 year ahead
-    
+
     let current = new Date(startDate);
     while (current <= futureDate) {
-      weeks.push(current.toISOString().split('T')[0]);
+      weeks.push(formatLocalDate(current));
       current.setDate(current.getDate() + 7);
     }
-    
+
     // Ensure current week is always included
     if (!weeks.includes(currentMonday)) {
       weeks.push(currentMonday);
       weeks.sort();
     }
-    
+
     return weeks;
   }, [habits]);
   
@@ -2584,7 +2590,8 @@ JSON array only:`
     const day = today.getDay();
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
     const mondayDate = new Date(today.getFullYear(), today.getMonth(), diff);
-    return mondayDate.toISOString().split('T')[0];
+    // Use local date formatting to avoid timezone issues with toISOString()
+    return `${mondayDate.getFullYear()}-${String(mondayDate.getMonth() + 1).padStart(2, '0')}-${String(mondayDate.getDate()).padStart(2, '0')}`;
   };
   
   // Auto-initialize to current week when data loads
@@ -2939,11 +2946,12 @@ JSON array only:`
   // Get previous week's habits for copy feature
   const getPreviousWeekHabits = useMemo(() => {
     if (!myParticipant || !currentWeek) return [];
-    
+
     const currentDate = new Date(currentWeek + 'T00:00:00');
     currentDate.setDate(currentDate.getDate() - 7);
-    const lastWeek = currentDate.toISOString().split('T')[0];
-    
+    // Use local date formatting to avoid timezone issues with toISOString()
+    const lastWeek = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+
     return habits.filter(h => h.participant === myParticipant && h.weekStart === lastWeek);
   }, [habits, myParticipant, currentWeek]);
 
@@ -8651,8 +8659,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   const today = new Date();
                   const currentMonday = new Date(today);
                   currentMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-                  const currentWeekStr = currentMonday.toISOString().split('T')[0];
-                  
+                  // Use local date formatting to avoid timezone issues with toISOString()
+                  const currentWeekStr = `${currentMonday.getFullYear()}-${String(currentMonday.getMonth() + 1).padStart(2, '0')}-${String(currentMonday.getDate()).padStart(2, '0')}`;
+
                   const weeksWithData = ALL_WEEKS.filter(week => {
                     if (week > currentWeekStr) return false;
                     const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
