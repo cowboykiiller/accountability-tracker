@@ -6780,6 +6780,29 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               </div>
             ) : (
               <div className="space-y-1.5">
+                {/* Show copy prompt if user has no habits this week but has habits from last week */}
+                {(() => {
+                  const myHabitsThisWeek = currentWeekHabits.filter(h => h.participant === myParticipant);
+                  if (myHabitsThisWeek.length === 0 && getPreviousWeekHabits.length > 0) {
+                    return (
+                      <div className={`rounded-xl p-4 mb-3 flex items-center justify-between ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-blue-50 border border-blue-100'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${darkMode ? 'bg-gray-700' : 'bg-blue-100'}`}>
+                            <RefreshCw className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                          </div>
+                          <div>
+                            <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>You haven't added habits this week</p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Copy your {getPreviousWeekHabits.length} habit{getPreviousWeekHabits.length !== 1 ? 's' : ''} from last week to get started</p>
+                          </div>
+                        </div>
+                        <button onClick={copyHabitsFromLastWeek} className={`px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                          Copy Last Week
+                        </button>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 {(() => {
                   const today = new Date();
                   const dayOfWeek = today.getDay();
