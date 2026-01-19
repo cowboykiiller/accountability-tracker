@@ -3054,6 +3054,62 @@ JSON array only:`
     }
   };
 
+  // Auto-add non-negotiable habits from Vision when entering a new week with no habits
+  const autoAddedWeeksRef = useRef(new Set());
+  
+  useEffect(() => {
+    const autoAddNonNegotiables = async () => {
+      if (!myParticipant || !currentWeek || !visionData || !db) return;
+      
+      // Prevent duplicate auto-adds for the same week
+      const weekKey = `${myParticipant}_${currentWeek}`;
+      if (autoAddedWeeksRef.current.has(weekKey)) return;
+      
+      // Get non-negotiables from vision data
+      const nonNegotiables = [
+        visionData.nonNegotiable1,
+        visionData.nonNegotiable2,
+        visionData.nonNegotiable3
+      ].filter(Boolean);
+      
+      if (nonNegotiables.length === 0) return;
+      
+      // Check if user already has any habits this week
+      const thisWeekHabits = habits.filter(h => h.participant === myParticipant && h.weekStart === currentWeek);
+      if (thisWeekHabits.length > 0) {
+        // Mark as processed so we don't keep checking
+        autoAddedWeeksRef.current.add(weekKey);
+        return;
+      }
+      
+      // Mark this week as processed before adding
+      autoAddedWeeksRef.current.add(weekKey);
+      
+      // Add each non-negotiable as a habit
+      console.log('Auto-adding non-negotiables for week:', currentWeek);
+      for (let i = 0; i < nonNegotiables.length; i++) {
+        const nn = nonNegotiables[i];
+        const id = `habit_${Date.now()}_nn_${i}_${Math.random().toString(36).substr(2, 5)}`;
+        await setDoc(doc(db, 'habits', id), {
+          id,
+          habit: nn,
+          participant: myParticipant,
+          weekStart: currentWeek,
+          habitType: 'daily',
+          target: 5, // Default to 5 days/week for non-negotiables
+          daysCompleted: [],
+          category: '', // Will be AI-categorized
+          isNonNegotiable: true,
+          order: i
+        });
+      }
+    };
+    
+    // Small delay to ensure habits have loaded from Firestore
+    const timer = setTimeout(autoAddNonNegotiables, 500);
+    return () => clearTimeout(timer);
+  }, [currentWeek, myParticipant, visionData, habits]);
+
   const addPercentageInstance = async (id, success) => {
     const habit = habits.find(h => h.id === id);
     if (!habit) return;
@@ -6738,6 +6794,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           editingPastWeek ? 'bg-amber-500 text-white' : (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500')
                         }`}>
                           {editingPastWeek ? <Check className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                        </button>
+                      )}
+                      {getPreviousWeekHabits.length > 0 && (
+                        <button onClick={copyHabitsFromLastWeek} className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                          <RefreshCw className="w-3.5 h-3.5" /> Copy Last Week
                         </button>
                       )}
                       <button onClick={() => setShowAddHabitModal(true)} className="flex items-center gap-1 px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-xs font-medium">
