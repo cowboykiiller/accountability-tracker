@@ -2640,60 +2640,6 @@ JSON array only:`
   // Get the user's assigned participant name
   const myParticipant = userProfile?.linkedParticipant || user?.displayName || '';
 
-  // Auto-add non-negotiables as habits when viewing a new week
-  useEffect(() => {
-    const addNonNegotiablesToWeek = async () => {
-      if (!currentWeek || !myParticipant) return;
-
-      // Get non-negotiables from both sources:
-      // 1. From nonNegotiables collection (the modal)
-      const myNonNegotiables = nonNegotiables.filter(nn => nn.participant === myParticipant);
-
-      // 2. From visionData (the vision setup)
-      const visionNonNegotiables = visionData
-        ? [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean)
-        : [];
-
-      // Combine both sources (avoid duplicates)
-      const allNonNegotiableNames = [
-        ...myNonNegotiables.map(nn => nn.habit),
-        ...visionNonNegotiables
-      ];
-      const uniqueNonNegotiables = [...new Set(allNonNegotiableNames.map(n => n?.toLowerCase().trim()))];
-
-      if (uniqueNonNegotiables.length === 0) return;
-
-      // Get existing habits for this week
-      const thisWeekHabits = habits.filter(h => h.participant === myParticipant && h.weekStart === currentWeek);
-      const existingNames = thisWeekHabits.map(h => h.habit?.toLowerCase().trim());
-
-      // Add any non-negotiables that don't exist yet
-      let orderIndex = thisWeekHabits.length;
-      for (const nnName of uniqueNonNegotiables) {
-        if (nnName && !existingNames.includes(nnName)) {
-          // Find original name with proper casing
-          const originalName = allNonNegotiableNames.find(n => n?.toLowerCase().trim() === nnName) || nnName;
-          const nnData = myNonNegotiables.find(nn => nn.habit?.toLowerCase().trim() === nnName);
-
-          const id = `habit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await setDoc(doc(db, 'habits', id), {
-            id,
-            habit: originalName,
-            participant: myParticipant,
-            weekStart: currentWeek,
-            habitType: 'daily',
-            target: nnData?.frequency === 'Weekdays' ? 5 : nnData?.frequency === '3x/week' ? 3 : 7,
-            daysCompleted: [],
-            order: orderIndex++,
-            isNonNegotiable: true
-          });
-        }
-      }
-    };
-
-    addNonNegotiablesToWeek();
-  }, [currentWeek, myParticipant, nonNegotiables, visionData, habits]);
-
   // === ANALYTICS CALCULATIONS (no Firebase needed) ===
   
   // Calculate best/worst days of the week
@@ -3078,18 +3024,7 @@ JSON array only:`
 
   // Copy habits from previous week
   const copyHabitsFromLastWeek = async () => {
-    if (!myParticipant) {
-      alert('Please link your account to a participant in Settings first.');
-      return;
-    }
-    if (!currentWeek) {
-      alert('No week selected.');
-      return;
-    }
-    if (getPreviousWeekHabits.length === 0) {
-      alert('No habits found from last week to copy.');
-      return;
-    }
+    if (!myParticipant || !currentWeek || getPreviousWeekHabits.length === 0) return;
     
     const thisWeekHabits = habits.filter(h => h.participant === myParticipant && h.weekStart === currentWeek);
     const existingNames = thisWeekHabits.map(h => h.habit?.toLowerCase().trim());
