@@ -3024,7 +3024,18 @@ JSON array only:`
 
   // Copy habits from previous week
   const copyHabitsFromLastWeek = async () => {
-    if (!myParticipant || !currentWeek || getPreviousWeekHabits.length === 0) return;
+    if (!myParticipant) {
+      alert('Please link your account to a participant in Settings first.');
+      return;
+    }
+    if (!currentWeek) {
+      alert('No week selected.');
+      return;
+    }
+    if (getPreviousWeekHabits.length === 0) {
+      alert('No habits found from last week to copy.');
+      return;
+    }
     
     const thisWeekHabits = habits.filter(h => h.participant === myParticipant && h.weekStart === currentWeek);
     const existingNames = thisWeekHabits.map(h => h.habit?.toLowerCase().trim());
