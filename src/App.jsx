@@ -8733,9 +8733,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Radar Chart - Life Balance */}
               <div className={`rounded-2xl p-4 md:p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
-                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                <h3 className={`text-sm font-medium mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   Life Balance ({insightsTimePeriod === 'month' ? 'Month' : insightsTimePeriod === 'quarter' ? 'Quarter' : 'Year'})
                 </h3>
+                <p className={`text-xs mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  Based on volume (40%) + completion rate (60%)
+                </p>
                 <ResponsiveContainer width="100%" height={220}>
                   <RadarChart data={(() => {
                     const periodWeeks = { month: 4, quarter: 13, year: 52 };
@@ -8746,17 +8749,68 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     const periodStartDate = startDate.toISOString().split('T')[0];
                     const currentWeekStart = getCurrentMonday();
                     const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate && h.weekStart !== currentWeekStart);
-                    return HABIT_CATEGORIES.map(cat => {
+                    
+                    // First pass: calculate raw metrics for each category
+                    const categoryData = HABIT_CATEGORIES.map(cat => {
                       const catHabits = myHabits.filter(h => h.category === cat.id);
-                      const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                      const score = catHabits.length > 0 ? Math.round((completed / catHabits.length) * 100) : 0;
-                      return { category: cat.id, score, fullMark: 100 };
+                      
+                      // Volume: total days completed across all habits in this category
+                      const totalDaysCompleted = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                      
+                      // Completion rate: habits that hit their target
+                      const completedHabits = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                      const completionRate = catHabits.length > 0 ? (completedHabits / catHabits.length) * 100 : 0;
+                      
+                      return {
+                        category: cat.id,
+                        volume: totalDaysCompleted,
+                        completionRate,
+                        habitCount: catHabits.length
+                      };
+                    });
+                    
+                    // Find max volume for normalization
+                    const maxVolume = Math.max(...categoryData.map(c => c.volume), 1);
+                    
+                    // Second pass: calculate composite score
+                    return categoryData.map(cat => {
+                      // Normalize volume to 0-100 scale
+                      const volumeScore = (cat.volume / maxVolume) * 100;
+                      
+                      // Composite score: 40% volume + 60% completion rate
+                      const score = cat.habitCount > 0 
+                        ? Math.round((volumeScore * 0.4) + (cat.completionRate * 0.6))
+                        : 0;
+                      
+                      return { 
+                        category: cat.id, 
+                        score, 
+                        fullMark: 100,
+                        volume: cat.volume,
+                        completionRate: Math.round(cat.completionRate)
+                      };
                     });
                   })()}>
                     <PolarGrid stroke={darkMode ? '#334155' : '#e2e8f0'} />
                     <PolarAngleAxis dataKey="category" tick={{ fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 10 }} />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: darkMode ? '#64748b' : '#94a3b8', fontSize: 8 }} />
                     <Radar name="Score" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} strokeWidth={2} />
+                    <Tooltip 
+                      content={({ payload }) => {
+                        if (payload && payload.length > 0) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className={`px-3 py-2 rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                              <p className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{data.category}</p>
+                              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Score: {data.score}/100</p>
+                              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Days completed: {data.volume}</p>
+                              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Completion rate: {data.completionRate}%</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
