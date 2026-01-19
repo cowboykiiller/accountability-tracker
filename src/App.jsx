@@ -2940,9 +2940,16 @@ JSON array only:`
   const getPreviousWeekHabits = useMemo(() => {
     if (!myParticipant || !currentWeek) return [];
     
-    const currentDate = new Date(currentWeek + 'T00:00:00');
-    currentDate.setDate(currentDate.getDate() - 7);
-    const lastWeek = currentDate.toISOString().split('T')[0];
+    // Find all weeks before current week for this participant
+    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart < currentWeek);
+    
+    if (myHabits.length === 0) return [];
+    
+    // Get unique weeks and find the most recent one
+    const uniqueWeeks = [...new Set(myHabits.map(h => h.weekStart))].sort().reverse();
+    const lastWeek = uniqueWeeks[0];
+    
+    if (!lastWeek) return [];
     
     return habits.filter(h => h.participant === myParticipant && h.weekStart === lastWeek);
   }, [habits, myParticipant, currentWeek]);
@@ -8442,7 +8449,15 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               startDate.setDate(startDate.getDate() - (weeksBack * 7));
               const periodStartDate = startDate.toISOString().split('T')[0];
               
-              const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate);
+              // Get current week start to EXCLUDE it (incomplete week would tank the score)
+              const currentWeekStart = getCurrentMonday();
+              
+              // Filter habits: within period AND exclude current week
+              const myHabits = habits.filter(h => 
+                h.participant === myParticipant && 
+                h.weekStart >= periodStartDate &&
+                h.weekStart !== currentWeekStart
+              );
               const totalHabits = myHabits.length;
               const completedHabits = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
               const exceededHabits = myHabits.filter(h => getStatus(h) === 'Exceeded').length;
@@ -8558,7 +8573,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   const startDate = new Date(today);
                   startDate.setDate(startDate.getDate() - (weeksBack * 7));
                   const periodStartDate = startDate.toISOString().split('T')[0];
-                  const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate);
+                  const currentWeekStart = getCurrentMonday();
+                  const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate && h.weekStart !== currentWeekStart);
                   
                   return HABIT_CATEGORIES.map(cat => {
                     const catHabits = myHabits.filter(h => h.category === cat.id);
@@ -8681,7 +8697,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     const startDate = new Date(today);
                     startDate.setDate(startDate.getDate() - (weeksBack * 7));
                     const periodStartDate = startDate.toISOString().split('T')[0];
-                    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate);
+                    const currentWeekStart = getCurrentMonday();
+                    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate && h.weekStart !== currentWeekStart);
                     return HABIT_CATEGORIES.map(cat => {
                       const catHabits = myHabits.filter(h => h.category === cat.id);
                       const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
@@ -8847,8 +8864,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   const startDate = new Date(today);
                   startDate.setDate(startDate.getDate() - (weeksBack * 7));
                   const periodStartDate = startDate.toISOString().split('T')[0];
+                  const currentWeekStart = getCurrentMonday();
                   const habitStats = {};
-                  habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate).forEach(h => {
+                  habits.filter(h => h.participant === myParticipant && h.weekStart >= periodStartDate && h.weekStart !== currentWeekStart).forEach(h => {
                     const normName = getNormalizedHabitName(h.habit);
                     if (!habitStats[normName]) {
                       habitStats[normName] = { habit: normName, category: h.category, completed: 0, total: 0 };
