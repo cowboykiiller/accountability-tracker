@@ -2938,10 +2938,22 @@ JSON array only:`
   
   // Get previous week's habits for copy feature
   const getPreviousWeekHabits = useMemo(() => {
-    if (!myParticipant || !currentWeek) return [];
+    if (!myParticipant || !currentWeek) {
+      console.log('getPreviousWeekHabits: missing data', { myParticipant, currentWeek });
+      return [];
+    }
     
     // Find all weeks before current week for this participant
     const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart < currentWeek);
+    
+    console.log('getPreviousWeekHabits: myParticipant =', myParticipant);
+    console.log('getPreviousWeekHabits: currentWeek =', currentWeek);
+    console.log('getPreviousWeekHabits: all habits count =', habits.length);
+    console.log('getPreviousWeekHabits: filtered past habits =', myHabits.length);
+    
+    // Debug: show all unique participants
+    const allParticipantsInHabits = [...new Set(habits.map(h => h.participant))];
+    console.log('getPreviousWeekHabits: all participants in habits =', allParticipantsInHabits);
     
     if (myHabits.length === 0) return [];
     
@@ -2949,9 +2961,15 @@ JSON array only:`
     const uniqueWeeks = [...new Set(myHabits.map(h => h.weekStart))].sort().reverse();
     const lastWeek = uniqueWeeks[0];
     
+    console.log('getPreviousWeekHabits: unique weeks =', uniqueWeeks);
+    console.log('getPreviousWeekHabits: lastWeek =', lastWeek);
+    
     if (!lastWeek) return [];
     
-    return habits.filter(h => h.participant === myParticipant && h.weekStart === lastWeek);
+    const result = habits.filter(h => h.participant === myParticipant && h.weekStart === lastWeek);
+    console.log('getPreviousWeekHabits: returning', result.length, 'habits from', lastWeek);
+    
+    return result;
   }, [habits, myParticipant, currentWeek]);
 
   // Daily stats for current week (Week at a Glance)
@@ -3031,15 +3049,35 @@ JSON array only:`
 
   // Copy habits from previous week
   const copyHabitsFromLastWeek = async () => {
-    if (!myParticipant || !currentWeek || getPreviousWeekHabits.length === 0) return;
+    if (!myParticipant || !currentWeek || getPreviousWeekHabits.length === 0) {
+      console.log('Copy aborted:', { myParticipant, currentWeek, prevHabitsCount: getPreviousWeekHabits.length });
+      return;
+    }
+    
+    console.log('Copying from previous week. Found habits:', getPreviousWeekHabits.length);
+    console.log('Previous week habits:', getPreviousWeekHabits.map(h => h.habit));
     
     const thisWeekHabits = habits.filter(h => h.participant === myParticipant && h.weekStart === currentWeek);
-    const existingNames = thisWeekHabits.map(h => h.habit?.toLowerCase().trim());
+    const existingNames = thisWeekHabits.map(h => (h.habit || '').toLowerCase().trim());
+    
+    console.log('Existing this week:', existingNames);
     
     let copied = 0;
-    for (const habit of getPreviousWeekHabits) {
-      if (!existingNames.includes(habit.habit?.toLowerCase().trim())) {
-        const id = `habit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const habitsToCopy = getPreviousWeekHabits.filter(h => {
+      const habitName = (h.habit || '').toLowerCase().trim();
+      const alreadyExists = existingNames.includes(habitName);
+      console.log(`Habit "${h.habit}" - exists: ${alreadyExists}`);
+      return !alreadyExists;
+    });
+    
+    console.log('Habits to copy:', habitsToCopy.length);
+    
+    // Copy all habits with unique IDs
+    for (let i = 0; i < habitsToCopy.length; i++) {
+      const habit = habitsToCopy[i];
+      const id = `habit_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      try {
         await setDoc(doc(db, 'habits', id), {
           id,
           habit: habit.habit,
@@ -3048,9 +3086,18 @@ JSON array only:`
           habitType: habit.habitType || 'daily',
           target: habit.target || 5,
           daysCompleted: [],
-          order: habit.order
+          category: habit.category || '',
+          order: habit.order || i
         });
         copied++;
+        console.log(`Copied habit ${i + 1}: ${habit.habit}`);
+        
+        // Small delay to prevent Firestore throttling
+        if (i < habitsToCopy.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (err) {
+        console.error(`Error copying habit "${habit.habit}":`, err);
       }
     }
     
