@@ -919,7 +919,7 @@ export default function AccountabilityTracker() {
   
   // Enhanced task features
   const [quickTaskInput, setQuickTaskInput] = useState('');
-  const [taskViewMode, setTaskViewMode] = useState('list'); // list, planner, focus
+  const [taskViewMode, setTaskViewMode] = useState('list'); // list, calendar, planner, focus
   const [expandedTask, setExpandedTask] = useState(null);
   const [pomodoroTask, setPomodoroTask] = useState(null);
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
@@ -930,6 +930,25 @@ export default function AccountabilityTracker() {
   const [aiScheduling, setAiScheduling] = useState(false); // AI scheduling in progress
   const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [taskProductivity, setTaskProductivity] = useState({ tasksCompleted: 0, streak: 0, avgPerDay: 0 });
+  
+  // AI Smart Scheduler
+  const [aiSchedulerInput, setAiSchedulerInput] = useState('');
+  const [aiSchedulerLoading, setAiSchedulerLoading] = useState(false);
+  const [aiScheduledTasks, setAiScheduledTasks] = useState([]);
+  const [showAiScheduler, setShowAiScheduler] = useState(false);
+  
+  // Calendar View
+  const [calendarViewDate, setCalendarViewDate] = useState(new Date());
+  const [calendarViewType, setCalendarViewType] = useState('day'); // day, week, month
+  
+  // Recurring Tasks
+  const [recurringTasks, setRecurringTasks] = useState([]);
+  const [editingRecurring, setEditingRecurring] = useState(null);
+  
+  // Google Calendar Integration
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
+  const [googleCalendarEvents, setGoogleCalendarEvents] = useState([]);
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
   
   // Non-Negotiables state - 3 core habits that never change
   const [nonNegotiables, setNonNegotiables] = useState([]);
@@ -3732,8 +3751,7 @@ Respond with ONLY a JSON array of strings, no other text. Example:
         status: 'Not Started',
         created_at: new Date().toISOString(),
         created_by: user?.uid,
-        participant: userProfile?.linkedParticipant || user?.displayName,
-        parent_task: aiBreakdownTask.task
+        participant: userProfile?.linkedParticipant || user?.displayName
       };
       
       try {
@@ -3757,6 +3775,217 @@ Respond with ONLY a JSON array of strings, no other text. Example:
     fetchTasks();
     setAiBreakdownTask(null);
     setAiSubtasks([]);
+  };
+
+  // AI Smart Scheduler - Parse natural language and create time-slotted tasks
+  const aiSmartSchedule = async () => {
+    if (!aiSchedulerInput.trim()) return;
+    
+    setAiSchedulerLoading(true);
+    setAiScheduledTasks([]);
+    
+    const today = new Date();
+    const currentTime = today.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Get existing tasks for today to avoid conflicts
+    const existingTodayTasks = tasks.filter(t => t.dueDate === todayStr && t.time_slot);
+    const busySlots = existingTodayTasks.map(t => t.time_slot).join(', ') || 'None';
+    
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          messages: [{
+            role: 'user',
+            content: `You are a productivity assistant. Parse the user's natural language input and create a structured, time-blocked schedule for their day.
+
+Current date: ${todayStr}
+Current time: ${currentTime}
+Already scheduled time slots: ${busySlots}
+
+User's input:
+"${aiSchedulerInput}"
+
+Create a realistic schedule considering:
+- Start from current time or next available slot
+- High priority tasks ("first and foremost", "urgent", "important") should be scheduled first
+- Quick tasks (pills, emails) can be 15-30 mins
+- Complex tasks (reading, writing) need 30-60 mins
+- Include short breaks between intense tasks
+- Lunch around 12:00-13:00 if scheduling morning to afternoon
+- Don't schedule past 22:00
+
+Respond with ONLY a JSON array of task objects, no other text:
+[
+  {
+    "task": "Task description",
+    "time_slot": "HH:MM",
+    "duration": 30,
+    "priority": "High|Medium|Low",
+    "category": "Work|Personal|Health|Learning|Admin"
+  }
+]`
+          }]
+        })
+      });
+      
+      const data = await response.json();
+      const content = data.content?.[0]?.text || '[]';
+      
+      // Parse the JSON response
+      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      const scheduledTasks = JSON.parse(cleanContent);
+      
+      setAiScheduledTasks(scheduledTasks);
+    } catch (error) {
+      console.error('AI scheduler error:', error);
+      setAiScheduledTasks([{ task: 'Error generating schedule. Please try again.', time_slot: '', priority: 'Medium' }]);
+    } finally {
+      setAiSchedulerLoading(false);
+    }
+  };
+
+  // Add all AI-scheduled tasks to the task list
+  const addAiScheduledTasks = async () => {
+    if (aiScheduledTasks.length === 0) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    for (let i = 0; i < aiScheduledTasks.length; i++) {
+      const scheduledTask = aiScheduledTasks[i];
+      if (scheduledTask.task.startsWith('Error')) continue;
+      
+      const taskDoc = {
+        id: `task_${Date.now()}_ai_${i}`,
+        task: scheduledTask.task,
+        due_date: today,
+        time_slot: scheduledTask.time_slot || null,
+        priority: scheduledTask.priority || 'Medium',
+        category: scheduledTask.category || 'Work',
+        status: 'Not Started',
+        created_at: new Date().toISOString(),
+        created_by: user?.uid,
+        participant: userProfile?.linkedParticipant || user?.displayName
+      };
+      
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(taskDoc)
+        });
+      } catch (error) {
+        console.error('Add AI scheduled task error:', error);
+      }
+      
+      await new Promise(r => setTimeout(r, 50));
+    }
+    
+    fetchTasks();
+    setAiScheduledTasks([]);
+    setAiSchedulerInput('');
+    setShowAiScheduler(false);
+  };
+
+  // Add a recurring task
+  const addRecurringTask = async (recurringConfig) => {
+    const { task, pattern, days, time_slot, priority, category } = recurringConfig;
+    
+    // Generate tasks for the next 4 weeks based on pattern
+    const today = new Date();
+    const tasksToCreate = [];
+    
+    for (let week = 0; week < 4; week++) {
+      if (pattern === 'daily') {
+        for (let day = 0; day < 7; day++) {
+          const date = new Date(today);
+          date.setDate(date.getDate() + (week * 7) + day);
+          if (date >= today) {
+            tasksToCreate.push({
+              id: `task_${Date.now()}_rec_${week}_${day}`,
+              task,
+              due_date: date.toISOString().split('T')[0],
+              time_slot,
+              priority,
+              category,
+              status: 'Not Started',
+              created_at: new Date().toISOString(),
+              created_by: user?.uid,
+              participant: userProfile?.linkedParticipant || user?.displayName,
+              recurring_id: `rec_${Date.now()}`
+            });
+          }
+        }
+      } else if (pattern === 'weekly' && days) {
+        const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+        days.forEach(dayName => {
+          const targetDay = dayMap[dayName];
+          const date = new Date(today);
+          const currentDay = date.getDay();
+          let daysUntil = targetDay - currentDay + (week * 7);
+          if (daysUntil < 0 && week === 0) daysUntil += 7;
+          date.setDate(date.getDate() + daysUntil);
+          if (date >= today) {
+            tasksToCreate.push({
+              id: `task_${Date.now()}_rec_${week}_${dayName}`,
+              task,
+              due_date: date.toISOString().split('T')[0],
+              time_slot,
+              priority,
+              category,
+              status: 'Not Started',
+              created_at: new Date().toISOString(),
+              created_by: user?.uid,
+              participant: userProfile?.linkedParticipant || user?.displayName,
+              recurring_id: `rec_${Date.now()}`
+            });
+          }
+        });
+      }
+    }
+    
+    // Batch insert tasks
+    for (const taskDoc of tasksToCreate) {
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(taskDoc)
+        });
+      } catch (error) {
+        console.error('Add recurring task error:', error);
+      }
+      await new Promise(r => setTimeout(r, 30));
+    }
+    
+    fetchTasks();
+    setShowRecurringModal(false);
+  };
+
+  // Google Calendar Integration placeholder
+  const connectGoogleCalendar = async () => {
+    // This requires Google OAuth setup
+    // For now, show instructions modal
+    alert('Google Calendar integration requires setting up OAuth credentials in Google Cloud Console. Coming soon!');
   };
 
   const updateTaskStatus = async (taskId, newStatus) => {
@@ -3919,10 +4148,7 @@ Respond with ONLY a JSON array of strings, no other text. Example:
       status: 'Not Started',
       created_at: new Date().toISOString(),
       created_by: user?.uid,
-      participant: userProfile?.linkedParticipant || user?.displayName,
-      notes: '',
-      time_estimate: 15,
-      recurring: null
+      participant: userProfile?.linkedParticipant || user?.displayName
     };
     
     console.log('quickAddTask: creating task:', taskDoc);
@@ -7821,7 +8047,360 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   )}
                 </div>
 
-                {/* AI Task Breakdown Modal */}
+                {/* AI Smart Scheduler */}
+                <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200'}`}>
+                  <button 
+                    onClick={() => setShowAiScheduler(!showAiScheduler)}
+                    className={`w-full flex items-center justify-between px-4 py-3 ${darkMode ? 'hover:bg-white/5' : 'hover:bg-white/50'} transition-colors`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${darkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
+                        <Wand2 className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                      </div>
+                      <div className="text-left">
+                        <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>AI Smart Scheduler</p>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Describe your day, let AI organize it</p>
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 transition-transform ${showAiScheduler ? 'rotate-180' : ''} ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                  </button>
+                  
+                  {showAiScheduler && (
+                    <div className="px-4 pb-4 space-y-4">
+                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-black/20' : 'bg-white/70'}`}>
+                        <textarea
+                          value={aiSchedulerInput}
+                          onChange={(e) => setAiSchedulerInput(e.target.value)}
+                          placeholder="Describe what you need to do today in natural language...&#10;&#10;Example: Today I have to first and foremost read a chapter and take my pills. After that I need to send some follow up emails including sending contracts for the new properties to the title company. I also need to review the quarterly report and call Mom for her birthday."
+                          rows={4}
+                          className={`w-full px-4 py-3 rounded-xl text-sm resize-none ${darkMode ? 'bg-gray-800 text-white placeholder-gray-500 border border-gray-700 focus:border-purple-500' : 'bg-gray-50 text-gray-800 placeholder-gray-400 border border-gray-200 focus:border-purple-500'} focus:outline-none focus:ring-2 focus:ring-purple-500/20`}
+                        />
+                        <div className="flex items-center justify-between mt-3">
+                          <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                            ✨ AI will create time-blocked tasks with priorities
+                          </p>
+                          <button 
+                            onClick={aiSmartSchedule} 
+                            disabled={!aiSchedulerInput.trim() || aiSchedulerLoading}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl text-sm font-semibold disabled:opacity-30 transition-all shadow-lg shadow-purple-500/20"
+                          >
+                            {aiSchedulerLoading ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Planning...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4" />
+                                Plan My Day
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* AI Generated Schedule Preview */}
+                      {aiScheduledTasks.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              📅 Your Scheduled Day
+                            </p>
+                            <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {aiScheduledTasks.length} tasks
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {aiScheduledTasks.map((task, idx) => (
+                              <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-800/70' : 'bg-white shadow-sm'}`}>
+                                <div className={`w-14 text-center flex-shrink-0 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                                  <p className="text-sm font-bold">{task.time_slot || '--:--'}</p>
+                                  {task.duration && <p className="text-[10px] opacity-60">{task.duration}m</p>}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{task.task}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                      task.priority === 'High' ? 'bg-red-500/10 text-red-500' :
+                                      task.priority === 'Low' ? 'bg-gray-500/10 text-gray-500' :
+                                      'bg-blue-500/10 text-blue-500'
+                                    }`}>{task.priority}</span>
+                                    {task.category && (
+                                      <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{task.category}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <div className="flex gap-2 pt-2">
+                            <button 
+                              onClick={() => setAiScheduledTasks([])}
+                              className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium ${darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                            >
+                              Clear
+                            </button>
+                            <button 
+                              onClick={addAiScheduledTasks}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-green-500/20"
+                            >
+                              <Check className="w-4 h-4" />
+                              Add All to Tasks
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* View Mode Toggle & Recurring Tasks */}
+                <div className="flex items-center justify-between">
+                  {/* View Mode */}
+                  <div className={`flex p-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                    <button onClick={() => setTaskViewMode('list')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${taskViewMode === 'list' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                      <ListTodo className="w-3.5 h-3.5" /> List
+                    </button>
+                    <button onClick={() => setTaskViewMode('calendar')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${taskViewMode === 'calendar' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                      <Calendar className="w-3.5 h-3.5" /> Calendar
+                    </button>
+                  </div>
+                  
+                  {/* Recurring + Add Buttons */}
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowRecurringModal(true)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium ${darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      <Repeat className="w-3.5 h-3.5" /> Recurring
+                    </button>
+                    <button onClick={() => setShowAddTask(true)} 
+                      className="p-2 rounded-xl bg-[#1E3A5F] text-white hover:bg-[#162D4D]">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Calendar View */}
+                {taskViewMode === 'calendar' && (
+                  <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                    {/* Calendar Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => {
+                          const newDate = new Date(calendarViewDate);
+                          if (calendarViewType === 'day') newDate.setDate(newDate.getDate() - 1);
+                          else if (calendarViewType === 'week') newDate.setDate(newDate.getDate() - 7);
+                          else newDate.setMonth(newDate.getMonth() - 1);
+                          setCalendarViewDate(newDate);
+                        }} className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <h3 className={`text-sm font-semibold min-w-[140px] text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {calendarViewType === 'day' 
+                            ? calendarViewDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+                            : calendarViewType === 'week'
+                              ? `Week of ${calendarViewDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                              : calendarViewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                          }
+                        </h3>
+                        <button onClick={() => {
+                          const newDate = new Date(calendarViewDate);
+                          if (calendarViewType === 'day') newDate.setDate(newDate.getDate() + 1);
+                          else if (calendarViewType === 'week') newDate.setDate(newDate.getDate() + 7);
+                          else newDate.setMonth(newDate.getMonth() + 1);
+                          setCalendarViewDate(newDate);
+                        }} className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setCalendarViewDate(new Date())}
+                          className={`px-2 py-1 rounded text-xs font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                          Today
+                        </button>
+                        <div className={`flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                          {['day', 'week'].map(type => (
+                            <button key={type} onClick={() => setCalendarViewType(type)}
+                              className={`px-2 py-1 rounded text-xs font-medium capitalize ${calendarViewType === type ? (darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                              {type}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Day View - Time Slots */}
+                    {calendarViewType === 'day' && (
+                      <div className="space-y-1 max-h-96 overflow-y-auto">
+                        {Array.from({ length: 16 }, (_, i) => i + 6).map(hour => {
+                          const timeStr = `${hour.toString().padStart(2, '0')}:00`;
+                          const dateStr = calendarViewDate.toISOString().split('T')[0];
+                          const hourTasks = tasks.filter(t => 
+                            t.dueDate === dateStr && 
+                            t.time_slot && 
+                            parseInt(t.time_slot.split(':')[0]) === hour
+                          );
+                          
+                          return (
+                            <div key={hour} className={`flex gap-3 py-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                              <div className={`w-12 text-xs font-medium ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {hour > 12 ? `${hour - 12}pm` : hour === 12 ? '12pm' : `${hour}am`}
+                              </div>
+                              <div className="flex-1 min-h-[40px]">
+                                {hourTasks.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {hourTasks.map(task => (
+                                      <div key={task.id} 
+                                        onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                                        className={`px-3 py-2 rounded-lg cursor-pointer transition-all ${
+                                          task.status === 'Completed' 
+                                            ? (darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-200')
+                                            : task.priority === 'High'
+                                              ? (darkMode ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-200')
+                                              : (darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-200')
+                                        }`}>
+                                        <p className={`text-sm ${task.status === 'Completed' ? 'line-through opacity-60' : ''} ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                          {task.task}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className={`h-full rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-700' : 'border-gray-100'}`} />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {/* Week View */}
+                    {calendarViewType === 'week' && (
+                      <div className="overflow-x-auto">
+                        <div className="grid grid-cols-7 gap-1 min-w-[600px]">
+                          {/* Week day headers */}
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => {
+                            const date = new Date(calendarViewDate);
+                            date.setDate(date.getDate() - date.getDay() + idx);
+                            const isToday = date.toDateString() === new Date().toDateString();
+                            
+                            return (
+                              <div key={day} className={`text-center py-2 ${isToday ? (darkMode ? 'bg-blue-500/20 rounded-t-lg' : 'bg-blue-50 rounded-t-lg') : ''}`}>
+                                <p className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{day}</p>
+                                <p className={`text-lg font-bold ${isToday ? 'text-blue-500' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
+                                  {date.getDate()}
+                                </p>
+                              </div>
+                            );
+                          })}
+                          
+                          {/* Week day tasks */}
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((_, idx) => {
+                            const date = new Date(calendarViewDate);
+                            date.setDate(date.getDate() - date.getDay() + idx);
+                            const dateStr = date.toISOString().split('T')[0];
+                            const dayTasks = tasks.filter(t => t.dueDate === dateStr && t.status !== 'Completed');
+                            const isToday = date.toDateString() === new Date().toDateString();
+                            
+                            return (
+                              <div key={idx} className={`min-h-[120px] p-1 rounded-b-lg ${isToday ? (darkMode ? 'bg-blue-500/10' : 'bg-blue-50/50') : (darkMode ? 'bg-gray-700/30' : 'bg-gray-50')}`}>
+                                <div className="space-y-1">
+                                  {dayTasks.slice(0, 4).map(task => (
+                                    <div key={task.id} className={`px-1.5 py-1 rounded text-[10px] truncate ${
+                                      task.priority === 'High' 
+                                        ? (darkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700')
+                                        : (darkMode ? 'bg-gray-600 text-gray-200' : 'bg-white text-gray-700')
+                                    }`}>
+                                      {task.time_slot && <span className="font-medium">{task.time_slot.slice(0, 5)} </span>}
+                                      {task.task}
+                                    </div>
+                                  ))}
+                                  {dayTasks.length > 4 && (
+                                    <p className={`text-[10px] text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      +{dayTasks.length - 4} more
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Recurring Task Modal */}
+                {showRecurringModal && (
+                  <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-lg'}`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        <Repeat className="w-4 h-4 inline mr-2" />
+                        Create Recurring Task
+                      </h3>
+                      <button onClick={() => setShowRecurringModal(false)} className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.target);
+                      addRecurringTask({
+                        task: formData.get('task'),
+                        pattern: formData.get('pattern'),
+                        days: formData.getAll('days'),
+                        time_slot: formData.get('time_slot') || null,
+                        priority: formData.get('priority'),
+                        category: formData.get('category')
+                      });
+                    }} className="space-y-3">
+                      <input name="task" required placeholder="Task name" 
+                        className={`w-full px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`} />
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <select name="pattern" className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                        </select>
+                        <input name="time_slot" type="time" 
+                          className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`} />
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                          <label key={day} className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                            <input type="checkbox" name="days" value={day} className="w-3 h-3" />
+                            {day}
+                          </label>
+                        ))}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <select name="priority" className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                          <option value="Medium">Medium Priority</option>
+                          <option value="High">High Priority</option>
+                          <option value="Low">Low Priority</option>
+                        </select>
+                        <select name="category" className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                          <option value="Work">Work</option>
+                          <option value="Personal">Personal</option>
+                          <option value="Health">Health</option>
+                          <option value="Learning">Learning</option>
+                        </select>
+                      </div>
+                      
+                      <button type="submit" className="w-full py-2.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]">
+                        Create Recurring Task (4 weeks)
+                      </button>
+                    </form>
+                  </div>
+                )}
                 {aiBreakdownTask && (
                   <div className={`rounded-xl p-4 ${darkMode ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-200'}`}>
                     <div className="flex items-center justify-between mb-3">
@@ -7923,47 +8502,49 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   </div>
                 )}
 
-                {/* Filters */}
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex gap-1.5 overflow-x-auto pb-1">
-                    {[
-                      { id: 'today', label: 'Today', icon: Calendar },
-                      { id: 'inbox', label: 'Inbox', icon: Inbox },
-                      { id: 'scheduled', label: 'Scheduled', icon: CalendarClock },
-                      { id: 'all', label: 'All', icon: ListTodo },
-                      { id: 'completed', label: 'Done', icon: CheckCircle2 }
-                    ].map(filter => {
-                      const Icon = filter.icon;
-                      return (
-                        <button key={filter.id} onClick={() => setTaskFilter(filter.id)}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                            taskFilter === filter.id
-                              ? darkMode ? 'bg-white text-gray-900' : 'bg-[#1E3A5F] text-white'
-                              : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-600 border border-gray-200'
-                          }`}>
-                          <Icon className="w-3.5 h-3.5" />
-                          {filter.label}
+                {/* Filters - Show in list view only */}
+                {taskViewMode === 'list' && (
+                  <>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex gap-1.5 overflow-x-auto pb-1">
+                        {[
+                          { id: 'today', label: 'Today', icon: Calendar },
+                          { id: 'inbox', label: 'Inbox', icon: Inbox },
+                          { id: 'scheduled', label: 'Scheduled', icon: CalendarClock },
+                          { id: 'all', label: 'All', icon: ListTodo },
+                          { id: 'completed', label: 'Done', icon: CheckCircle2 }
+                        ].map(filter => {
+                          const Icon = filter.icon;
+                          return (
+                            <button key={filter.id} onClick={() => setTaskFilter(filter.id)}
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                                taskFilter === filter.id
+                                  ? darkMode ? 'bg-white text-gray-900' : 'bg-[#1E3A5F] text-white'
+                                  : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-600 border border-gray-200'
+                              }`}>
+                              <Icon className="w-3.5 h-3.5" />
+                              {filter.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className={`flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                          <button onClick={() => setSelectedParticipant(myParticipant)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium ${selectedParticipant === myParticipant ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                            Mine
+                          </button>
+                          <button onClick={() => setSelectedParticipant('All')}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium ${selectedParticipant === 'All' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                            All
+                          </button>
+                        </div>
+                        <button onClick={() => setShowAddTask(true)} className={`p-2 rounded-lg ${darkMode ? 'bg-[#1E3A5F] text-white' : 'bg-[#1E3A5F] text-white'}`}>
+                          <Plus className="w-4 h-4" />
                         </button>
-                      );
-                    })}
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <div className={`flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <button onClick={() => setSelectedParticipant(myParticipant)}
-                        className={`px-2.5 py-1 rounded-md text-xs font-medium ${selectedParticipant === myParticipant ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                        Mine
-                      </button>
-                      <button onClick={() => setSelectedParticipant('All')}
-                        className={`px-2.5 py-1 rounded-md text-xs font-medium ${selectedParticipant === 'All' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                        All
-                      </button>
+                      </div>
                     </div>
-                    <button onClick={() => setShowAddTask(true)} className={`p-2 rounded-lg ${darkMode ? 'bg-[#1E3A5F] text-white' : 'bg-[#1E3A5F] text-white'}`}>
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
 
                 {/* Task List */}
                 <div className="space-y-2">
@@ -8095,6 +8676,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     });
                   })()}
                 </div>
+                  </>
+                )}
               </>
             )}
           </div>
