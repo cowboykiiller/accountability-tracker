@@ -3779,7 +3779,13 @@ Respond with ONLY a JSON array of strings, no other text. Example:
 
   // AI Smart Scheduler - Parse natural language and create time-slotted tasks
   const aiSmartSchedule = async () => {
-    if (!aiSchedulerInput.trim()) return;
+    console.log('aiSmartSchedule called with:', aiSchedulerInput);
+    
+    if (!aiSchedulerInput.trim()) {
+      console.log('aiSmartSchedule: empty input');
+      alert('Please enter what you need to do today');
+      return;
+    }
     
     setAiSchedulerLoading(true);
     setAiScheduledTasks([]);
@@ -3792,12 +3798,34 @@ Respond with ONLY a JSON array of strings, no other text. Example:
     const existingTodayTasks = tasks.filter(t => t.dueDate === todayStr && t.time_slot);
     const busySlots = existingTodayTasks.map(t => t.time_slot).join(', ') || 'None';
     
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+    console.log('API Key exists:', !!apiKey, 'Key preview:', apiKey ? apiKey.substring(0, 10) + '...' : 'none');
+    
+    // If no API key, use mock data for demo
+    if (!apiKey) {
+      console.log('No API key, using mock schedule');
+      const mockSchedule = [
+        { task: 'Take pills', time_slot: '08:00', duration: 5, priority: 'High', category: 'Health' },
+        { task: 'Read a chapter', time_slot: '08:30', duration: 45, priority: 'High', category: 'Learning' },
+        { task: 'Review and send follow-up emails', time_slot: '09:30', duration: 30, priority: 'Medium', category: 'Work' },
+        { task: 'Send contracts to title company', time_slot: '10:00', duration: 20, priority: 'High', category: 'Work' },
+        { task: 'Break', time_slot: '10:30', duration: 15, priority: 'Low', category: 'Personal' },
+      ];
+      
+      // Simulate loading
+      await new Promise(r => setTimeout(r, 1500));
+      setAiScheduledTasks(mockSchedule);
+      setAiSchedulerLoading(false);
+      return;
+    }
+    
     try {
+      console.log('Sending request to Anthropic API...');
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
+          'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
@@ -3838,17 +3866,29 @@ Respond with ONLY a JSON array of task objects, no other text:
         })
       });
       
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response data:', data);
+      
+      if (data.error) {
+        console.error('API error:', data.error);
+        setAiScheduledTasks([{ task: `Error: ${data.error.message || 'API request failed'}`, time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
+      
       const content = data.content?.[0]?.text || '[]';
+      console.log('Content:', content);
       
       // Parse the JSON response
       const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
       const scheduledTasks = JSON.parse(cleanContent);
+      console.log('Parsed tasks:', scheduledTasks);
       
       setAiScheduledTasks(scheduledTasks);
     } catch (error) {
       console.error('AI scheduler error:', error);
-      setAiScheduledTasks([{ task: 'Error generating schedule. Please try again.', time_slot: '', priority: 'Medium' }]);
+      setAiScheduledTasks([{ task: 'Error generating schedule: ' + error.message, time_slot: '', priority: 'Medium' }]);
     } finally {
       setAiSchedulerLoading(false);
     }
@@ -8080,7 +8120,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                             ✨ AI will create time-blocked tasks with priorities
                           </p>
                           <button 
-                            onClick={aiSmartSchedule} 
+                            type="button"
+                            onClick={() => {
+                              console.log('Plan My Day button clicked!');
+                              aiSmartSchedule();
+                            }} 
                             disabled={!aiSchedulerInput.trim() || aiSchedulerLoading}
                             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl text-sm font-semibold disabled:opacity-30 transition-all shadow-lg shadow-purple-500/20"
                           >
@@ -8223,7 +8267,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           Today
                         </button>
                         <div className={`flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          {['day', 'week'].map(type => (
+                          {['day', 'week', 'month'].map(type => (
                             <button key={type} onClick={() => setCalendarViewType(type)}
                               className={`px-2 py-1 rounded text-xs font-medium capitalize ${calendarViewType === type ? (darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
                               {type}
@@ -8329,6 +8373,118 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               </div>
                             );
                           })}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Month View */}
+                    {calendarViewType === 'month' && (
+                      <div className="overflow-x-auto">
+                        {/* Day headers */}
+                        <div className="grid grid-cols-7 gap-1 mb-1">
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                            <div key={day} className={`text-center py-2 text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {day}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Calendar grid */}
+                        <div className="grid grid-cols-7 gap-1">
+                          {(() => {
+                            const year = calendarViewDate.getFullYear();
+                            const month = calendarViewDate.getMonth();
+                            const firstDay = new Date(year, month, 1);
+                            const lastDay = new Date(year, month + 1, 0);
+                            const startPadding = firstDay.getDay();
+                            const daysInMonth = lastDay.getDate();
+                            const today = new Date();
+                            const todayStr = today.toISOString().split('T')[0];
+                            
+                            const cells = [];
+                            
+                            // Add padding for days before the 1st
+                            for (let i = 0; i < startPadding; i++) {
+                              const prevMonthDay = new Date(year, month, -startPadding + i + 1);
+                              cells.push(
+                                <div key={`pad-${i}`} className={`min-h-[80px] p-1 rounded-lg ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50/50'}`}>
+                                  <span className={`text-xs ${darkMode ? 'text-gray-600' : 'text-gray-300'}`}>{prevMonthDay.getDate()}</span>
+                                </div>
+                              );
+                            }
+                            
+                            // Add days of the month
+                            for (let day = 1; day <= daysInMonth; day++) {
+                              const date = new Date(year, month, day);
+                              const dateStr = date.toISOString().split('T')[0];
+                              const dayTasks = tasks.filter(t => t.dueDate === dateStr);
+                              const incompleteTasks = dayTasks.filter(t => t.status !== 'Completed');
+                              const completedTasks = dayTasks.filter(t => t.status === 'Completed');
+                              const isToday = dateStr === todayStr;
+                              const isSelected = dateStr === calendarViewDate.toISOString().split('T')[0];
+                              
+                              cells.push(
+                                <div 
+                                  key={day} 
+                                  onClick={() => {
+                                    setCalendarViewDate(date);
+                                    setCalendarViewType('day');
+                                  }}
+                                  className={`min-h-[80px] p-1.5 rounded-lg cursor-pointer transition-all ${
+                                    isToday 
+                                      ? (darkMode ? 'bg-blue-500/20 border border-blue-500/40' : 'bg-blue-50 border border-blue-200')
+                                      : (darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-white hover:bg-gray-50 border border-gray-100')
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className={`text-xs font-medium ${
+                                      isToday ? 'text-blue-500' : (darkMode ? 'text-white' : 'text-gray-900')
+                                    }`}>
+                                      {day}
+                                    </span>
+                                    {dayTasks.length > 0 && (
+                                      <span className={`text-[10px] px-1 rounded ${
+                                        incompleteTasks.length > 0 
+                                          ? (darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600')
+                                          : (darkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600')
+                                      }`}>
+                                        {dayTasks.length}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    {incompleteTasks.slice(0, 2).map(task => (
+                                      <div key={task.id} className={`text-[10px] px-1 py-0.5 rounded truncate ${
+                                        task.priority === 'High' 
+                                          ? (darkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700')
+                                          : (darkMode ? 'bg-gray-600 text-gray-200' : 'bg-gray-100 text-gray-700')
+                                      }`}>
+                                        {task.task}
+                                      </div>
+                                    ))}
+                                    {incompleteTasks.length > 2 && (
+                                      <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        +{incompleteTasks.length - 2} more
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
+                            // Add padding for remaining cells
+                            const totalCells = startPadding + daysInMonth;
+                            const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+                            for (let i = 1; i <= remainingCells; i++) {
+                              cells.push(
+                                <div key={`end-${i}`} className={`min-h-[80px] p-1 rounded-lg ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50/50'}`}>
+                                  <span className={`text-xs ${darkMode ? 'text-gray-600' : 'text-gray-300'}`}>{i}</span>
+                                </div>
+                              );
+                            }
+                            
+                            return cells;
+                          })()}
                         </div>
                       </div>
                     )}
