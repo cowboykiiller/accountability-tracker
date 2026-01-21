@@ -3038,13 +3038,22 @@ JSON array only:`
   // Firestore operations
   const toggleDay = async (id, idx) => {
     const habit = habits.find(h => h.id === id);
-    if (!habit) return;
+    if (!habit) {
+      console.error('toggleDay: habit not found', id);
+      return;
+    }
     
     const newDaysCompleted = (habit.daysCompleted || []).includes(idx)
       ? habit.daysCompleted.filter(d => d !== idx)
       : [...(habit.daysCompleted || []), idx].sort((a, b) => a - b);
     
-    await setDoc(doc(db, 'habits', id), { ...habit, daysCompleted: newDaysCompleted });
+    try {
+      await setDoc(doc(db, 'habits', id), { ...habit, daysCompleted: newDaysCompleted });
+      console.log('toggleDay success:', habit.habit, 'day', idx);
+    } catch (err) {
+      console.error('toggleDay error:', err);
+      alert('Failed to save. Check your permissions or try signing out and back in.');
+    }
   };
 
   // Copy habits from previous week
@@ -3170,7 +3179,12 @@ JSON array only:`
     
     const instances = habit.instances || [];
     const newInstance = { id: Date.now(), success };
-    await setDoc(doc(db, 'habits', id), { ...habit, instances: [...instances, newInstance] });
+    try {
+      await setDoc(doc(db, 'habits', id), { ...habit, instances: [...instances, newInstance] });
+    } catch (err) {
+      console.error('addPercentageInstance error:', err);
+      alert('Failed to save. Check your permissions.');
+    }
   };
 
   // Toggle an existing instance between success/fail
@@ -3181,7 +3195,12 @@ JSON array only:`
     const instances = (habit.instances || []).map(i => 
       i.id === instanceId ? { ...i, success: !i.success } : i
     );
-    await setDoc(doc(db, 'habits', habitId), { ...habit, instances });
+    try {
+      await setDoc(doc(db, 'habits', habitId), { ...habit, instances });
+    } catch (err) {
+      console.error('togglePercentageInstance error:', err);
+      alert('Failed to save. Check your permissions.');
+    }
   };
 
   // Remove an instance from a percentage habit
@@ -3190,7 +3209,12 @@ JSON array only:`
     if (!habit) return;
     
     const instances = (habit.instances || []).filter(i => i.id !== instanceId);
-    await setDoc(doc(db, 'habits', habitId), { ...habit, instances });
+    try {
+      await setDoc(doc(db, 'habits', habitId), { ...habit, instances });
+    } catch (err) {
+      console.error('removePercentageInstance error:', err);
+      alert('Failed to save. Check your permissions.');
+    }
   };
 
   const addHabit = async () => {
@@ -6953,11 +6977,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         habitIsNN ? (darkMode ? 'bg-amber-500/5 border border-amber-500/20' : 'bg-amber-50/50 border border-amber-200/50') 
                         : darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white border border-gray-100 hover:border-gray-200'
                       }`}>
-                        <div className="flex items-center gap-3">
+                        {/* Mobile: Stack vertically, Desktop: Side by side */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                           {/* Habit Info */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className={`font-medium text-sm truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{h.habit}</span>
                               {h.category && (() => {
                                 const cat = HABIT_CATEGORIES.find(c => c.id === h.category);
                                 return cat ? <span className="text-xs">{cat.icon}</span> : null;
@@ -6976,53 +7001,56 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                             </div>
                           </div>
                           
-                          {/* Day Toggles - Compact */}
-                          {isPercentage ? (
-                            <div className="flex items-center gap-1">
-                              {instances.slice(-5).map((inst, idx) => (
-                                <button key={idx} onClick={() => canEdit && toggleInstance(h.id, instances.length - 5 + idx)} disabled={!canEdit}
-                                  className={`w-6 h-6 rounded text-xs font-bold ${inst.success ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                                  {inst.success ? '✓' : '✗'}
-                                </button>
-                              ))}
-                              {canEdit && (
-                                <button onClick={() => addPercentageInstance(h.id, true)} className={`w-6 h-6 rounded border border-dashed ${darkMode ? 'border-gray-600 text-gray-400' : 'border-gray-300 text-gray-400'}`}>
-                                  <Plus className="w-3 h-3 mx-auto" />
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-0.5">
-                              {DAYS.map((day, i) => {
-                                const isCompleted = daysCompleted.includes(i);
-                                const isToday = isCurrentWeek && i === todayIndex;
-                                return (
-                                  <button key={day} onClick={() => canEdit && toggleDay(h.id, i)} disabled={!canEdit}
-                                    className={`w-7 h-7 rounded text-[10px] font-medium transition-all ${
-                                      isCompleted ? 'bg-green-500 text-white' 
-                                      : isToday ? (darkMode ? 'bg-[#1E3A5F]/30 text-[#1E3A5F] border border-[#1E3A5F]/50' : 'bg-[#1E3A5F]/10 text-[#1E3A5F] border border-[#1E3A5F]/30')
-                                      : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-50 text-gray-400'
-                                    } ${canEdit ? 'hover:opacity-80' : ''}`}>
-                                    {isCompleted ? <Check className="w-3 h-3 mx-auto" /> : day.slice(0, 1)}
+                          {/* Day Toggles + Actions Row */}
+                          <div className="flex items-center justify-between sm:justify-end gap-2">
+                            {/* Day Toggles */}
+                            {isPercentage ? (
+                              <div className="flex items-center gap-1">
+                                {instances.slice(-5).map((inst, idx) => (
+                                  <button key={idx} onClick={() => canEdit && togglePercentageInstance(h.id, inst.id)} disabled={!canEdit}
+                                    className={`w-6 h-6 rounded text-xs font-bold ${inst.success ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                                    {inst.success ? '✓' : '✗'}
                                   </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          
-                          {/* Actions */}
-                          {canEdit && (
-                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100">
-                              <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target, category: h.category || '' })} 
-                                className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}>
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => deleteHabit(h.id)} 
-                                className={`p-1.5 rounded ${darkMode ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
+                                ))}
+                                {canEdit && (
+                                  <button onClick={() => addPercentageInstance(h.id, true)} className={`w-6 h-6 rounded border border-dashed ${darkMode ? 'border-gray-600 text-gray-400' : 'border-gray-300 text-gray-400'}`}>
+                                    <Plus className="w-3 h-3 mx-auto" />
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-0.5">
+                                {DAYS.map((day, i) => {
+                                  const isCompleted = daysCompleted.includes(i);
+                                  const isToday = isCurrentWeek && i === todayIndex;
+                                  return (
+                                    <button key={day} onClick={() => canEdit && toggleDay(h.id, i)} disabled={!canEdit}
+                                      className={`w-7 h-7 sm:w-7 sm:h-7 rounded text-[10px] font-medium transition-all ${
+                                        isCompleted ? 'bg-green-500 text-white' 
+                                        : isToday ? (darkMode ? 'bg-[#1E3A5F]/30 text-[#1E3A5F] border border-[#1E3A5F]/50' : 'bg-[#1E3A5F]/10 text-[#1E3A5F] border border-[#1E3A5F]/30')
+                                        : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-50 text-gray-400'
+                                      } ${canEdit ? 'hover:opacity-80' : ''}`}>
+                                      {isCompleted ? <Check className="w-3 h-3 mx-auto" /> : day.slice(0, 1)}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            
+                            {/* Actions - Always visible on mobile */}
+                            {canEdit && (
+                              <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100">
+                                <button onClick={() => setEditingHabit({ id: h.id, habit: h.habit, target: h.target, category: h.category || '' })} 
+                                  className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-400'}`}>
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => deleteHabit(h.id)} 
+                                  className={`p-1.5 rounded ${darkMode ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'}`}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -8736,11 +8764,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 <h3 className={`text-sm font-medium mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   Life Balance ({insightsTimePeriod === 'month' ? 'Month' : insightsTimePeriod === 'quarter' ? 'Quarter' : 'Year'})
                 </h3>
-                <p className={`text-xs mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                  Based on volume (40%) + completion rate (60%)
+                <p className={`text-xs mb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  Volume (40%) + completion rate (60%)
                 </p>
-                <ResponsiveContainer width="100%" height={220}>
-                  <RadarChart data={(() => {
+                <ResponsiveContainer width="100%" height={280}>
+                  <RadarChart cx="50%" cy="50%" outerRadius="65%" data={(() => {
                     const periodWeeks = { month: 4, quarter: 13, year: 52 };
                     const weeksBack = periodWeeks[insightsTimePeriod] || 13;
                     const today = new Date();
@@ -8763,6 +8791,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       
                       return {
                         category: cat.id,
+                        label: cat.icon + ' ' + cat.id,
                         volume: totalDaysCompleted,
                         completionRate,
                         habitCount: catHabits.length
@@ -8783,7 +8812,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         : 0;
                       
                       return { 
-                        category: cat.id, 
+                        category: cat.category, 
+                        label: cat.label,
                         score, 
                         fullMark: 100,
                         volume: cat.volume,
@@ -8792,7 +8822,10 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     });
                   })()}>
                     <PolarGrid stroke={darkMode ? '#334155' : '#e2e8f0'} />
-                    <PolarAngleAxis dataKey="category" tick={{ fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 10 }} />
+                    <PolarAngleAxis 
+                      dataKey="label" 
+                      tick={{ fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 11 }} 
+                    />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: darkMode ? '#64748b' : '#94a3b8', fontSize: 8 }} />
                     <Radar name="Score" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} strokeWidth={2} />
                     <Tooltip 
@@ -8801,7 +8834,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           const data = payload[0].payload;
                           return (
                             <div className={`px-3 py-2 rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-                              <p className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{data.category}</p>
+                              <p className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{data.label}</p>
                               <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Score: {data.score}/100</p>
                               <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Days completed: {data.volume}</p>
                               <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Completion rate: {data.completionRate}%</p>
