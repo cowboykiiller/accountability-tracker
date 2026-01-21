@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock, Timer, Play, Pause, RotateCcw, Brain, Repeat, FileText, Coffee, ArrowRight, CheckSquare, Settings, Focus, Inbox, ListTodo, CalendarClock } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock, Timer, Play, Pause, RotateCcw, Brain, Repeat, FileText, Coffee, ArrowRight, CheckSquare, Settings, Focus, Inbox, ListTodo, CalendarClock, ListPlus, Rocket, CircleDot } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar } from 'recharts';
 
 // Firebase imports
@@ -909,6 +909,11 @@ export default function AccountabilityTracker() {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState({ task: '', dueDate: '', priority: 'Medium', category: 'Work', timeSlot: '', timeEstimate: 15, notes: '', recurring: null });
   const [showAddTask, setShowAddTask] = useState(false);
+  const [batchAddMode, setBatchAddMode] = useState(false);
+  const [batchTaskInput, setBatchTaskInput] = useState('');
+  const [aiBreakdownTask, setAiBreakdownTask] = useState(null);
+  const [aiBreakdownLoading, setAiBreakdownLoading] = useState(false);
+  const [aiSubtasks, setAiSubtasks] = useState([]);
   const [taskFilter, setTaskFilter] = useState('today'); // all, today, inbox, overdue, completed, scheduled
   const [editingTask, setEditingTask] = useState(null);
   
@@ -3602,6 +3607,156 @@ JSON array only:`
     } catch (error) {
       console.error('Add task error:', error);
     }
+  };
+
+  // Batch add multiple tasks at once
+  const batchAddTasks = async () => {
+    if (!batchTaskInput.trim()) return;
+    
+    const lines = batchTaskInput.split('\n').filter(line => line.trim());
+    const today = new Date().toISOString().split('T')[0];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      // Parse priority from line (!high, !low, !med)
+      let priority = 'Medium';
+      let taskText = line;
+      if (line.toLowerCase().includes('!high')) {
+        priority = 'High';
+        taskText = line.replace(/!high/gi, '').trim();
+      } else if (line.toLowerCase().includes('!low')) {
+        priority = 'Low';
+        taskText = line.replace(/!low/gi, '').trim();
+      }
+      
+      const taskDoc = {
+        id: `task_${Date.now()}_${i}`,
+        task: taskText,
+        due_date: today,
+        priority,
+        category: 'Work',
+        status: 'Not Started',
+        created_at: new Date().toISOString(),
+        created_by: user?.uid,
+        participant: userProfile?.linkedParticipant || user?.displayName
+      };
+      
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(taskDoc)
+        });
+      } catch (error) {
+        console.error('Batch add task error:', error);
+      }
+      
+      // Small delay between adds
+      await new Promise(r => setTimeout(r, 50));
+    }
+    
+    fetchTasks();
+    setBatchTaskInput('');
+    setBatchAddMode(false);
+  };
+
+  // AI-powered task breakdown
+  const breakdownTaskWithAI = async (task) => {
+    setAiBreakdownTask(task);
+    setAiBreakdownLoading(true);
+    setAiSubtasks([]);
+    
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          messages: [{
+            role: 'user',
+            content: `Break down this task into 3-6 smaller, actionable subtasks. Each subtask should be specific and completable in under 30 minutes.
+
+Task: "${task.task}"
+
+Respond with ONLY a JSON array of strings, no other text. Example:
+["Subtask 1", "Subtask 2", "Subtask 3"]`
+          }]
+        })
+      });
+      
+      const data = await response.json();
+      const content = data.content?.[0]?.text || '[]';
+      
+      // Parse the JSON response
+      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      const subtasks = JSON.parse(cleanContent);
+      
+      setAiSubtasks(subtasks);
+    } catch (error) {
+      console.error('AI breakdown error:', error);
+      setAiSubtasks(['Error generating subtasks. Please try again.']);
+    } finally {
+      setAiBreakdownLoading(false);
+    }
+  };
+
+  // Add AI-generated subtasks as real tasks
+  const addSubtasksFromAI = async () => {
+    if (!aiBreakdownTask || aiSubtasks.length === 0) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    for (let i = 0; i < aiSubtasks.length; i++) {
+      const subtask = aiSubtasks[i];
+      if (subtask.startsWith('Error')) continue;
+      
+      const taskDoc = {
+        id: `task_${Date.now()}_sub_${i}`,
+        task: subtask,
+        due_date: aiBreakdownTask.dueDate || today,
+        priority: aiBreakdownTask.priority || 'Medium',
+        category: aiBreakdownTask.category || 'Work',
+        status: 'Not Started',
+        created_at: new Date().toISOString(),
+        created_by: user?.uid,
+        participant: userProfile?.linkedParticipant || user?.displayName,
+        parent_task: aiBreakdownTask.task
+      };
+      
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(taskDoc)
+        });
+      } catch (error) {
+        console.error('Add subtask error:', error);
+      }
+      
+      await new Promise(r => setTimeout(r, 50));
+    }
+    
+    fetchTasks();
+    setAiBreakdownTask(null);
+    setAiSubtasks([]);
   };
 
   const updateTaskStatus = async (taskId, newStatus) => {
@@ -7433,89 +7588,191 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             {/* Regular Task View (when not in focus mode) */}
             {taskViewMode !== 'focus' && (
               <>
-                {/* Quick Add Bar */}
-                <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                  <form onSubmit={(e) => { e.preventDefault(); quickAddTask(quickTaskInput); }} className="p-3">
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <input
-                          type="text"
-                          value={quickTaskInput}
-                          onChange={(e) => setQuickTaskInput(e.target.value)}
-                          placeholder='Add task... (e.g., "Call John tomorrow at 3pm !high")'
-                          className={`w-full px-4 py-3 rounded-lg text-sm ${
-                            darkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-800 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]`}
-                        />
-                      </div>
-                      <button type="submit" disabled={!quickTaskInput.trim()}
-                        className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] disabled:opacity-30 transition-colors">
-                        <Plus className="w-5 h-5" />
-                      </button>
-                    </div>
-                    
-                    {/* Quick date buttons */}
-                    <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
-                      <button type="button" onClick={() => quickAddTask(quickTaskInput, 'today')} disabled={!quickTaskInput.trim()}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                        Today
-                      </button>
-                      <button type="button" onClick={() => quickAddTask(quickTaskInput, 'tomorrow')} disabled={!quickTaskInput.trim()}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-600'}`}>
-                        Tomorrow
-                      </button>
-                      <button type="button" onClick={() => quickAddTask(quickTaskInput, 'nextweek')} disabled={!quickTaskInput.trim()}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                        Next Week
-                      </button>
-                      <button type="button" onClick={() => quickAddTask(quickTaskInput, 'inbox')} disabled={!quickTaskInput.trim()}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                        <Inbox className="w-3 h-3 inline mr-1" /> Inbox
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* Stats Row - Compact */}
+                {/* Daily Productivity Dashboard */}
                 {(() => {
                   const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
                   const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
                   const today = new Date().toISOString().split('T')[0];
                   const todayTasks = viewTasks.filter(t => t.dueDate === today);
                   const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
+                  const todayTotal = todayTasks.length;
+                  const completionPct = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
                   const overdueTasks = viewTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== 'Completed');
                   const inboxTasks = viewTasks.filter(t => !t.dueDate && t.status !== 'Completed');
                   
+                  // Calculate productivity score based on recent completion
+                  const last7Days = [...Array(7)].map((_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    return d.toISOString().split('T')[0];
+                  });
+                  const recentCompleted = viewTasks.filter(t => t.status === 'Completed' && last7Days.includes(t.completed_at?.split('T')[0])).length;
+                  
                   return (
-                    <div className="grid grid-cols-4 gap-2">
-                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                        <p className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}/{todayTasks.length}</p>
-                        <p className={`text-[10px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today</p>
+                    <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700' : 'bg-gradient-to-br from-white to-gray-50 border border-gray-100'}`}>
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        {/* Progress Ring */}
+                        <div className="relative w-24 h-24 flex-shrink-0">
+                          <svg className="w-full h-full transform -rotate-90">
+                            <circle cx="48" cy="48" r="40" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="8" fill="none" />
+                            <circle cx="48" cy="48" r="40" stroke={completionPct >= 100 ? '#22c55e' : completionPct >= 50 ? '#3b82f6' : '#f59e0b'}
+                              strokeWidth="8" fill="none" strokeLinecap="round"
+                              strokeDasharray={`${completionPct * 2.51} 251`} className="transition-all duration-500" />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{completionPct}%</span>
+                            <span className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today</span>
+                          </div>
+                        </div>
+                        
+                        {/* Stats Grid */}
+                        <div className="flex-1 grid grid-cols-4 gap-2 w-full">
+                          <div className={`p-2 rounded-xl text-center ${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+                            <p className={`text-lg font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{todayCompleted}/{todayTotal}</p>
+                            <p className={`text-[9px] uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today</p>
+                          </div>
+                          <div className={`p-2 rounded-xl text-center ${overdueTasks.length > 0 ? (darkMode ? 'bg-red-500/10' : 'bg-red-50') : (darkMode ? 'bg-gray-700/50' : 'bg-gray-50')}`}>
+                            <p className={`text-lg font-bold ${overdueTasks.length > 0 ? 'text-red-500' : (darkMode ? 'text-gray-400' : 'text-gray-400')}`}>{overdueTasks.length}</p>
+                            <p className={`text-[9px] uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Overdue</p>
+                          </div>
+                          <div className={`p-2 rounded-xl text-center ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
+                            <p className={`text-lg font-bold ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>{inboxTasks.length}</p>
+                            <p className={`text-[9px] uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Inbox</p>
+                          </div>
+                          <div className={`p-2 rounded-xl text-center ${darkMode ? 'bg-green-500/10' : 'bg-green-50'}`}>
+                            <p className={`text-lg font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{recentCompleted}</p>
+                            <p className={`text-[9px] uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>7-Day</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className={`p-3 rounded-xl text-center ${overdueTasks.length > 0 ? (darkMode ? 'bg-red-500/10' : 'bg-red-50') : (darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100')}`}>
-                        <p className={`text-xl font-bold ${overdueTasks.length > 0 ? 'text-red-500' : (darkMode ? 'text-white' : 'text-gray-900')}`}>{overdueTasks.length}</p>
-                        <p className={`text-[10px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Overdue</p>
-                      </div>
-                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                        <p className={`text-xl font-bold ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>{inboxTasks.length}</p>
-                        <p className={`text-[10px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Inbox</p>
-                      </div>
-                      <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                        <p className={`text-xl font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
-                          {viewTasks.filter(t => t.status === 'Completed').length}
+                      
+                      {/* Motivational message */}
+                      <div className={`mt-3 pt-3 border-t text-center ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {completionPct >= 100 ? '🎉 Perfect day! All tasks complete!' :
+                           completionPct >= 75 ? '🔥 Almost there! Keep pushing!' :
+                           completionPct >= 50 ? '💪 Great progress! Stay focused!' :
+                           completionPct > 0 ? '🚀 Good start! Build momentum!' :
+                           todayTotal > 0 ? '✨ Ready to crush it today?' : '📝 Add some tasks to get started!'}
                         </p>
-                        <p className={`text-[10px] uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Done</p>
                       </div>
                     </div>
                   );
                 })()}
 
-                {/* Top 3 Today - Morning Planning */}
+                {/* Quick Add & Batch Add Toggle */}
+                <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
+                  {/* Tab Toggle */}
+                  <div className={`flex border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                    <button onClick={() => setBatchAddMode(false)}
+                      className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${!batchAddMode ? (darkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                      <Plus className="w-3 h-3 inline mr-1" /> Quick Add
+                    </button>
+                    <button onClick={() => setBatchAddMode(true)}
+                      className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${batchAddMode ? (darkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                      <ListPlus className="w-3 h-3 inline mr-1" /> Batch Add
+                    </button>
+                  </div>
+                  
+                  {/* Quick Add Mode */}
+                  {!batchAddMode ? (
+                    <form onSubmit={(e) => { e.preventDefault(); quickAddTask(quickTaskInput); }} className="p-3">
+                      <div className="flex gap-2">
+                        <input type="text" value={quickTaskInput} onChange={(e) => setQuickTaskInput(e.target.value)}
+                          placeholder='Add task... (e.g., "Call John tomorrow at 3pm !high")'
+                          className={`flex-1 px-4 py-3 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-800 placeholder-gray-400'} focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]`} />
+                        <button type="submit" disabled={!quickTaskInput.trim()}
+                          className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg font-medium hover:bg-[#162D4D] disabled:opacity-30">
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
+                        <button type="button" onClick={() => quickAddTask(quickTaskInput, 'today')} disabled={!quickTaskInput.trim()}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                          Today
+                        </button>
+                        <button type="button" onClick={() => quickAddTask(quickTaskInput, 'tomorrow')} disabled={!quickTaskInput.trim()}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-600'}`}>
+                          Tomorrow
+                        </button>
+                        <button type="button" onClick={() => quickAddTask(quickTaskInput, 'nextweek')} disabled={!quickTaskInput.trim()}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                          Next Week
+                        </button>
+                        <button type="button" onClick={() => quickAddTask(quickTaskInput, 'inbox')} disabled={!quickTaskInput.trim()}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-30 ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                          <Inbox className="w-3 h-3 inline mr-1" /> Inbox
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    /* Batch Add Mode */
+                    <div className="p-3">
+                      <textarea
+                        value={batchTaskInput}
+                        onChange={(e) => setBatchTaskInput(e.target.value)}
+                        placeholder="Add multiple tasks (one per line):\n\nCall dentist !high\nBuy groceries\nReview quarterly report !high\nSchedule team meeting"
+                        rows={5}
+                        className={`w-full px-4 py-3 rounded-lg text-sm resize-none ${darkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-800 placeholder-gray-400'} focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]`}
+                      />
+                      <div className="flex items-center justify-between mt-2">
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {batchTaskInput.split('\n').filter(l => l.trim()).length} tasks • Add !high or !low for priority
+                        </p>
+                        <button onClick={batchAddTasks} disabled={!batchTaskInput.trim()}
+                          className="px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] disabled:opacity-30">
+                          Add All Tasks
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* AI Task Breakdown Modal */}
+                {aiBreakdownTask && (
+                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-200'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                        <span className={`text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>AI Task Breakdown</span>
+                      </div>
+                      <button onClick={() => { setAiBreakdownTask(null); setAiSubtasks([]); }}
+                        className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-purple-100'}`}>
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className={`text-sm mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>"{aiBreakdownTask.task}"</p>
+                    
+                    {aiBreakdownLoading ? (
+                      <div className="flex items-center gap-2 py-4">
+                        <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                        <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Breaking down task...</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {aiSubtasks.map((subtask, idx) => (
+                          <div key={idx} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-800/50' : 'bg-white/70'}`}>
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>{idx + 1}</span>
+                            <span className={`flex-1 text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{subtask}</span>
+                          </div>
+                        ))}
+                        {aiSubtasks.length > 0 && !aiSubtasks[0].startsWith('Error') && (
+                          <button onClick={addSubtasksFromAI}
+                            className="w-full mt-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium">
+                            <Plus className="w-4 h-4 inline mr-1" /> Add All Subtasks
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Top 3 Today */}
                 {top3Today.length > 0 && (
                   <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20' : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'}`}>
                     <div className="flex items-center gap-2 mb-3">
                       <Star className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                      <span className={`text-sm font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Today's Top 3</span>
+                      <span className={`text-sm font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Today's Top 3 Priorities</span>
                     </div>
                     <div className="space-y-2">
                       {top3Today.map((taskId, idx) => {
@@ -7725,9 +7982,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           
                           {/* Quick Actions */}
                           {isMyTask && task.status !== 'Completed' && (
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 sm:opacity-100">
                               <button onClick={() => toggleTop3(task.id)} title="Top 3" className={`p-1.5 rounded ${isTop3 ? 'text-amber-500' : (darkMode ? 'text-gray-400 hover:text-amber-400' : 'text-gray-400 hover:text-amber-500')}`}>
                                 <Star className={`w-3.5 h-3.5 ${isTop3 ? 'fill-current' : ''}`} />
+                              </button>
+                              <button onClick={() => breakdownTaskWithAI(task)} title="AI Breakdown" className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-purple-400' : 'text-gray-400 hover:text-purple-500'}`}>
+                                <Sparkles className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => enterFocusMode(task.id)} title="Focus" className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-400 hover:text-blue-500'}`}>
                                 <Target className="w-3.5 h-3.5" />
