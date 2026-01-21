@@ -936,6 +936,9 @@ export default function AccountabilityTracker() {
   const [aiSchedulerLoading, setAiSchedulerLoading] = useState(false);
   const [aiScheduledTasks, setAiScheduledTasks] = useState([]);
   const [showAiScheduler, setShowAiScheduler] = useState(false);
+  const [anthropicApiKey, setAnthropicApiKey] = useState(() => localStorage.getItem('anthropic_api_key') || '');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [schedulerDate, setSchedulerDate] = useState('today'); // today, tomorrow, or specific date
   
   // Calendar View
   const [calendarViewDate, setCalendarViewDate] = useState(new Date());
@@ -3693,35 +3696,38 @@ JSON array only:`
     setAiSubtasks([]);
     
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/ai', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 500,
-          messages: [{
-            role: 'user',
-            content: `Break down this task into 3-6 smaller, actionable subtasks. Each subtask should be specific and completable in under 30 minutes.
+          action: 'breakdown-task',
+          goal: `Break down this task into 3-6 smaller, actionable subtasks. Each subtask should be specific and completable in under 30 minutes.
 
 Task: "${task.task}"
 
-Respond with ONLY a JSON array of strings, no other text. Example:
-["Subtask 1", "Subtask 2", "Subtask 3"]`
-          }]
+Respond with ONLY a JSON array of strings, no other text, no markdown. Example:
+["Subtask 1", "Subtask 2", "Subtask 3"]`,
+          participant: myParticipant
         })
       });
       
       const data = await response.json();
-      const content = data.content?.[0]?.text || '[]';
+      const message = data.message || '[]';
       
       // Parse the JSON response
-      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
-      const subtasks = JSON.parse(cleanContent);
+      let subtasks = [];
+      try {
+        const jsonMatch = message.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          subtasks = JSON.parse(jsonMatch[0]);
+        } else {
+          subtasks = JSON.parse(message);
+        }
+      } catch (parseError) {
+        // Fallback: extract from bullet points
+        const lines = message.split('\n').filter(l => l.trim().match(/^[-•*\d]/));
+        subtasks = lines.map(l => l.replace(/^[-•*\d.]\s*/, '').trim()).filter(s => s.length > 3);
+      }
       
       setAiSubtasks(subtasks);
     } catch (error) {
@@ -3783,86 +3789,57 @@ Respond with ONLY a JSON array of strings, no other text. Example:
     
     if (!aiSchedulerInput.trim()) {
       console.log('aiSmartSchedule: empty input');
-      alert('Please enter what you need to do today');
+      alert('Please enter what you need to do');
       return;
     }
     
     setAiSchedulerLoading(true);
     setAiScheduledTasks([]);
     
-    const today = new Date();
-    const currentTime = today.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const todayStr = today.toISOString().split('T')[0];
-    
-    // Get existing tasks for today to avoid conflicts
-    const existingTodayTasks = tasks.filter(t => t.dueDate === todayStr && t.time_slot);
-    const busySlots = existingTodayTasks.map(t => t.time_slot).join(', ') || 'None';
-    
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-    console.log('API Key exists:', !!apiKey, 'Key preview:', apiKey ? apiKey.substring(0, 10) + '...' : 'none');
-    
-    // If no API key, use mock data for demo
-    if (!apiKey) {
-      console.log('No API key, using mock schedule');
-      const mockSchedule = [
-        { task: 'Take pills', time_slot: '08:00', duration: 5, priority: 'High', category: 'Health' },
-        { task: 'Read a chapter', time_slot: '08:30', duration: 45, priority: 'High', category: 'Learning' },
-        { task: 'Review and send follow-up emails', time_slot: '09:30', duration: 30, priority: 'Medium', category: 'Work' },
-        { task: 'Send contracts to title company', time_slot: '10:00', duration: 20, priority: 'High', category: 'Work' },
-        { task: 'Break', time_slot: '10:30', duration: 15, priority: 'Low', category: 'Personal' },
-      ];
-      
-      // Simulate loading
-      await new Promise(r => setTimeout(r, 1500));
-      setAiScheduledTasks(mockSchedule);
-      setAiSchedulerLoading(false);
-      return;
+    // Detect if user mentions "tomorrow" in their input
+    const mentionsTomorrow = /\btomorrow\b/i.test(aiSchedulerInput);
+    const targetDate = new Date();
+    if (mentionsTomorrow || schedulerDate === 'tomorrow') {
+      targetDate.setDate(targetDate.getDate() + 1);
     }
     
+    const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const targetDateStr = targetDate.toISOString().split('T')[0];
+    
+    // Get existing tasks for target date to avoid conflicts
+    const existingTasks = tasks.filter(t => t.dueDate === targetDateStr && t.time_slot);
+    const busySlots = existingTasks.map(t => t.time_slot).join(', ') || 'None';
+    
     try {
-      console.log('Sending request to Anthropic API...');
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      console.log('Sending request to /api/ai...');
+      const response = await fetch('/api/ai', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1500,
-          messages: [{
-            role: 'user',
-            content: `You are a productivity assistant. Parse the user's natural language input and create a structured, time-blocked schedule for their day.
+          action: 'schedule-tasks',
+          goal: `You are a productivity scheduling assistant. Parse the user's natural language description of their day and create a structured, time-blocked schedule.
 
-Current date: ${todayStr}
+Target date: ${targetDateStr} (${mentionsTomorrow ? 'Tomorrow' : 'Today'})
 Current time: ${currentTime}
 Already scheduled time slots: ${busySlots}
 
 User's input:
 "${aiSchedulerInput}"
 
-Create a realistic schedule considering:
-- Start from current time or next available slot
-- High priority tasks ("first and foremost", "urgent", "important") should be scheduled first
-- Quick tasks (pills, emails) can be 15-30 mins
-- Complex tasks (reading, writing) need 30-60 mins
-- Include short breaks between intense tasks
-- Lunch around 12:00-13:00 if scheduling morning to afternoon
-- Don't schedule past 22:00
+IMPORTANT RULES:
+1. Extract EVERY task mentioned, no matter how small
+2. If user mentions a specific time (like "5:30am" or "10am-11am"), use that exact time
+3. Morning routines (shower, dress, coffee) should be 10-15 mins each
+4. Meetings with specific times are fixed appointments - don't move them
+5. Research/analysis tasks need 45-60 mins
+6. Phone calls need 15-30 mins
+7. Include all tasks even if they seem minor
+8. Use 24-hour format for time_slot (e.g., "05:30", "10:00", "14:30")
+9. For tasks without specific times, schedule them logically around fixed appointments
 
-Respond with ONLY a JSON array of task objects, no other text:
-[
-  {
-    "task": "Task description",
-    "time_slot": "HH:MM",
-    "duration": 30,
-    "priority": "High|Medium|Low",
-    "category": "Work|Personal|Health|Learning|Admin"
-  }
-]`
-          }]
+Respond with ONLY a valid JSON array of task objects, no markdown, no explanation:
+[{"task": "Clear task description", "time_slot": "HH:MM", "duration": 30, "priority": "High", "category": "Work"}]`,
+          participant: myParticipant
         })
       });
       
@@ -3872,20 +3849,45 @@ Respond with ONLY a JSON array of task objects, no other text:
       
       if (data.error) {
         console.error('API error:', data.error);
-        setAiScheduledTasks([{ task: `Error: ${data.error.message || 'API request failed'}`, time_slot: '', priority: 'Medium' }]);
+        setAiScheduledTasks([{ task: `Error: ${data.error}`, time_slot: '', priority: 'Medium' }]);
         setAiSchedulerLoading(false);
         return;
       }
       
-      const content = data.content?.[0]?.text || '[]';
-      console.log('Content:', content);
+      // Parse the message - AI should return JSON
+      const message = data.message || '';
+      console.log('AI message:', message);
       
-      // Parse the JSON response
-      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
-      const scheduledTasks = JSON.parse(cleanContent);
+      // Try to extract JSON from the response
+      let scheduledTasks = [];
+      try {
+        // Try to find JSON array in the response
+        const jsonMatch = message.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          scheduledTasks = JSON.parse(jsonMatch[0]);
+        } else {
+          // If no JSON found, try parsing the whole message
+          scheduledTasks = JSON.parse(message);
+        }
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        // Fallback: try to extract tasks from text format
+        const lines = message.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('*'));
+        scheduledTasks = lines.slice(0, 10).map((line, idx) => {
+          const timeMatch = line.match(/(\d{1,2}):(\d{2})/);
+          return {
+            task: line.replace(/^[-•*\d.]\s*/, '').replace(/\d{1,2}:\d{2}\s*[-–]?\s*/, '').trim(),
+            time_slot: timeMatch ? `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}` : `${(9 + idx).toString().padStart(2, '0')}:00`,
+            duration: 30,
+            priority: 'Medium',
+            category: 'Work'
+          };
+        }).filter(t => t.task.length > 3);
+      }
+      
       console.log('Parsed tasks:', scheduledTasks);
-      
       setAiScheduledTasks(scheduledTasks);
+      
     } catch (error) {
       console.error('AI scheduler error:', error);
       setAiScheduledTasks([{ task: 'Error generating schedule: ' + error.message, time_slot: '', priority: 'Medium' }]);
