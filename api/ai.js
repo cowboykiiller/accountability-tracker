@@ -185,6 +185,16 @@ Keep habit names short (under 8 words). Consider reducing days for struggling ha
       
       return res.status(200).json({ message: summaryText });
 
+    case 'schedule-tasks':
+      systemPrompt = `You are a productivity scheduling assistant. You parse natural language descriptions of tasks and create structured, time-blocked schedules. You MUST respond with ONLY a valid JSON array, no markdown, no explanation, no other text.`;
+      userPrompt = goal; // The goal contains the full scheduling prompt
+      break;
+
+    case 'breakdown-task':
+      systemPrompt = `You are a task breakdown expert. You take complex tasks and break them into smaller, actionable subtasks. You MUST respond with ONLY a valid JSON array of strings, no markdown, no explanation, no other text.`;
+      userPrompt = goal; // The goal contains the full breakdown prompt
+      break;
+
     case 'follow-up':
       systemPrompt = `You are a helpful accountability coach continuing a conversation. Be conversational, helpful, and concise. If suggesting habits, format them as bullet points with "• Habit - X days".`;
       
