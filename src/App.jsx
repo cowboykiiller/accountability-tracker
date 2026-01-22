@@ -3796,28 +3796,39 @@ Respond with ONLY a JSON array of strings, no other text, no markdown. Example:
     setAiSchedulerLoading(true);
     setAiScheduledTasks([]);
     
-    // Detect if user mentions "tomorrow" in their input
-    const mentionsTomorrow = /\btomorrow\b/i.test(aiSchedulerInput);
-    const targetDate = new Date();
-    if (mentionsTomorrow || schedulerDate === 'tomorrow') {
-      targetDate.setDate(targetDate.getDate() + 1);
-    }
-    
-    const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const targetDateStr = targetDate.toISOString().split('T')[0];
-    
-    // Get existing tasks for target date to avoid conflicts
-    const existingTasks = tasks.filter(t => t.dueDate === targetDateStr && t.time_slot);
-    const busySlots = existingTasks.map(t => t.time_slot).join(', ') || 'None';
-    
     try {
-      console.log('Sending request to /api/ai...');
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'schedule-tasks',
-          goal: `You are a productivity scheduling assistant. Parse the user's natural language description of their day and create a structured, time-blocked schedule.
+      // Detect if user mentions "tomorrow" in their input
+      const mentionsTomorrow = /\btomorrow\b/i.test(aiSchedulerInput);
+      console.log('Mentions tomorrow:', mentionsTomorrow);
+      
+      const targetDate = new Date();
+      console.log('Initial target date:', targetDate);
+      
+      if (mentionsTomorrow || schedulerDate === 'tomorrow') {
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
+      
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const currentTime = String(currentHour).padStart(2, '0') + ':' + String(currentMinute).padStart(2, '0');
+      console.log('Current time:', currentTime);
+      
+      // Get target date string safely
+      const year = targetDate.getFullYear();
+      const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const day = String(targetDate.getDate()).padStart(2, '0');
+      const targetDateStr = `${year}-${month}-${day}`;
+      console.log('Target date string:', targetDateStr);
+      
+      // Get existing tasks for target date to avoid conflicts
+      const existingTasks = tasks.filter(t => t.dueDate === targetDateStr && t.time_slot);
+      const busySlots = existingTasks.map(t => t.time_slot).join(', ') || 'None';
+      console.log('Busy slots:', busySlots);
+      
+      const requestBody = {
+        action: 'schedule-tasks',
+        goal: `You are a productivity scheduling assistant. Parse the user's natural language description of their day and create a structured, time-blocked schedule.
 
 Target date: ${targetDateStr} (${mentionsTomorrow ? 'Tomorrow' : 'Today'})
 Current time: ${currentTime}
@@ -3839,17 +3850,70 @@ IMPORTANT RULES:
 
 Respond with ONLY a valid JSON array of task objects, no markdown, no explanation:
 [{"task": "Clear task description", "time_slot": "HH:MM", "duration": 30, "priority": "High", "category": "Work"}]`,
-          participant: myParticipant
-        })
-      });
+        participant: myParticipant
+      };
+      
+      console.log('Sending request to /api/ai...');
+      
+      let response;
+      try {
+        response = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
+        setAiScheduledTasks([{ task: 'Network error: ' + fetchError.message, time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
       
       console.log('Response status:', response.status);
-      const data = await response.json();
+      console.log('Response ok:', response.ok);
+      
+      // Handle error responses
+      if (!response.ok) {
+        console.log('Response not ok, reading error text...');
+        let errorText = 'Server error';
+        try {
+          errorText = await response.text();
+          console.log('Error text:', errorText);
+        } catch (e) {
+          console.log('Could not read error text:', e);
+        }
+        setAiScheduledTasks([{ task: 'API Error ' + response.status + ': Check server logs', time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
+      
+      // Read response as text first, then parse
+      let responseText;
+      try {
+        responseText = await response.text();
+        console.log('Response text:', responseText);
+      } catch (textError) {
+        console.error('Could not read response:', textError);
+        setAiScheduledTasks([{ task: 'Could not read response', time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error('JSON parse error:', jsonError);
+        setAiScheduledTasks([{ task: 'Invalid JSON response', time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
+      
       console.log('Response data:', data);
       
       if (data.error) {
         console.error('API error:', data.error);
-        setAiScheduledTasks([{ task: `Error: ${data.error}`, time_slot: '', priority: 'Medium' }]);
+        setAiScheduledTasks([{ task: 'Error: ' + data.error, time_slot: '', priority: 'Medium' }]);
         setAiSchedulerLoading(false);
         return;
       }
@@ -3858,39 +3922,78 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
       const message = data.message || '';
       console.log('AI message:', message);
       
+      if (!message) {
+        setAiScheduledTasks([{ task: 'No response from AI', time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
+      
       // Try to extract JSON from the response
       let scheduledTasks = [];
-      try {
-        // Try to find JSON array in the response
-        const jsonMatch = message.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
+      
+      // Method 1: Try to find JSON array in the response
+      const jsonMatch = message.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        try {
           scheduledTasks = JSON.parse(jsonMatch[0]);
-        } else {
-          // If no JSON found, try parsing the whole message
-          scheduledTasks = JSON.parse(message);
+          console.log('Parsed via JSON match:', scheduledTasks);
+        } catch (e) {
+          console.log('JSON match parse failed:', e.message);
         }
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        // Fallback: try to extract tasks from text format
-        const lines = message.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('*'));
-        scheduledTasks = lines.slice(0, 10).map((line, idx) => {
+      }
+      
+      // Method 2: If that didn't work, try the whole message
+      if (scheduledTasks.length === 0) {
+        try {
+          const cleaned = message.replace(/```json\n?|\n?```/g, '').trim();
+          scheduledTasks = JSON.parse(cleaned);
+          console.log('Parsed via full message:', scheduledTasks);
+        } catch (e) {
+          console.log('Full message parse failed:', e.message);
+        }
+      }
+      
+      // Method 3: Fallback - extract tasks from text format
+      if (scheduledTasks.length === 0) {
+        console.log('Using text fallback parser');
+        const lines = message.split('\n').filter(l => {
+          const trimmed = l.trim();
+          return trimmed.length > 0 && !trimmed.startsWith('#') && !trimmed.startsWith('```');
+        });
+        
+        scheduledTasks = lines.map((line, idx) => {
+          // Try to extract time from line
           const timeMatch = line.match(/(\d{1,2}):(\d{2})/);
+          const cleanTask = line
+            .replace(/^[-•*\d.)\]]\s*/, '')
+            .replace(/^\d{1,2}:\d{2}\s*[-–:]?\s*/, '')
+            .replace(/\*\*/g, '')
+            .trim();
+          
+          if (cleanTask.length < 3) return null;
+          
           return {
-            task: line.replace(/^[-•*\d.]\s*/, '').replace(/\d{1,2}:\d{2}\s*[-–]?\s*/, '').trim(),
-            time_slot: timeMatch ? `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}` : `${(9 + idx).toString().padStart(2, '0')}:00`,
+            task: cleanTask,
+            time_slot: timeMatch ? String(timeMatch[1]).padStart(2, '0') + ':' + timeMatch[2] : String(9 + idx).padStart(2, '0') + ':00',
             duration: 30,
             priority: 'Medium',
             category: 'Work'
           };
-        }).filter(t => t.task.length > 3);
+        }).filter(t => t !== null && t.task.length > 3);
+        
+        console.log('Parsed via fallback:', scheduledTasks);
       }
       
-      console.log('Parsed tasks:', scheduledTasks);
-      setAiScheduledTasks(scheduledTasks);
+      if (scheduledTasks.length === 0) {
+        setAiScheduledTasks([{ task: 'Could not parse AI response. Please try again.', time_slot: '', priority: 'Medium' }]);
+      } else {
+        setAiScheduledTasks(scheduledTasks);
+      }
       
     } catch (error) {
       console.error('AI scheduler error:', error);
-      setAiScheduledTasks([{ task: 'Error generating schedule: ' + error.message, time_slot: '', priority: 'Medium' }]);
+      console.error('Error stack:', error.stack);
+      setAiScheduledTasks([{ task: 'Error: ' + (error.message || 'Unknown error'), time_slot: '', priority: 'Medium' }]);
     } finally {
       setAiSchedulerLoading(false);
     }
@@ -3898,18 +4001,38 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
 
   // Add all AI-scheduled tasks to the task list
   const addAiScheduledTasks = async () => {
-    if (aiScheduledTasks.length === 0) return;
+    console.log('addAiScheduledTasks called, tasks:', aiScheduledTasks);
     
-    const today = new Date().toISOString().split('T')[0];
+    if (aiScheduledTasks.length === 0) {
+      console.log('No tasks to add');
+      return;
+    }
+    
+    // Use the same date logic as the scheduler
+    const mentionsTomorrow = /\btomorrow\b/i.test(aiSchedulerInput);
+    const targetDate = new Date();
+    if (mentionsTomorrow || schedulerDate === 'tomorrow') {
+      targetDate.setDate(targetDate.getDate() + 1);
+    }
+    const targetDateStr = targetDate.toISOString().split('T')[0];
+    
+    console.log('Adding tasks for date:', targetDateStr);
+    
+    let addedCount = 0;
     
     for (let i = 0; i < aiScheduledTasks.length; i++) {
       const scheduledTask = aiScheduledTasks[i];
-      if (scheduledTask.task.startsWith('Error')) continue;
+      
+      // Skip error messages
+      if (scheduledTask.task && scheduledTask.task.startsWith('Error')) {
+        console.log('Skipping error task:', scheduledTask);
+        continue;
+      }
       
       const taskDoc = {
         id: `task_${Date.now()}_ai_${i}`,
         task: scheduledTask.task,
-        due_date: today,
+        due_date: targetDateStr,
         time_slot: scheduledTask.time_slot || null,
         priority: scheduledTask.priority || 'Medium',
         category: scheduledTask.category || 'Work',
@@ -3919,8 +4042,10 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
         participant: userProfile?.linkedParticipant || user?.displayName
       };
       
+      console.log('Creating task:', taskDoc);
+      
       try {
-        await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
@@ -3930,12 +4055,23 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
           },
           body: JSON.stringify(taskDoc)
         });
+        
+        console.log('Supabase response status:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Supabase error:', errorText);
+        } else {
+          addedCount++;
+        }
       } catch (error) {
         console.error('Add AI scheduled task error:', error);
       }
       
       await new Promise(r => setTimeout(r, 50));
     }
+    
+    console.log(`Added ${addedCount} tasks`);
     
     fetchTasks();
     setAiScheduledTasks([]);
@@ -8189,7 +8325,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               Clear
                             </button>
                             <button 
-                              onClick={addAiScheduledTasks}
+                              type="button"
+                              onClick={() => {
+                                console.log('Add All to Tasks button clicked!');
+                                addAiScheduledTasks();
+                              }}
                               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-green-500/20"
                             >
                               <Check className="w-4 h-4" />
