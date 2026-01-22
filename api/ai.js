@@ -3803,12 +3803,17 @@ Respond with ONLY a JSON array of strings, no other text, no markdown. Example:
       targetDate.setDate(targetDate.getDate() + 1);
     }
     
-    const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
     const targetDateStr = targetDate.toISOString().split('T')[0];
     
     // Get existing tasks for target date to avoid conflicts
     const existingTasks = tasks.filter(t => t.dueDate === targetDateStr && t.time_slot);
     const busySlots = existingTasks.map(t => t.time_slot).join(', ') || 'None';
+    
+    console.log('Target date:', targetDateStr, 'Current time:', currentTime);
     
     try {
       console.log('Sending request to /api/ai...');
@@ -3844,6 +3849,15 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
       });
       
       console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API response error:', errorText);
+        setAiScheduledTasks([{ task: `API Error: ${response.status}`, time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
+      
       const data = await response.json();
       console.log('Response data:', data);
       
@@ -3858,39 +3872,77 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
       const message = data.message || '';
       console.log('AI message:', message);
       
+      if (!message) {
+        setAiScheduledTasks([{ task: 'No response from AI', time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
+      
       // Try to extract JSON from the response
       let scheduledTasks = [];
-      try {
-        // Try to find JSON array in the response
-        const jsonMatch = message.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
+      
+      // Method 1: Try to find JSON array in the response
+      const jsonMatch = message.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        try {
           scheduledTasks = JSON.parse(jsonMatch[0]);
-        } else {
-          // If no JSON found, try parsing the whole message
-          scheduledTasks = JSON.parse(message);
+          console.log('Parsed via JSON match:', scheduledTasks);
+        } catch (e) {
+          console.log('JSON match parse failed:', e.message);
         }
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        // Fallback: try to extract tasks from text format
-        const lines = message.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('*'));
-        scheduledTasks = lines.slice(0, 10).map((line, idx) => {
+      }
+      
+      // Method 2: If that didn't work, try the whole message
+      if (scheduledTasks.length === 0) {
+        try {
+          const cleaned = message.replace(/```json\n?|\n?```/g, '').trim();
+          scheduledTasks = JSON.parse(cleaned);
+          console.log('Parsed via full message:', scheduledTasks);
+        } catch (e) {
+          console.log('Full message parse failed:', e.message);
+        }
+      }
+      
+      // Method 3: Fallback - extract tasks from text format
+      if (scheduledTasks.length === 0) {
+        console.log('Using text fallback parser');
+        const lines = message.split('\n').filter(l => {
+          const trimmed = l.trim();
+          return trimmed.length > 0 && !trimmed.startsWith('#') && !trimmed.startsWith('```');
+        });
+        
+        scheduledTasks = lines.map((line, idx) => {
+          // Try to extract time from line
           const timeMatch = line.match(/(\d{1,2}):(\d{2})/);
+          const cleanTask = line
+            .replace(/^[-•*\d.)\]]\s*/, '')
+            .replace(/^\d{1,2}:\d{2}\s*[-–:]?\s*/, '')
+            .replace(/\*\*/g, '')
+            .trim();
+          
+          if (cleanTask.length < 3) return null;
+          
           return {
-            task: line.replace(/^[-•*\d.]\s*/, '').replace(/\d{1,2}:\d{2}\s*[-–]?\s*/, '').trim(),
+            task: cleanTask,
             time_slot: timeMatch ? `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}` : `${(9 + idx).toString().padStart(2, '0')}:00`,
             duration: 30,
             priority: 'Medium',
             category: 'Work'
           };
-        }).filter(t => t.task.length > 3);
+        }).filter(t => t !== null && t.task.length > 3);
+        
+        console.log('Parsed via fallback:', scheduledTasks);
       }
       
-      console.log('Parsed tasks:', scheduledTasks);
-      setAiScheduledTasks(scheduledTasks);
+      if (scheduledTasks.length === 0) {
+        setAiScheduledTasks([{ task: 'Could not parse AI response. Please try again.', time_slot: '', priority: 'Medium' }]);
+      } else {
+        setAiScheduledTasks(scheduledTasks);
+      }
       
     } catch (error) {
       console.error('AI scheduler error:', error);
-      setAiScheduledTasks([{ task: 'Error generating schedule: ' + error.message, time_slot: '', priority: 'Medium' }]);
+      setAiScheduledTasks([{ task: 'Error: ' + (error.message || 'Unknown error'), time_slot: '', priority: 'Medium' }]);
     } finally {
       setAiSchedulerLoading(false);
     }
