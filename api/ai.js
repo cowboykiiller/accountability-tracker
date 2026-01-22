@@ -3870,24 +3870,41 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
       }
       
       console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
       
+      // Handle error responses
       if (!response.ok) {
-        let errorText = 'Unknown error';
+        console.log('Response not ok, reading error text...');
+        let errorText = 'Server error';
         try {
           errorText = await response.text();
-        } catch (e) {}
-        console.error('API response error:', errorText);
-        setAiScheduledTasks([{ task: 'API Error ' + response.status + ': ' + errorText, time_slot: '', priority: 'Medium' }]);
+          console.log('Error text:', errorText);
+        } catch (e) {
+          console.log('Could not read error text:', e);
+        }
+        setAiScheduledTasks([{ task: 'API Error ' + response.status + ': Check server logs', time_slot: '', priority: 'Medium' }]);
+        setAiSchedulerLoading(false);
+        return;
+      }
+      
+      // Read response as text first, then parse
+      let responseText;
+      try {
+        responseText = await response.text();
+        console.log('Response text:', responseText);
+      } catch (textError) {
+        console.error('Could not read response:', textError);
+        setAiScheduledTasks([{ task: 'Could not read response', time_slot: '', priority: 'Medium' }]);
         setAiSchedulerLoading(false);
         return;
       }
       
       let data;
       try {
-        data = await response.json();
+        data = JSON.parse(responseText);
       } catch (jsonError) {
-        console.error('JSON parse error on response:', jsonError);
-        setAiScheduledTasks([{ task: 'Invalid API response', time_slot: '', priority: 'Medium' }]);
+        console.error('JSON parse error:', jsonError);
+        setAiScheduledTasks([{ task: 'Invalid JSON response', time_slot: '', priority: 'Medium' }]);
         setAiSchedulerLoading(false);
         return;
       }
