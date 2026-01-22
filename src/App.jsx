@@ -4007,10 +4007,12 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
 
   // Add all AI-scheduled tasks to the task list
   const addAiScheduledTasks = async () => {
-    console.log('addAiScheduledTasks called, tasks:', aiScheduledTasks);
+    console.log('=== addAiScheduledTasks START ===');
+    console.log('aiScheduledTasks:', JSON.stringify(aiScheduledTasks, null, 2));
     
-    if (aiScheduledTasks.length === 0) {
-      console.log('No tasks to add');
+    if (!aiScheduledTasks || aiScheduledTasks.length === 0) {
+      console.log('No tasks to add - array is empty or undefined');
+      alert('No tasks to add');
       return;
     }
     
@@ -4020,18 +4022,33 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     if (mentionsTomorrow || schedulerDate === 'tomorrow') {
       targetDate.setDate(targetDate.getDate() + 1);
     }
-    const targetDateStr = targetDate.toISOString().split('T')[0];
+    
+    // Build date string manually to avoid timezone issues
+    const year = targetDate.getFullYear();
+    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const day = String(targetDate.getDate()).padStart(2, '0');
+    const targetDateStr = `${year}-${month}-${day}`;
     
     console.log('Adding tasks for date:', targetDateStr);
+    console.log('User uid:', user?.uid);
+    console.log('Participant:', userProfile?.linkedParticipant || user?.displayName);
     
     let addedCount = 0;
+    let errors = [];
     
     for (let i = 0; i < aiScheduledTasks.length; i++) {
       const scheduledTask = aiScheduledTasks[i];
+      console.log(`Processing task ${i}:`, scheduledTask);
       
       // Skip error messages
       if (scheduledTask.task && scheduledTask.task.startsWith('Error')) {
-        console.log('Skipping error task:', scheduledTask);
+        console.log('Skipping error task');
+        continue;
+      }
+      
+      // Skip if no task text
+      if (!scheduledTask.task || scheduledTask.task.trim() === '') {
+        console.log('Skipping empty task');
         continue;
       }
       
@@ -4048,7 +4065,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
         participant: userProfile?.linkedParticipant || user?.displayName
       };
       
-      console.log('Creating task:', taskDoc);
+      console.log('Task doc to send:', JSON.stringify(taskDoc, null, 2));
       
       try {
         const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
@@ -4067,17 +4084,27 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Supabase error:', errorText);
+          errors.push(`Task ${i}: ${errorText}`);
         } else {
           addedCount++;
+          console.log(`Task ${i} added successfully`);
         }
       } catch (error) {
         console.error('Add AI scheduled task error:', error);
+        errors.push(`Task ${i}: ${error.message}`);
       }
       
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 100));
     }
     
-    console.log(`Added ${addedCount} tasks`);
+    console.log(`=== addAiScheduledTasks END: Added ${addedCount} tasks ===`);
+    
+    if (errors.length > 0) {
+      console.error('Errors:', errors);
+      alert(`Added ${addedCount} tasks. Errors: ${errors.join(', ')}`);
+    } else if (addedCount > 0) {
+      alert(`Successfully added ${addedCount} tasks!`);
+    }
     
     fetchTasks();
     setAiScheduledTasks([]);
