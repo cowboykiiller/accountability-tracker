@@ -460,7 +460,7 @@ const PRIORITY_CONFIG = {
 // Emoji reactions
 const REACTIONS = ['👍', '🔥', '💪', '🎉', '❤️', '👏'];
 
-const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, darkMode, setDarkMode, onAddHabit }) => {
+const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, darkMode, setDarkMode, onAddHabit, isCollapsed, setIsCollapsed }) => {
   const desktopLabels = { 
     'dashboard': 'Dashboard', 
     'feed': 'Community Feed',
@@ -494,48 +494,65 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
   const displayName = userProfile?.displayName || user?.displayName || 'User';
   
   return (
-  <div className={`hidden md:flex w-56 h-screen flex-col backdrop-blur-xl border-r transition-colors duration-300 ${
+  <div className={`hidden md:flex flex-col backdrop-blur-xl border-r transition-all duration-300 sticky top-0 h-screen ${
+    isCollapsed ? 'w-16' : 'w-56'
+  } ${
     darkMode 
       ? 'bg-gray-900 border-gray-700' 
       : 'bg-white/80 border-gray-200/50'
   }`}>
     {/* Fixed Header */}
     <div className="flex-shrink-0 p-4 pb-0">
-      <div className="flex items-center gap-2 mb-4">
+      <div className={`flex items-center gap-2 mb-4 ${isCollapsed ? 'justify-center' : ''}`}>
         <img src={LOGO_BASE64} alt="Logo" className="w-9 h-9" />
-        <span className={`text-lg font-bold ${darkMode ? 'text-gray-100' : 'text-[#1E3A5F]'}`}>Accountability</span>
+        {!isCollapsed && <span className={`text-lg font-bold ${darkMode ? 'text-gray-100' : 'text-[#1E3A5F]'}`}>Accountability</span>}
       </div>
       
-      {/* Theme Toggle */}
-      <div className={`mb-4 p-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100/80'}`}>
-        <div className="flex">
-          <button 
-            onClick={() => setDarkMode(false)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
-              !darkMode ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            <Sun className="w-3.5 h-3.5" /> Light
-          </button>
-          <button 
-            onClick={() => setDarkMode(true)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
-              darkMode ? 'bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] shadow-lg text-white' : 'text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            <Moon className="w-3.5 h-3.5" /> Dark
-          </button>
+      {/* Theme Toggle - only show when expanded */}
+      {!isCollapsed && (
+        <div className={`mb-4 p-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100/80'}`}>
+          <div className="flex">
+            <button 
+              onClick={() => setDarkMode(false)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                !darkMode ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5" /> Light
+            </button>
+            <button 
+              onClick={() => setDarkMode(true)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                darkMode ? 'bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] shadow-lg text-white' : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5" /> Dark
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+      
+      {/* Collapse Toggle Button */}
+      <button 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className={`w-full flex items-center justify-center gap-2 p-2 mb-2 rounded-xl transition-all ${
+          darkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-500'
+        }`}
+      >
+        {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /><span className="text-xs">Collapse</span></>}
+      </button>
     </div>
     
     {/* Scrollable Nav */}
-    <nav className="flex-1 overflow-y-auto px-4 space-y-1 scrollbar-thin">
+    <nav className="flex-1 overflow-y-auto px-2 space-y-1 scrollbar-thin">
       {allNavItems.map(item => (
         <button 
           key={item.id} 
           onClick={() => item.isAction ? onAddHabit?.() : setActiveView(item.id)} 
+          title={isCollapsed ? desktopLabels[item.id] || item.label : ''}
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all ${
+            isCollapsed ? 'justify-center' : ''
+          } ${
             activeView === item.id 
               ? darkMode 
                 ? 'bg-gradient-to-r from-[#1E3A5F]/80 to-[#2d4a6f]/60 text-white font-medium shadow-lg shadow-blue-500/10 border border-gray-600' 
@@ -545,41 +562,51 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
                 : 'text-gray-500 hover:bg-gray-100/50'
           }`}
         >
-          <item.icon className="w-4 h-4" />{desktopLabels[item.id] || item.label}
+          <item.icon className="w-4 h-4 flex-shrink-0" />
+          {!isCollapsed && (desktopLabels[item.id] || item.label)}
         </button>
       ))}
     </nav>
     
     {/* Fixed Bottom - Profile & Sign Out */}
     {user && (
-      <div className={`flex-shrink-0 p-4 pt-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200/50'}`}>
+      <div className={`flex-shrink-0 p-2 pt-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200/50'}`}>
         <button 
           onClick={() => setActiveView('profile')}
+          title={isCollapsed ? 'My Profile' : ''}
           className={`w-full flex items-center gap-2 px-2 mb-2 p-2 rounded-xl transition-all ${
+            isCollapsed ? 'justify-center' : ''
+          } ${
             activeView === 'profile' 
               ? darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-[#1E3A5F]/10'
               : darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100/50'
           }`}
         >
           {displayPhoto ? (
-            <img src={displayPhoto} alt="" className={`w-8 h-8 rounded-full object-cover ring-2 ${darkMode ? 'ring-[#1E3A5F]' : 'ring-white/20'}`} />
+            <img src={displayPhoto} alt="" className={`w-8 h-8 rounded-full object-cover ring-2 flex-shrink-0 ${darkMode ? 'ring-[#1E3A5F]' : 'ring-white/20'}`} />
           ) : (
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f]' : 'bg-[#EBE6D3]'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${darkMode ? 'bg-gradient-to-br from-[#1E3A5F] to-[#2d4a6f]' : 'bg-[#EBE6D3]'}`}>
               <User className={`w-4 h-4 ${darkMode ? 'text-white' : 'text-[#162D4D]'}`} />
             </div>
           )}
-          <div className="flex-1 min-w-0 text-left">
-            <p className={`text-sm font-medium truncate ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>{displayName}</p>
-            <p className={`text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{user.email}</p>
-          </div>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0 text-left">
+              <p className={`text-sm font-medium truncate ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>{displayName}</p>
+              <p className={`text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{user.email}</p>
+            </div>
+          )}
         </button>
         <button 
-          onClick={onSignOut} 
+          onClick={onSignOut}
+          title={isCollapsed ? 'Sign Out' : ''}
           className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all ${
+            isCollapsed ? 'justify-center' : ''
+          } ${
             darkMode ? 'text-gray-300 hover:bg-red-500/10 hover:text-red-400' : 'text-gray-500 hover:bg-gray-100/50'
           }`}
         >
-          <LogOut className="w-4 h-4" />Sign Out
+          <LogOut className="w-4 h-4 flex-shrink-0" />
+          {!isCollapsed && 'Sign Out'}
         </button>
       </div>
     )}
@@ -827,10 +854,24 @@ export default function AccountabilityTracker() {
     return false;
   });
   
+  // Sidebar collapsed state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sidebarCollapsed');
+      return saved ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+  
   // Save dark mode preference
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
+  
+  // Save sidebar collapsed preference
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
+  }, [sidebarCollapsed]);
   
   // AI Coach state
   const [aiLoading, setAiLoading] = useState(false);
@@ -912,6 +953,8 @@ export default function AccountabilityTracker() {
   const [editingPastWeek, setEditingPastWeek] = useState(false); // Allow editing locked past weeks;
   const [expandedHabitId, setExpandedHabitId] = useState(null); // Show linked tasks for this habit
   const [monthlyMergeHabits, setMonthlyMergeHabits] = useState(true); // Merge like-named habits in monthly view
+  const [monthlyMergeMode, setMonthlyMergeMode] = useState(false); // Manual merge selection mode
+  const [selectedHabitsForMerge, setSelectedHabitsForMerge] = useState(new Set()); // Selected habit keys for merging
   
   // Tasks state
   const [tasks, setTasks] = useState([]);
@@ -930,22 +973,29 @@ export default function AccountabilityTracker() {
   
   // Dashboard Widgets
   const [dashboardWidgets, setDashboardWidgets] = useState(() => {
-    const saved = localStorage.getItem('dashboard_widgets_v3');
+    const saved = localStorage.getItem('dashboard_widgets_v4');
     return saved ? JSON.parse(saved) : [
       { id: 'progress', name: 'Today\'s Progress', enabled: true, size: 'medium', order: 0, icon: 'Target' },
       { id: 'stats', name: 'Key Metrics', enabled: true, size: 'large', order: 1, icon: 'BarChart3' },
       { id: 'dailyHabits', name: 'Daily Habits', enabled: true, size: 'medium', order: 2, icon: 'CheckSquare' },
       { id: 'dailyTasks', name: 'Daily Tasks', enabled: true, size: 'medium', order: 3, icon: 'ListTodo' },
-      { id: 'habits', name: 'Streaks', enabled: true, size: 'small', order: 4, icon: 'Flame' },
-      { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small', order: 5, icon: 'Quote' },
-      { id: 'lifeBalance', name: 'Life Balance', enabled: true, size: 'medium', order: 6, icon: 'Target' },
-      { id: 'tasks', name: 'Task Overview', enabled: false, size: 'medium', order: 7, icon: 'CheckSquare' },
-      { id: 'calendar', name: 'Mini Calendar', enabled: false, size: 'medium', order: 8, icon: 'Calendar' },
-      { id: 'coach', name: 'AI Coach', enabled: false, size: 'medium', order: 9, icon: 'Brain' },
-      { id: 'challenges', name: 'Active Challenges', enabled: false, size: 'small', order: 10, icon: 'Trophy' },
-      { id: 'feed', name: 'Recent Activity', enabled: false, size: 'medium', order: 11, icon: 'MessageSquare' },
-      { id: 'goals', name: '2026 Goals', enabled: false, size: 'small', order: 12, icon: 'Target' },
-      { id: 'mood', name: 'Mood Tracker', enabled: false, size: 'small', order: 13, icon: 'Heart' }
+      { id: 'weeklyTrend', name: 'Weekly Trend', enabled: true, size: 'large', order: 4, icon: 'TrendingUp' },
+      { id: 'teamLeaderboard', name: 'Team Leaderboard', enabled: true, size: 'medium', order: 5, icon: 'Trophy' },
+      { id: 'habits', name: 'Streaks', enabled: false, size: 'small', order: 6, icon: 'Flame' },
+      { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small', order: 7, icon: 'Quote' },
+      { id: 'lifeBalance', name: 'Life Balance', enabled: false, size: 'medium', order: 8, icon: 'Target' },
+      { id: 'pomodoro', name: 'Focus Timer', enabled: true, size: 'small', order: 9, icon: 'Timer' },
+      { id: 'quickWin', name: 'Quick Win', enabled: true, size: 'small', order: 10, icon: 'Zap' },
+      { id: 'weekAtGlance', name: 'Week at a Glance', enabled: false, size: 'large', order: 11, icon: 'Calendar' },
+      { id: 'categoryBreakdown', name: 'Category Breakdown', enabled: false, size: 'medium', order: 12, icon: 'PieChart' },
+      { id: 'tasks', name: 'Task Overview', enabled: false, size: 'medium', order: 13, icon: 'CheckSquare' },
+      { id: 'calendar', name: 'Mini Calendar', enabled: false, size: 'medium', order: 14, icon: 'Calendar' },
+      { id: 'coach', name: 'AI Coach', enabled: false, size: 'medium', order: 15, icon: 'Brain' },
+      { id: 'challenges', name: 'Active Challenges', enabled: false, size: 'small', order: 16, icon: 'Trophy' },
+      { id: 'feed', name: 'Recent Activity', enabled: false, size: 'medium', order: 17, icon: 'MessageSquare' },
+      { id: 'goals', name: '2026 Goals', enabled: false, size: 'small', order: 18, icon: 'Target' },
+      { id: 'mood', name: 'Mood Tracker', enabled: false, size: 'small', order: 19, icon: 'Heart' },
+      { id: 'motivationalQuote', name: 'Motivation Boost', enabled: false, size: 'small', order: 20, icon: 'Sparkles' }
     ];
   });
   const [showWidgetCustomizer, setShowWidgetCustomizer] = useState(false);
@@ -4464,7 +4514,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
   // Save dashboard widgets to localStorage
   const saveDashboardWidgets = (widgets) => {
     setDashboardWidgets(widgets);
-    localStorage.setItem('dashboard_widgets_v3', JSON.stringify(widgets));
+    localStorage.setItem('dashboard_widgets_v4', JSON.stringify(widgets));
   };
 
   // Toggle widget enabled state
@@ -4549,7 +4599,8 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
   // Get widget icon component
   const getWidgetIcon = (iconName) => {
     const icons = {
-      Target, CheckSquare, Flame, Quote, Calendar, Brain, Trophy, MessageSquare, Heart, BarChart3, ListTodo
+      Target, CheckSquare, Flame, Quote, Calendar, Brain, Trophy, MessageSquare, Heart, BarChart3, ListTodo,
+      TrendingUp, Timer, Zap, Sparkles, PieChart: BarChart3 // fallback PieChart to BarChart3
     };
     return icons[iconName] || Target;
   };
@@ -5858,7 +5909,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         </div>
       )}
       
-      <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} onAddHabit={() => setShowAddHabitModal(true)} />
+      <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} onAddHabit={() => setShowAddHabitModal(true)} isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
       <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-3">
@@ -6701,6 +6752,275 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                 <button onClick={() => setShowMoodModal(true)} className={`w-full py-2 text-xs rounded-lg ${darkMode ? 'bg-pink-500/20 text-pink-300' : 'bg-pink-50 text-pink-700'}`}>
                                   Log Today's Mood
                                 </button>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Widget: Weekly Trend Chart */}
+                        {widget.id === 'weeklyTrend' && (
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <TrendingUp className={`w-4 h-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Weekly Trend</span>
+                              </div>
+                            </div>
+                            <div className="h-32">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={(() => {
+                                  const last7Weeks = ALL_WEEKS.slice(-7);
+                                  return last7Weeks.map(week => {
+                                    const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
+                                    const completed = weekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                                    const rate = weekHabits.length > 0 ? Math.round((completed / weekHabits.length) * 100) : 0;
+                                    return { week: week.slice(5), rate };
+                                  });
+                                })()}>
+                                  <defs>
+                                    <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                    </linearGradient>
+                                  </defs>
+                                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: darkMode ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} />
+                                  <YAxis hide domain={[0, 100]} />
+                                  <Tooltip content={({ payload }) => {
+                                    if (payload && payload.length > 0) {
+                                      return (
+                                        <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white shadow text-gray-800'}`}>
+                                          {payload[0].value}%
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  }} />
+                                  <Area type="monotone" dataKey="rate" stroke="#3b82f6" strokeWidth={2} fill="url(#colorRate)" />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Widget: Team Leaderboard */}
+                        {widget.id === 'teamLeaderboard' && (
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <Trophy className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Team Leaderboard</span>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {(() => {
+                                const leaderboard = allParticipants.map(p => {
+                                  const pHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === p);
+                                  const completed = pHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                                  const rate = pHabits.length > 0 ? Math.round((completed / pHabits.length) * 100) : 0;
+                                  return { name: p, rate, completed, total: pHabits.length };
+                                }).sort((a, b) => b.rate - a.rate);
+                                
+                                return leaderboard.map((entry, idx) => (
+                                  <div key={entry.name} className={`flex items-center gap-2 p-2 rounded-lg ${
+                                    entry.name === myParticipant 
+                                      ? darkMode ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
+                                      : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                                  }`}>
+                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                                      idx === 0 ? 'bg-amber-500 text-white' : idx === 1 ? 'bg-gray-400 text-white' : idx === 2 ? 'bg-orange-600 text-white' : (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
+                                    }`}>
+                                      {idx + 1}
+                                    </span>
+                                    <span className={`flex-1 text-xs font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{entry.name}</span>
+                                    <span className={`text-xs font-bold ${entry.rate >= 80 ? 'text-green-500' : entry.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{entry.rate}%</span>
+                                  </div>
+                                ));
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Widget: Pomodoro/Focus Timer */}
+                        {widget.id === 'pomodoro' && (
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Timer className={`w-4 h-4 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Focus Timer</span>
+                            </div>
+                            {(() => {
+                              const [timeLeft, setTimeLeft] = React.useState(25 * 60);
+                              const [isRunning, setIsRunning] = React.useState(false);
+                              const [mode, setMode] = React.useState('work'); // work, break
+                              
+                              React.useEffect(() => {
+                                let interval;
+                                if (isRunning && timeLeft > 0) {
+                                  interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
+                                } else if (timeLeft === 0) {
+                                  setIsRunning(false);
+                                  if (mode === 'work') {
+                                    setMode('break');
+                                    setTimeLeft(5 * 60);
+                                  } else {
+                                    setMode('work');
+                                    setTimeLeft(25 * 60);
+                                  }
+                                }
+                                return () => clearInterval(interval);
+                              }, [isRunning, timeLeft, mode]);
+                              
+                              const minutes = Math.floor(timeLeft / 60);
+                              const seconds = timeLeft % 60;
+                              
+                              return (
+                                <div className="text-center">
+                                  <p className={`text-[10px] uppercase tracking-wider mb-1 ${mode === 'work' ? 'text-red-500' : 'text-green-500'}`}>
+                                    {mode === 'work' ? '🔥 Focus Time' : '☕ Break Time'}
+                                  </p>
+                                  <p className={`text-3xl font-mono font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                                  </p>
+                                  <div className="flex justify-center gap-2 mt-2">
+                                    <button onClick={() => setIsRunning(!isRunning)}
+                                      className={`p-2 rounded-lg ${isRunning 
+                                        ? 'bg-amber-500 hover:bg-amber-600 text-white' 
+                                        : 'bg-green-500 hover:bg-green-600 text-white'}`}>
+                                      {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                    </button>
+                                    <button onClick={() => { setIsRunning(false); setTimeLeft(mode === 'work' ? 25 * 60 : 5 * 60); }}
+                                      className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
+                                      <RotateCcw className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Widget: Quick Win */}
+                        {widget.id === 'quickWin' && (
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Zap className={`w-4 h-4 ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
+                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Quick Win</span>
+                            </div>
+                            {(() => {
+                              const today = new Date();
+                              const dayOfWeek = today.getDay();
+                              const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                              const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+                              const incompleteHabit = myHabits.find(h => !(h.daysCompleted || []).includes(todayIndex));
+                              
+                              if (!incompleteHabit) {
+                                return (
+                                  <div className="text-center py-2">
+                                    <span className="text-2xl">🎉</span>
+                                    <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>All done today!</p>
+                                  </div>
+                                );
+                              }
+                              
+                              return (
+                                <div className={`p-3 rounded-lg ${darkMode ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-yellow-50 border border-yellow-200'}`}>
+                                  <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                                    Complete this now:
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => toggleDay(incompleteHabit.id, todayIndex)}
+                                      className={`w-6 h-6 rounded flex items-center justify-center ${darkMode ? 'bg-gray-700 hover:bg-green-500' : 'bg-gray-200 hover:bg-green-500 hover:text-white'}`}>
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                    <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{incompleteHabit.habit}</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Widget: Week at a Glance */}
+                        {widget.id === 'weekAtGlance' && (
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Calendar className={`w-4 h-4 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
+                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Week at a Glance</span>
+                            </div>
+                            <div className="grid grid-cols-7 gap-1">
+                              {DAYS.map((day, i) => {
+                                const today = new Date();
+                                const dayOfWeek = today.getDay();
+                                const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                                const isToday = i === todayIndex;
+                                const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+                                const dayCompleted = myHabits.filter(h => (h.daysCompleted || []).includes(i)).length;
+                                const dayTotal = myHabits.length;
+                                const pct = dayTotal > 0 ? Math.round((dayCompleted / dayTotal) * 100) : 0;
+                                
+                                return (
+                                  <div key={day} className={`text-center p-2 rounded-lg ${
+                                    isToday 
+                                      ? darkMode ? 'bg-blue-500/20 border border-blue-500/50' : 'bg-blue-50 border border-blue-200'
+                                      : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                                  }`}>
+                                    <p className={`text-[10px] font-medium ${isToday ? 'text-blue-500' : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>{day.slice(0, 3)}</p>
+                                    <p className={`text-lg font-bold ${pct >= 80 ? 'text-green-500' : pct >= 50 ? 'text-amber-500' : pct > 0 ? 'text-red-500' : (darkMode ? 'text-gray-500' : 'text-gray-300')}`}>{pct}%</p>
+                                    <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{dayCompleted}/{dayTotal}</p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Widget: Category Breakdown */}
+                        {widget.id === 'categoryBreakdown' && (
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <BarChart3 className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>By Category</span>
+                            </div>
+                            <div className="space-y-2">
+                              {HABIT_CATEGORIES.map(cat => {
+                                const catHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant && h.category === cat.id);
+                                const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                                const pct = catHabits.length > 0 ? Math.round((completed / catHabits.length) * 100) : 0;
+                                if (catHabits.length === 0) return null;
+                                
+                                return (
+                                  <div key={cat.id} className="flex items-center gap-2">
+                                    <span className="text-sm">{cat.icon}</span>
+                                    <div className="flex-1">
+                                      <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                        <div className={`h-full rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+                                      </div>
+                                    </div>
+                                    <span className={`text-xs font-medium w-8 text-right ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{pct}%</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Widget: Motivational Quote */}
+                        {widget.id === 'motivationalQuote' && (
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Sparkles className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Motivation</span>
+                            </div>
+                            {(() => {
+                              const quotes = [
+                                "The only way to do great work is to love what you do.",
+                                "Success is not final, failure is not fatal.",
+                                "The future depends on what you do today.",
+                                "Small daily improvements lead to stunning results.",
+                                "Discipline is choosing what you want most over what you want now."
+                              ];
+                              const dayIndex = new Date().getDate() % quotes.length;
+                              return (
+                                <p className={`text-xs italic ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>"{quotes[dayIndex]}"</p>
                               );
                             })()}
                           </div>
@@ -8023,17 +8343,60 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 </div>
                 
                 {/* Controls */}
-                <div className="flex items-center gap-3">
-                  {/* Merge Toggle */}
-                  <label className={`flex items-center gap-2 text-xs cursor-pointer ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Manual Merge Button */}
+                  {monthlyMergeMode ? (
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {selectedHabitsForMerge.size} selected
+                      </span>
+                      <button 
+                        onClick={() => {
+                          if (selectedHabitsForMerge.size >= 2) {
+                            // Just enable auto-merge for now - manual merge would need backend
+                            setMonthlyMergeHabits(true);
+                          }
+                          setMonthlyMergeMode(false);
+                          setSelectedHabitsForMerge(new Set());
+                        }}
+                        disabled={selectedHabitsForMerge.size < 2}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                          selectedHabitsForMerge.size >= 2 
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'
+                        }`}
+                      >
+                        Merge Selected
+                      </button>
+                      <button 
+                        onClick={() => { setMonthlyMergeMode(false); setSelectedHabitsForMerge(new Set()); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
                     <button 
-                      onClick={() => setMonthlyMergeHabits(!monthlyMergeHabits)}
-                      className={`w-8 h-5 rounded-full relative transition-colors ${monthlyMergeHabits ? 'bg-blue-600' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
+                      onClick={() => { setMonthlyMergeMode(true); setMonthlyMergeHabits(false); }}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}
                     >
-                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${monthlyMergeHabits ? 'right-0.5' : 'left-0.5'}`} />
+                      <Link2 className="w-3.5 h-3.5" />
+                      Manual Merge
                     </button>
-                    Merge Similar
-                  </label>
+                  )}
+                  
+                  {/* Auto Merge Toggle */}
+                  {!monthlyMergeMode && (
+                    <label className={`flex items-center gap-2 text-xs cursor-pointer ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <button 
+                        onClick={() => setMonthlyMergeHabits(!monthlyMergeHabits)}
+                        className={`w-8 h-5 rounded-full relative transition-colors ${monthlyMergeHabits ? 'bg-blue-600' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
+                      >
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${monthlyMergeHabits ? 'right-0.5' : 'left-0.5'}`} />
+                      </button>
+                      Auto Merge
+                    </label>
+                  )}
                   
                   {/* View Toggle */}
                   <div className={`flex gap-1 rounded-lg p-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
@@ -8090,14 +8453,17 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               })()}
             </div>
 
-            {/* Monthly Grid - Improved Design */}
+            {/* Monthly Grid */}
             <div className={`rounded-xl border overflow-hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-              {/* Sticky Header with Days */}
               <div className="overflow-x-auto">
-                <table className="w-full text-xs" style={{ minWidth: '800px' }}>
+                <table className="w-full text-xs" style={{ minWidth: '850px' }}>
                   <thead>
                     <tr className={darkMode ? 'bg-gray-900' : 'bg-gray-50'}>
-                      <th className={`text-left p-3 font-semibold sticky left-0 z-20 min-w-[200px] ${darkMode ? 'bg-gray-900 text-gray-300' : 'bg-gray-50 text-gray-700'}`}>
+                      {/* Checkbox column for merge mode */}
+                      {monthlyMergeMode && (
+                        <th className={`p-2 w-8 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}></th>
+                      )}
+                      <th className={`text-left p-3 font-semibold sticky left-0 z-20 min-w-[180px] ${darkMode ? 'bg-gray-900 text-gray-300' : 'bg-gray-50 text-gray-700'}`}>
                         Habit
                       </th>
                       {(() => {
@@ -8108,16 +8474,16 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                           const isToday = d.toDateString() === new Date().toDateString();
                           return (
-                            <th key={i} className={`p-1 text-center min-w-[28px] ${isToday ? 'bg-blue-500 text-white' : isWeekend ? (darkMode ? 'bg-gray-800' : 'bg-gray-100') : ''}`}>
+                            <th key={i} className={`p-1 text-center min-w-[26px] ${isToday ? 'bg-blue-500 text-white' : isWeekend ? (darkMode ? 'bg-gray-800' : 'bg-gray-100') : ''}`}>
                               <div className={`text-[9px] font-normal ${isToday ? 'text-white/80' : (darkMode ? 'text-gray-500' : 'text-gray-400')}`}>{dayName}</div>
                               <div className={`text-[11px] font-semibold ${isToday ? 'text-white' : ''}`}>{i + 1}</div>
                             </th>
                           );
                         });
                       })()}
-                      <th className={`p-2 text-center min-w-[50px] ${darkMode ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-700'}`}>Goal</th>
-                      <th className={`p-2 text-center min-w-[50px] ${darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-700'}`}>Done</th>
-                      <th className={`p-2 text-center min-w-[60px] ${darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-50 text-purple-700'}`}>%</th>
+                      <th className={`p-2 text-center min-w-[90px] ${darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-50 text-purple-700'}`}>
+                        Progress
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -8125,7 +8491,6 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
                       const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
                       
-                      // Get all habits for this month
                       const monthHabits = habits.filter(h => {
                         const weekDate = new Date(h.weekStart + 'T00:00:00');
                         return weekDate.getMonth() === monthlyViewMonth.month && 
@@ -8133,24 +8498,23 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                (!viewParticipant || h.participant === viewParticipant);
                       });
 
-                      // Group habits
+                      // Group habits based on merge mode
                       const habitGroups = {};
                       monthHabits.forEach(h => {
-                        const key = monthlyMergeHabits 
+                        const key = monthlyMergeHabits && !monthlyMergeMode
                           ? `${h.participant}:${h.habit}` 
                           : `${h.participant}:${h.habit}:${h.weekStart}`;
                         if (!habitGroups[key]) {
                           habitGroups[key] = { 
+                            key,
                             habit: h.habit, 
                             participant: h.participant, 
                             weeks: [], 
-                            weekHabitMap: {}, // Map weekStart -> habit id for editing
                             totalTarget: 0, 
                             totalCompleted: 0 
                           };
                         }
                         habitGroups[key].weeks.push(h);
-                        habitGroups[key].weekHabitMap[h.weekStart] = h;
                         habitGroups[key].totalTarget += h.target || 0;
                         habitGroups[key].totalCompleted += h.daysCompleted?.length || 0;
                       });
@@ -8160,10 +8524,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       if (sortedGroups.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={daysInMonth + 4} className={`p-12 text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                            <td colSpan={daysInMonth + (monthlyMergeMode ? 3 : 2)} className={`p-12 text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                               <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
                               <p className="text-sm font-medium">No habits tracked this month</p>
-                              <p className="text-xs mt-1">Add habits in the Habit Tracker to see them here</p>
                             </td>
                           </tr>
                         );
@@ -8173,47 +8536,62 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         const progressPct = group.totalTarget > 0 ? Math.round((group.totalCompleted / group.totalTarget) * 100) : 0;
                         const isEvenRow = idx % 2 === 0;
                         const isMyHabit = group.participant === myParticipant;
+                        const isSelected = selectedHabitsForMerge.has(group.key);
                         
                         return (
-                          <tr key={idx} className={`border-t transition-colors ${
+                          <tr key={group.key} className={`border-t transition-colors ${
+                            isSelected ? (darkMode ? 'bg-purple-500/20 border-purple-500/30' : 'bg-purple-50 border-purple-200') :
                             isEvenRow 
                               ? darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50/50 border-gray-100'
                               : darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
                           } ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50/30'}`}>
+                            {/* Checkbox for merge mode */}
+                            {monthlyMergeMode && (
+                              <td className="p-2">
+                                <button 
+                                  onClick={() => {
+                                    const newSet = new Set(selectedHabitsForMerge);
+                                    if (isSelected) {
+                                      newSet.delete(group.key);
+                                    } else {
+                                      newSet.add(group.key);
+                                    }
+                                    setSelectedHabitsForMerge(newSet);
+                                  }}
+                                  className={`w-5 h-5 rounded flex items-center justify-center border-2 ${
+                                    isSelected 
+                                      ? 'bg-purple-500 border-purple-500 text-white'
+                                      : darkMode ? 'border-gray-600 hover:border-purple-400' : 'border-gray-300 hover:border-purple-400'
+                                  }`}
+                                >
+                                  {isSelected && <Check className="w-3 h-3" />}
+                                </button>
+                              </td>
+                            )}
+                            
                             {/* Habit Name - Sticky */}
                             <td className={`p-2 sticky left-0 z-10 ${
+                              isSelected ? (darkMode ? 'bg-purple-500/20' : 'bg-purple-50') :
                               isEvenRow 
                                 ? darkMode ? 'bg-gray-800/95' : 'bg-gray-50/95'
                                 : darkMode ? 'bg-gray-800/95' : 'bg-white/95'
                             }`}>
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <div className={`font-medium text-sm truncate ${darkMode ? 'text-white' : 'text-gray-800'}`} title={group.habit}>
-                                    {group.habit}
-                                  </div>
-                                  {selectedParticipant === 'All' && (
-                                    <div className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{group.participant}</div>
-                                  )}
-                                </div>
-                                {/* Mini progress bar next to name */}
-                                <div className={`w-12 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                  <div 
-                                    className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
-                                    style={{ width: `${Math.min(progressPct, 100)}%` }}
-                                  />
-                                </div>
+                              <div className={`font-medium text-sm truncate ${darkMode ? 'text-white' : 'text-gray-800'}`} title={group.habit}>
+                                {group.habit}
                               </div>
+                              {selectedParticipant === 'All' && (
+                                <div className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{group.participant}</div>
+                              )}
                             </td>
                             
-                            {/* Day Cells - Clickable Checkboxes */}
+                            {/* Day Cells */}
                             {Array.from({ length: daysInMonth }, (_, dayIdx) => {
                               const dayNum = dayIdx + 1;
                               const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
-                              const dayOfWeek = (dayDate.getDay() + 6) % 7; // Mon=0, Sun=6
+                              const dayOfWeek = (dayDate.getDay() + 6) % 7;
                               const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
                               const isToday = dayDate.toDateString() === new Date().toDateString();
                               
-                              // Find which week this day belongs to
                               const weekHabit = group.weeks.find(w => {
                                 const weekStart = new Date(w.weekStart + 'T00:00:00');
                                 const weekEnd = new Date(weekStart);
@@ -8231,33 +8609,36 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                     <button
                                       onClick={() => canToggle && toggleDay(weekHabit.id, dayOfWeek)}
                                       disabled={!canToggle}
-                                      className={`w-6 h-6 mx-auto rounded flex items-center justify-center transition-all ${
+                                      className={`w-5 h-5 mx-auto rounded flex items-center justify-center transition-all ${
                                         isCompleted 
                                           ? 'bg-green-500 text-white' 
                                           : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
                                       } ${canToggle ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
                                     >
-                                      {isCompleted ? <Check className="w-3.5 h-3.5" /> : <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>·</span>}
+                                      {isCompleted ? <Check className="w-3 h-3" /> : ''}
                                     </button>
                                   ) : (
-                                    <div className={`w-6 h-6 mx-auto rounded ${darkMode ? 'bg-gray-800/30' : 'bg-gray-100/30'}`}></div>
+                                    <div className={`w-5 h-5 mx-auto rounded ${darkMode ? 'bg-gray-800/30' : 'bg-gray-100/30'}`}></div>
                                   )}
                                 </td>
                               );
                             })}
                             
-                            {/* Stats Columns */}
-                            <td className={`p-2 text-center font-semibold ${darkMode ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-50/50 text-blue-700'}`}>
-                              {group.totalTarget}
-                            </td>
-                            <td className={`p-2 text-center font-semibold ${darkMode ? 'bg-green-900/20 text-green-400' : 'bg-green-50/50 text-green-700'}`}>
-                              {group.totalCompleted}
-                            </td>
+                            {/* Progress Column - Bar + Percentage together */}
                             <td className={`p-2 ${darkMode ? 'bg-purple-900/20' : 'bg-purple-50/50'}`}>
-                              <div className="flex items-center justify-center gap-1">
-                                <span className={`text-xs font-bold ${progressPct >= 100 ? 'text-green-500' : progressPct >= 70 ? 'text-blue-500' : 'text-amber-500'}`}>
+                              <div className="flex items-center gap-2">
+                                <div className={`flex-1 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                    style={{ width: `${Math.min(progressPct, 100)}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-bold min-w-[32px] text-right ${progressPct >= 100 ? 'text-green-500' : progressPct >= 70 ? 'text-blue-500' : 'text-amber-500'}`}>
                                   {progressPct}%
                                 </span>
+                              </div>
+                              <div className={`text-[9px] text-center mt-0.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {group.totalCompleted}/{group.totalTarget}
                               </div>
                             </td>
                           </tr>
@@ -8266,57 +8647,6 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     })()}
                   </tbody>
                 </table>
-              </div>
-            </div>
-
-            {/* Mood & Motivation Tracker */}
-            <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/20' : 'bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className={`font-semibold flex items-center gap-2 text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  <Heart className="w-4 h-4 text-purple-500" />
-                  Mood & Motivation
-                </h3>
-                <button 
-                  onClick={() => setShowMoodModal(true)}
-                  className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600"
-                >
-                  {todaysMoodEntry ? 'Update Today' : 'Log Today'}
-                </button>
-              </div>
-              
-              {/* Mood Grid */}
-              <div className="overflow-x-auto">
-                <div className="inline-flex gap-0">
-                  {(() => {
-                    const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
-                    return Array.from({ length: daysInMonth }, (_, dayIdx) => {
-                      const dayNum = dayIdx + 1;
-                      const dateStr = `${monthlyViewMonth.year}-${String(monthlyViewMonth.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                      const moodEntry = moodData.find(m => m.date === dateStr && (selectedParticipant === 'All' || m.participant === selectedParticipant));
-                      const isToday = dateStr === new Date().toISOString().split('T')[0];
-                      const moodEmoji = moodEntry?.mood ? ['😢', '😕', '😐', '🙂', '😊', '😄', '🤩', '🥳', '🌟', '💫'][moodEntry.mood - 1] || '·' : '·';
-
-                      return (
-                        <div key={dayIdx} className={`flex flex-col items-center min-w-[28px] py-1 ${isToday ? 'bg-purple-200/50 rounded' : ''}`}>
-                          <span className="text-sm">{moodEntry?.mood ? moodEmoji : '·'}</span>
-                          <span className={`text-[10px] ${moodEntry?.motivation ? (moodEntry.motivation >= 7 ? 'text-green-500' : moodEntry.motivation >= 4 ? 'text-amber-500' : 'text-red-500') : 'text-gray-400'}`}>
-                            {moodEntry?.motivation || '-'}
-                          </span>
-                          <span className={`text-[8px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{dayNum}</span>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-              
-              <div className="flex gap-4 mt-2 text-[10px]">
-                <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  <span className="w-3 h-3 rounded bg-purple-500/30 flex items-center justify-center">😊</span> Mood (emoji)
-                </span>
-                <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  <span className="w-3 h-3 rounded bg-pink-500/30 text-[8px] font-bold text-pink-600">7</span> Motivation (1-10)
-                </span>
               </div>
             </div>
           </div>
