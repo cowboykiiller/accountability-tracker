@@ -1323,6 +1323,7 @@ export default function AccountabilityTracker() {
         id: t.id,
         task: t.task,
         dueDate: t.due_date,
+        time_slot: t.time_slot,
         priority: t.priority,
         category: t.category,
         status: t.status,
@@ -1362,6 +1363,7 @@ export default function AccountabilityTracker() {
           id: t.id,
           task: t.task,
           dueDate: t.due_date,
+          time_slot: t.time_slot,
           priority: t.priority,
           category: t.category,
           status: t.status,
@@ -4098,6 +4100,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
         id: `task_${Date.now()}_ai_${i}`,
         task: scheduledTask.task,
         due_date: targetDateStr,
+        time_slot: scheduledTask.time_slot || null,
         priority: scheduledTask.priority || 'Medium',
         category: scheduledTask.category || 'Work',
         status: 'Not Started',
@@ -4155,7 +4158,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
 
   // Add a recurring task
   const addRecurringTask = async (recurringConfig) => {
-    const { task, pattern, days, priority, category } = recurringConfig;
+    const { task, pattern, days, time_slot, priority, category } = recurringConfig;
     
     if (!task || !task.trim()) {
       alert('Please enter a task name');
@@ -4176,6 +4179,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
               id: `task_${Date.now()}_rec_${week}_${day}_${Math.random().toString(36).substr(2, 5)}`,
               task,
               due_date: date.toISOString().split('T')[0],
+              time_slot: time_slot || null,
               priority: priority || 'Medium',
               category: category || 'Work',
               status: 'Not Started',
@@ -4199,6 +4203,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
               id: `task_${Date.now()}_rec_${week}_${dayName}_${Math.random().toString(36).substr(2, 5)}`,
               task,
               due_date: date.toISOString().split('T')[0],
+              time_slot: time_slot || null,
               priority: priority || 'Medium',
               category: category || 'Work',
               status: 'Not Started',
@@ -4420,6 +4425,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
       id: `task_${Date.now()}`,
       task: cleanText,
       due_date: dueDateStr,
+      time_slot: timeSlot,
       priority: priority,
       category: 'Work',
       status: 'Not Started',
@@ -8990,12 +8996,21 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       if (aOverdue && !bOverdue) return -1;
                       if (!aOverdue && bOverdue) return 1;
                       
+                      // For today's tasks, sort by time slot first
+                      if (taskFilter === 'today' || (a.dueDate === today && b.dueDate === today)) {
+                        // Tasks with time slots come before those without
+                        if (a.time_slot && !b.time_slot) return -1;
+                        if (!a.time_slot && b.time_slot) return 1;
+                        // Sort by time slot
+                        if (a.time_slot && b.time_slot) return a.time_slot.localeCompare(b.time_slot);
+                      }
+                      
                       // Then priority
                       const order = { 'High': 0, 'Medium': 1, 'Low': 2 };
                       const priorityDiff = (order[a.priority] || 1) - (order[b.priority] || 1);
                       if (priorityDiff !== 0) return priorityDiff;
                       
-                      // Then time slot
+                      // Then time slot (for non-today views)
                       if (a.time_slot && b.time_slot) return a.time_slot.localeCompare(b.time_slot);
                       if (a.time_slot) return -1;
                       if (b.time_slot) return 1;
@@ -9026,19 +9041,46 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       const isMyTask = task.participant === myParticipant;
                       const isTop3 = top3Today.includes(task.id);
                       
+                      // Format time slot nicely
+                      const formatTimeSlot = (slot) => {
+                        if (!slot) return null;
+                        const [hours, mins] = slot.split(':');
+                        const h = parseInt(hours);
+                        const period = h >= 12 ? 'PM' : 'AM';
+                        const displayHour = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+                        return `${displayHour}:${mins} ${period}`;
+                      };
+                      
                       return (
-                        <div key={task.id} className={`group flex items-center gap-3 p-2.5 rounded-lg transition-all ${
+                        <div key={task.id} className={`group flex items-start gap-3 p-3 rounded-xl transition-all ${
                           task.status === 'Completed'
                             ? darkMode ? 'bg-gray-800/30' : 'bg-gray-50'
                             : isOverdue
-                              ? darkMode ? 'bg-red-900/20' : 'bg-red-50'
-                              : darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white border border-gray-100 hover:border-gray-200'
+                              ? darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
+                              : darkMode ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700' : 'bg-white border border-gray-100 hover:border-gray-200 hover:shadow-sm'
                         }`}>
+                          {/* Time Box - Visual */}
+                          <div className={`flex-shrink-0 w-16 text-center py-1 rounded-lg ${
+                            task.time_slot 
+                              ? task.status === 'Completed'
+                                ? darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-600'
+                                : darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-600 border border-blue-200'
+                              : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'
+                          }`}>
+                            {task.time_slot ? (
+                              <>
+                                <p className="text-xs font-bold">{formatTimeSlot(task.time_slot)}</p>
+                              </>
+                            ) : (
+                              <p className="text-xs">No time</p>
+                            )}
+                          </div>
+                          
                           {/* Checkbox */}
                           <button
                             onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
                             disabled={!isMyTask}
-                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                            className={`w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                               task.status === 'Completed' ? 'bg-green-500 border-green-500'
                               : isMyTask ? (darkMode ? 'border-gray-500 hover:border-green-500' : 'border-gray-300 hover:border-green-500')
                               : 'border-gray-200 opacity-50'
@@ -9048,19 +9090,28 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           
                           {/* Content */}
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm truncate ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-white' : 'text-gray-800')}`}>
+                            <p className={`text-sm ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-white' : 'text-gray-800')}`}>
                               {isTop3 && <Star className="w-3 h-3 inline mr-1 text-amber-500 fill-amber-500" />}
                               {task.task}
                             </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {task.dueDate && (
-                                <span className={`text-xs ${isOverdue ? 'text-red-500' : isToday ? 'text-amber-500' : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                                  {isOverdue && '⚠️'}{isToday ? 'Today' : new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {task.dueDate && !isToday && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${isOverdue ? 'bg-red-100 text-red-600' : (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
+                                  {isOverdue && '⚠️ '}{new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                 </span>
                               )}
-                              {!task.dueDate && <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Inbox</span>}
-                              {task.priority === 'High' && <span className="text-[10px] px-1 rounded bg-red-100 text-red-600">High</span>}
-                              {task.time_slot && <span className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{task.time_slot}</span>}
+                              {isToday && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Today</span>}
+                              {!task.dueDate && <span className={`text-xs px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>Inbox</span>}
+                              {task.priority === 'High' && <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-600 font-medium">High</span>}
+                              {task.priority === 'Low' && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Low</span>}
+                              {task.category && task.category !== 'Work' && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  task.category === 'Health' ? 'bg-green-100 text-green-600' :
+                                  task.category === 'Personal' ? 'bg-purple-100 text-purple-600' :
+                                  task.category === 'Learning' ? 'bg-blue-100 text-blue-600' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{task.category}</span>
+                              )}
                             </div>
                           </div>
                           
