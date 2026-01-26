@@ -1011,6 +1011,7 @@ export default function AccountabilityTracker() {
   const [pomodoroTask, setPomodoroTask] = useState(null);
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
+  const [pomodoroMode, setPomodoroMode] = useState('work'); // 'work' or 'break'
   const [showMorningPlanning, setShowMorningPlanning] = useState(false);
   const [top3Today, setTop3Today] = useState([]); // IDs of top 3 tasks for today
   const [focusTask, setFocusTask] = useState(null); // Currently focused task
@@ -4982,12 +4983,20 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
       }, 1000);
     } else if (pomodoroTime === 0 && pomodoroRunning) {
       setPomodoroRunning(false);
+      // Switch modes
+      if (pomodoroMode === 'work') {
+        setPomodoroMode('break');
+        setPomodoroTime(5 * 60);
+      } else {
+        setPomodoroMode('work');
+        setPomodoroTime(25 * 60);
+      }
       if (Notification.permission === 'granted') {
-        new Notification('Pomodoro Complete!', { body: 'Time for a break!' });
+        new Notification('Pomodoro Complete!', { body: pomodoroMode === 'work' ? 'Time for a break!' : 'Back to work!' });
       }
     }
     return () => clearInterval(interval);
-  }, [pomodoroRunning, pomodoroTime]);
+  }, [pomodoroRunning, pomodoroTime, pomodoroMode]);
 
   // Non-Negotiables management
   const saveNonNegotiable = async () => {
@@ -6847,54 +6856,26 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               <Timer className={`w-4 h-4 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
                               <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Focus Timer</span>
                             </div>
-                            {(() => {
-                              const [timeLeft, setTimeLeft] = React.useState(25 * 60);
-                              const [isRunning, setIsRunning] = React.useState(false);
-                              const [mode, setMode] = React.useState('work'); // work, break
-                              
-                              React.useEffect(() => {
-                                let interval;
-                                if (isRunning && timeLeft > 0) {
-                                  interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
-                                } else if (timeLeft === 0) {
-                                  setIsRunning(false);
-                                  if (mode === 'work') {
-                                    setMode('break');
-                                    setTimeLeft(5 * 60);
-                                  } else {
-                                    setMode('work');
-                                    setTimeLeft(25 * 60);
-                                  }
-                                }
-                                return () => clearInterval(interval);
-                              }, [isRunning, timeLeft, mode]);
-                              
-                              const minutes = Math.floor(timeLeft / 60);
-                              const seconds = timeLeft % 60;
-                              
-                              return (
-                                <div className="text-center">
-                                  <p className={`text-[10px] uppercase tracking-wider mb-1 ${mode === 'work' ? 'text-red-500' : 'text-green-500'}`}>
-                                    {mode === 'work' ? '🔥 Focus Time' : '☕ Break Time'}
-                                  </p>
-                                  <p className={`text-3xl font-mono font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                    {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-                                  </p>
-                                  <div className="flex justify-center gap-2 mt-2">
-                                    <button onClick={() => setIsRunning(!isRunning)}
-                                      className={`p-2 rounded-lg ${isRunning 
-                                        ? 'bg-amber-500 hover:bg-amber-600 text-white' 
-                                        : 'bg-green-500 hover:bg-green-600 text-white'}`}>
-                                      {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                                    </button>
-                                    <button onClick={() => { setIsRunning(false); setTimeLeft(mode === 'work' ? 25 * 60 : 5 * 60); }}
-                                      className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
-                                      <RotateCcw className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })()}
+                            <div className="text-center">
+                              <p className={`text-[10px] uppercase tracking-wider mb-1 ${pomodoroMode === 'work' ? 'text-red-500' : 'text-green-500'}`}>
+                                {pomodoroMode === 'work' ? '🔥 Focus Time' : '☕ Break Time'}
+                              </p>
+                              <p className={`text-3xl font-mono font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {String(Math.floor(pomodoroTime / 60)).padStart(2, '0')}:{String(pomodoroTime % 60).padStart(2, '0')}
+                              </p>
+                              <div className="flex justify-center gap-2 mt-2">
+                                <button onClick={() => setPomodoroRunning(!pomodoroRunning)}
+                                  className={`p-2 rounded-lg ${pomodoroRunning 
+                                    ? 'bg-amber-500 hover:bg-amber-600 text-white' 
+                                    : 'bg-green-500 hover:bg-green-600 text-white'}`}>
+                                  {pomodoroRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                </button>
+                                <button onClick={() => { setPomodoroRunning(false); setPomodoroTime(pomodoroMode === 'work' ? 25 * 60 : 5 * 60); }}
+                                  className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
+                                  <RotateCcw className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         )}
                         
