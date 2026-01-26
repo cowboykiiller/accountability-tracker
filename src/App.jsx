@@ -3615,6 +3615,8 @@ JSON array only:`
       participant: userProfile?.linkedParticipant || user?.displayName
     };
     
+    console.log('addTask: creating task:', taskDoc);
+    
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
         method: 'POST',
@@ -3627,13 +3629,20 @@ JSON array only:`
         body: JSON.stringify(taskDoc)
       });
       
-      if (!response.ok) throw new Error('Failed to add task');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('addTask error:', errorText);
+        alert('Failed to add task: ' + errorText);
+        return;
+      }
       
+      console.log('addTask: success!');
       fetchTasks();
       setNewTask({ task: '', dueDate: '', priority: 'Medium', category: 'Work' });
       setShowAddTask(false);
     } catch (error) {
       console.error('Add task error:', error);
+      alert('Failed to add task: ' + error.message);
     }
   };
 
@@ -3643,6 +3652,9 @@ JSON array only:`
     
     const lines = batchTaskInput.split('\n').filter(line => line.trim());
     const today = new Date().toISOString().split('T')[0];
+    
+    let addedCount = 0;
+    let errors = [];
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -3672,7 +3684,7 @@ JSON array only:`
       };
       
       try {
-        await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
@@ -3682,12 +3694,26 @@ JSON array only:`
           },
           body: JSON.stringify(taskDoc)
         });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          errors.push(`Line ${i+1}: ${errorText}`);
+        } else {
+          addedCount++;
+        }
       } catch (error) {
         console.error('Batch add task error:', error);
+        errors.push(`Line ${i+1}: ${error.message}`);
       }
       
       // Small delay between adds
       await new Promise(r => setTimeout(r, 50));
+    }
+    
+    if (errors.length > 0) {
+      alert(`Added ${addedCount} tasks. Errors: ${errors.join(', ')}`);
+    } else {
+      alert(`Successfully added ${addedCount} tasks!`);
     }
     
     fetchTasks();
@@ -3749,6 +3775,8 @@ Respond with ONLY a JSON array of strings, no other text, no markdown. Example:
     if (!aiBreakdownTask || aiSubtasks.length === 0) return;
     
     const today = new Date().toISOString().split('T')[0];
+    let addedCount = 0;
+    let errors = [];
     
     for (let i = 0; i < aiSubtasks.length; i++) {
       const subtask = aiSubtasks[i];
@@ -3767,7 +3795,7 @@ Respond with ONLY a JSON array of strings, no other text, no markdown. Example:
       };
       
       try {
-        await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
@@ -3777,11 +3805,25 @@ Respond with ONLY a JSON array of strings, no other text, no markdown. Example:
           },
           body: JSON.stringify(taskDoc)
         });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          errors.push(`Subtask ${i+1}: ${errorText}`);
+        } else {
+          addedCount++;
+        }
       } catch (error) {
         console.error('Add subtask error:', error);
+        errors.push(`Subtask ${i+1}: ${error.message}`);
       }
       
       await new Promise(r => setTimeout(r, 50));
+    }
+    
+    if (errors.length > 0) {
+      alert(`Added ${addedCount} subtasks. Errors: ${errors.join(', ')}`);
+    } else {
+      alert(`Successfully added ${addedCount} subtasks!`);
     }
     
     fetchTasks();
@@ -4056,7 +4098,6 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
         id: `task_${Date.now()}_ai_${i}`,
         task: scheduledTask.task,
         due_date: targetDateStr,
-        time_slot: scheduledTask.time_slot || null,
         priority: scheduledTask.priority || 'Medium',
         category: scheduledTask.category || 'Work',
         status: 'Not Started',
@@ -4114,7 +4155,12 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
 
   // Add a recurring task
   const addRecurringTask = async (recurringConfig) => {
-    const { task, pattern, days, time_slot, priority, category } = recurringConfig;
+    const { task, pattern, days, priority, category } = recurringConfig;
+    
+    if (!task || !task.trim()) {
+      alert('Please enter a task name');
+      return;
+    }
     
     // Generate tasks for the next 4 weeks based on pattern
     const today = new Date();
@@ -4127,21 +4173,19 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
           date.setDate(date.getDate() + (week * 7) + day);
           if (date >= today) {
             tasksToCreate.push({
-              id: `task_${Date.now()}_rec_${week}_${day}`,
+              id: `task_${Date.now()}_rec_${week}_${day}_${Math.random().toString(36).substr(2, 5)}`,
               task,
               due_date: date.toISOString().split('T')[0],
-              time_slot,
-              priority,
-              category,
+              priority: priority || 'Medium',
+              category: category || 'Work',
               status: 'Not Started',
               created_at: new Date().toISOString(),
               created_by: user?.uid,
-              participant: userProfile?.linkedParticipant || user?.displayName,
-              recurring_id: `rec_${Date.now()}`
+              participant: userProfile?.linkedParticipant || user?.displayName
             });
           }
         }
-      } else if (pattern === 'weekly' && days) {
+      } else if (pattern === 'weekly' && days && days.length > 0) {
         const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
         days.forEach(dayName => {
           const targetDay = dayMap[dayName];
@@ -4152,27 +4196,35 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
           date.setDate(date.getDate() + daysUntil);
           if (date >= today) {
             tasksToCreate.push({
-              id: `task_${Date.now()}_rec_${week}_${dayName}`,
+              id: `task_${Date.now()}_rec_${week}_${dayName}_${Math.random().toString(36).substr(2, 5)}`,
               task,
               due_date: date.toISOString().split('T')[0],
-              time_slot,
-              priority,
-              category,
+              priority: priority || 'Medium',
+              category: category || 'Work',
               status: 'Not Started',
               created_at: new Date().toISOString(),
               created_by: user?.uid,
-              participant: userProfile?.linkedParticipant || user?.displayName,
-              recurring_id: `rec_${Date.now()}`
+              participant: userProfile?.linkedParticipant || user?.displayName
             });
           }
         });
       }
     }
     
+    if (tasksToCreate.length === 0) {
+      alert('No tasks to create. Please select at least one day for weekly pattern.');
+      return;
+    }
+    
+    console.log(`Creating ${tasksToCreate.length} recurring tasks...`);
+    
     // Batch insert tasks
+    let addedCount = 0;
+    let errors = [];
+    
     for (const taskDoc of tasksToCreate) {
       try {
-        await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
@@ -4182,10 +4234,25 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
           },
           body: JSON.stringify(taskDoc)
         });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          errors.push(errorText);
+        } else {
+          addedCount++;
+        }
       } catch (error) {
         console.error('Add recurring task error:', error);
+        errors.push(error.message);
       }
       await new Promise(r => setTimeout(r, 30));
+    }
+    
+    if (errors.length > 0) {
+      alert(`Added ${addedCount}/${tasksToCreate.length} tasks. Some errors occurred.`);
+      console.error('Recurring task errors:', errors);
+    } else {
+      alert(`Successfully created ${addedCount} recurring tasks for the next 4 weeks!`);
     }
     
     fetchTasks();
@@ -4353,7 +4420,6 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
       id: `task_${Date.now()}`,
       task: cleanText,
       due_date: dueDateStr,
-      time_slot: timeSlot,
       priority: priority,
       category: 'Work',
       status: 'Not Started',
@@ -4536,9 +4602,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
   // Create recurring task
   const createRecurringTask = async (taskData, recurrence) => {
     const taskDoc = {
-      ...taskData,
       id: `task_${Date.now()}`,
-      recurring: recurrence, // { frequency: 'daily'|'weekly'|'monthly', days: [0-6] for weekly }
+      task: taskData.task,
+      due_date: taskData.due_date,
+      priority: taskData.priority || 'Medium',
+      category: taskData.category || 'Work',
+      status: 'Not Started',
       created_at: new Date().toISOString(),
       created_by: user?.uid,
       participant: userProfile?.linkedParticipant || user?.displayName
@@ -4556,10 +4625,17 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         body: JSON.stringify(taskDoc)
       });
       
-      if (!response.ok) throw new Error('Failed to create recurring task');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('createRecurringTask error:', errorText);
+        alert('Failed to create task: ' + errorText);
+        return;
+      }
+      
       fetchTasks();
     } catch (error) {
       console.error('Recurring task error:', error);
+      alert('Failed to create task: ' + error.message);
     }
   };
 
