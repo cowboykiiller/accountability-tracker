@@ -1394,10 +1394,6 @@ export default function AccountabilityTracker() {
           linked_habit_id: t.linked_habit_id
         }));
         setTasks(tasksData);
-          completedAt: t.completed_at,
-          createdBy: t.created_by
-        }));
-        setTasks(tasksData);
       } catch (error) {
         console.error('Tasks error:', error);
       }
