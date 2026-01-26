@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock, Timer, Play, Pause, RotateCcw, Brain, Repeat, FileText, Coffee, ArrowRight, CheckSquare, Settings, Focus, Inbox, ListTodo, CalendarClock, ListPlus, Rocket, CircleDot } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock, Timer, Play, Pause, RotateCcw, Brain, Repeat, FileText, Coffee, ArrowRight, CheckSquare, Settings, Focus, Inbox, ListTodo, CalendarClock, ListPlus, Rocket, CircleDot, Link2 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar } from 'recharts';
 
 // Firebase imports
@@ -910,6 +910,8 @@ export default function AccountabilityTracker() {
   const [weekHabitSuggestions, setWeekHabitSuggestions] = useState([]); // AI suggestions for new week
   const [weekSuggestLoading, setWeekSuggestLoading] = useState(false);
   const [editingPastWeek, setEditingPastWeek] = useState(false); // Allow editing locked past weeks;
+  const [expandedHabitId, setExpandedHabitId] = useState(null); // Show linked tasks for this habit
+  const [monthlyMergeHabits, setMonthlyMergeHabits] = useState(true); // Merge like-named habits in monthly view
   
   // Tasks state
   const [tasks, setTasks] = useState([]);
@@ -4547,14 +4549,63 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     return icons[iconName] || Target;
   };
 
-  // Get today's habits for the current user
-  const getTodaysHabitsForLinking = () => {
-    const today = new Date().toISOString().split('T')[0];
+  // Get current week's habits for the current user (for linking tasks)
+  const getHabitsForLinking = () => {
     const myParticipant = userProfile?.linkedParticipant || user?.displayName;
-    return habits.filter(h => 
+    
+    // Determine which week to use - prefer the editing task's due date, otherwise current week
+    let targetWeekStart;
+    if (editingTask?.dueDate) {
+      const taskDate = new Date(editingTask.dueDate + 'T00:00:00');
+      const dayOfWeek = taskDate.getDay();
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(taskDate);
+      monday.setDate(taskDate.getDate() + diff);
+      targetWeekStart = monday.toISOString().split('T')[0];
+    } else {
+      // Use current week
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + diff);
+      targetWeekStart = monday.toISOString().split('T')[0];
+    }
+    
+    console.log('getHabitsForLinking:', { myParticipant, targetWeekStart, habitsCount: habits.length });
+    
+    // Filter habits for current user and target week
+    let filtered = habits.filter(h => 
       h.participant === myParticipant && 
-      h.date === today
+      h.weekStart === targetWeekStart
     );
+    
+    // If no habits for target week, show recent weeks' habits
+    if (filtered.length === 0) {
+      // Get unique habits from the last 4 weeks
+      const myHabits = habits.filter(h => h.participant === myParticipant);
+      const recentWeeks = [...new Set(myHabits.map(h => h.weekStart))].sort().reverse().slice(0, 4);
+      
+      // Get unique habit names from recent weeks
+      const uniqueHabits = new Map();
+      myHabits
+        .filter(h => recentWeeks.includes(h.weekStart))
+        .forEach(h => {
+          if (!uniqueHabits.has(h.habit)) {
+            uniqueHabits.set(h.habit, h);
+          }
+        });
+      
+      filtered = Array.from(uniqueHabits.values());
+    }
+    
+    console.log('Filtered habits for linking:', filtered.length, filtered.map(h => h.habit));
+    return filtered;
+  };
+
+  // Get linked tasks for a habit
+  const getLinkedTasksForHabit = (habitId) => {
+    return tasks.filter(t => t.linked_habit_id === habitId);
   };
 
   // Quick add task with natural language parsing
@@ -7614,6 +7665,60 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                             )}
                           </div>
                         </div>
+                        
+                        {/* Linked Tasks Section - Expandable */}
+                        {(() => {
+                          const linkedTasks = getLinkedTasksForHabit(h.id);
+                          if (linkedTasks.length === 0) return null;
+                          
+                          const isExpanded = expandedHabitId === h.id;
+                          const completedTasks = linkedTasks.filter(t => t.status === 'Completed').length;
+                          
+                          return (
+                            <div className={`mt-2 pt-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                              <button 
+                                onClick={() => setExpandedHabitId(isExpanded ? null : h.id)}
+                                className={`w-full flex items-center justify-between text-xs ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Link2 className="w-3 h-3" />
+                                  {linkedTasks.length} linked task{linkedTasks.length !== 1 ? 's' : ''} 
+                                  <span className={`${completedTasks === linkedTasks.length ? 'text-green-500' : ''}`}>
+                                    ({completedTasks}/{linkedTasks.length} done)
+                                  </span>
+                                </span>
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+                              
+                              {isExpanded && (
+                                <div className="mt-2 space-y-1">
+                                  {linkedTasks.map(task => (
+                                    <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                      <button 
+                                        onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                                        className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                                          task.status === 'Completed' 
+                                            ? 'bg-green-500 border-green-500 text-white' 
+                                            : darkMode ? 'border-gray-500 hover:border-green-400' : 'border-gray-300 hover:border-green-400'
+                                        }`}
+                                      >
+                                        {task.status === 'Completed' && <Check className="w-2.5 h-2.5" />}
+                                      </button>
+                                      <span className={`text-xs flex-1 ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-gray-300' : 'text-gray-700')}`}>
+                                        {task.task}
+                                      </span>
+                                      {task.dueDate && (
+                                        <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                          {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   });
@@ -7625,213 +7730,138 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         {/* Monthly Habit Grid View */}
         {activeView === 'monthly' && (
           <div className="space-y-4">
-            {/* Month Navigation & View Toggle */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setMonthlyViewMonth(prev => {
-                    const d = new Date(prev.year, prev.month - 1, 1);
-                    return { year: d.getFullYear(), month: d.getMonth() };
-                  })}
-                  className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800]"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <h2 className="text-lg font-bold text-gray-800 min-w-[150px] text-center">
-                  {new Date(monthlyViewMonth.year, monthlyViewMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </h2>
-                <button 
-                  onClick={() => setMonthlyViewMonth(prev => {
-                    const d = new Date(prev.year, prev.month + 1, 1);
-                    return { year: d.getFullYear(), month: d.getMonth() };
-                  })}
-                  className="p-2 bg-white rounded-lg border border-gray-200 hover:border-[#F5B800]"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-              
-              {/* View Toggle: My Data vs Team */}
-              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                <button 
-                  onClick={() => setSelectedParticipant(myParticipant)} 
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedParticipant === myParticipant ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
-                >
-                  My Data
-                </button>
-                <button 
-                  onClick={() => setSelectedParticipant('All')} 
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedParticipant === 'All' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-600'}`}
-                >
-                  Team
-                </button>
-              </div>
-            </div>
-
-            {/* Stats Summary */}
-            {(() => {
-              const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-              const monthHabits = habits.filter(h => {
-                const weekDate = new Date(h.weekStart + 'T00:00:00');
-                return weekDate.getMonth() === monthlyViewMonth.month && 
-                       weekDate.getFullYear() === monthlyViewMonth.year &&
-                       (!viewParticipant || h.participant === viewParticipant);
-              });
-              const totalCompleted = monthHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-              const totalTarget = monthHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-              const progressPct = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
-              
-              return (
-                <div className="grid grid-cols-4 gap-2">
-                  <div className={`rounded-lg p-2 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                    <p className="text-xl font-bold text-[#1E3A5F]">{monthHabits.length}</p>
-                    <p className="text-[10px] text-gray-500">Habits</p>
-                  </div>
-                  <div className={`rounded-lg p-2 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                    <p className="text-xl font-bold text-green-600">{totalCompleted}</p>
-                    <p className="text-[10px] text-gray-500">Done</p>
-                  </div>
-                  <div className={`rounded-lg p-2 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                    <p className="text-xl font-bold text-purple-600">{totalTarget}</p>
-                    <p className="text-[10px] text-gray-500">Target</p>
-                  </div>
-                  <div className={`rounded-lg p-2 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5 mb-0.5">
-                      <div className={`h-1.5 rounded-full ${progressPct >= 80 ? 'bg-green-500' : progressPct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${progressPct}%` }}></div>
-                    </div>
-                    <p className="text-[10px] text-gray-500">{progressPct}%</p>
+            {/* Month Navigation & Controls */}
+            <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Month Selector */}
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setMonthlyViewMonth(prev => {
+                      const d = new Date(prev.year, prev.month - 1, 1);
+                      return { year: d.getFullYear(), month: d.getMonth() };
+                    })}
+                    className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <h2 className={`text-lg font-bold min-w-[160px] text-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    {new Date(monthlyViewMonth.year, monthlyViewMonth.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </h2>
+                  <button 
+                    onClick={() => setMonthlyViewMonth(prev => {
+                      const d = new Date(prev.year, prev.month + 1, 1);
+                      return { year: d.getFullYear(), month: d.getMonth() };
+                    })}
+                    className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                {/* Controls */}
+                <div className="flex items-center gap-3">
+                  {/* Merge Toggle */}
+                  <label className={`flex items-center gap-2 text-xs cursor-pointer ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <button 
+                      onClick={() => setMonthlyMergeHabits(!monthlyMergeHabits)}
+                      className={`w-8 h-5 rounded-full relative transition-colors ${monthlyMergeHabits ? 'bg-blue-600' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
+                    >
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${monthlyMergeHabits ? 'right-0.5' : 'left-0.5'}`} />
+                    </button>
+                    Merge Similar
+                  </label>
+                  
+                  {/* View Toggle */}
+                  <div className={`flex gap-1 rounded-lg p-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                    <button 
+                      onClick={() => setSelectedParticipant(myParticipant)} 
+                      className={`px-3 py-1.5 rounded text-xs font-medium ${selectedParticipant === myParticipant ? (darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-600')}`}
+                    >
+                      My Data
+                    </button>
+                    <button 
+                      onClick={() => setSelectedParticipant('All')} 
+                      className={`px-3 py-1.5 rounded text-xs font-medium ${selectedParticipant === 'All' ? (darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-600')}`}
+                    >
+                      Team
+                    </button>
                   </div>
                 </div>
-              );
-            })()}
+              </div>
+              
+              {/* Stats Summary */}
+              {(() => {
+                const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                const monthHabits = habits.filter(h => {
+                  const weekDate = new Date(h.weekStart + 'T00:00:00');
+                  return weekDate.getMonth() === monthlyViewMonth.month && 
+                         weekDate.getFullYear() === monthlyViewMonth.year &&
+                         (!viewParticipant || h.participant === viewParticipant);
+                });
+                const totalCompleted = monthHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                const totalTarget = monthHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                const progressPct = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
+                const uniqueHabits = new Set(monthHabits.map(h => h.habit)).size;
+                
+                return (
+                  <div className="grid grid-cols-4 gap-2 mt-4">
+                    <div className={`rounded-lg p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <p className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{uniqueHabits}</p>
+                      <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Habits</p>
+                    </div>
+                    <div className={`rounded-lg p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <p className="text-xl font-bold text-green-500">{totalCompleted}</p>
+                      <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Completed</p>
+                    </div>
+                    <div className={`rounded-lg p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <p className="text-xl font-bold text-blue-500">{totalTarget}</p>
+                      <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Target</p>
+                    </div>
+                    <div className={`rounded-lg p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <p className={`text-xl font-bold ${progressPct >= 80 ? 'text-green-500' : progressPct >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{progressPct}%</p>
+                      <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Progress</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
 
-            {/* Monthly Grid - Grouped by habit name */}
-            <div className={`rounded-xl border overflow-x-auto ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="text-left p-2 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[160px] z-10">Habit</th>
-                    {(() => {
-                      const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
-                      return Array.from({ length: daysInMonth }, (_, i) => {
-                        const d = new Date(monthlyViewMonth.year, monthlyViewMonth.month, i + 1);
-                        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })[0];
-                        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                        const isToday = d.toDateString() === new Date().toDateString();
-                        return (
-                          <th key={i} className={`p-0.5 text-center min-w-[22px] ${isWeekend ? 'bg-gray-100' : ''} ${isToday ? 'bg-amber-100' : ''}`}>
-                            <div className="text-[9px] text-gray-400">{dayName}</div>
-                            <div className="text-[10px] font-medium">{i + 1}</div>
-                          </th>
-                        );
-                      });
-                    })()}
-                    <th className="p-1 text-center bg-blue-50 w-12">Goal</th>
-                    <th className="p-1 text-center bg-green-50 w-12">Done</th>
-                    <th className="p-1 text-center bg-purple-50 w-14">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                    const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
-                    
-                    // Get all habits for this month
-                    const monthHabits = habits.filter(h => {
-                      const weekDate = new Date(h.weekStart + 'T00:00:00');
-                      return weekDate.getMonth() === monthlyViewMonth.month && 
-                             weekDate.getFullYear() === monthlyViewMonth.year &&
-                             (!viewParticipant || h.participant === viewParticipant);
-                    });
-
-                    // Group by habit name (not by individual week entries)
-                    const habitGroups = {};
-                    monthHabits.forEach(h => {
-                      const key = `${h.participant}:${h.habit}`;
-                      if (!habitGroups[key]) {
-                        habitGroups[key] = { habit: h.habit, participant: h.participant, weeks: [], totalTarget: 0, totalCompleted: 0 };
-                      }
-                      habitGroups[key].weeks.push(h);
-                      habitGroups[key].totalTarget += h.target || 0;
-                      habitGroups[key].totalCompleted += h.daysCompleted?.length || 0;
-                    });
-
-                    const sortedGroups = Object.values(habitGroups).sort((a, b) => a.habit.localeCompare(b.habit));
-
-                    if (sortedGroups.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan={daysInMonth + 4} className="p-8 text-center text-gray-400">
-                            No habits tracked this month
-                          </td>
-                        </tr>
-                      );
-                    }
-
-                    return sortedGroups.map((group, idx) => {
-                      const progressPct = group.totalTarget > 0 ? Math.round((group.totalCompleted / group.totalTarget) * 100) : 0;
-                      
-                      return (
-                        <tr key={idx} className="border-t border-gray-50 hover:bg-gray-50/50">
-                          <td className="p-1.5 sticky left-0 bg-white z-10">
-                            <div className="font-medium text-gray-800 truncate max-w-[150px] text-[11px]" title={group.habit}>{group.habit}</div>
-                            {selectedParticipant === 'All' && (
-                              <div className="text-[9px] text-gray-400">{group.participant}</div>
-                            )}
-                          </td>
-                          {Array.from({ length: daysInMonth }, (_, dayIdx) => {
-                            const dayNum = dayIdx + 1;
-                            const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
-                            const dayOfWeek = (dayDate.getDay() + 6) % 7; // Mon=0, Sun=6
-                            const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
-                            const isToday = dayDate.toDateString() === new Date().toDateString();
-                            
-                            // Find which week this day belongs to (if any) for this habit group
-                            const weekHabit = group.weeks.find(w => {
-                              const weekStart = new Date(w.weekStart + 'T00:00:00');
-                              const weekEnd = new Date(weekStart);
-                              weekEnd.setDate(weekEnd.getDate() + 6);
-                              return dayDate >= weekStart && dayDate <= weekEnd;
-                            });
-
-                            const isInWeek = !!weekHabit;
-                            const isCompleted = weekHabit?.daysCompleted?.includes(dayOfWeek);
-
-                            return (
-                              <td key={dayIdx} className={`p-0 text-center ${isWeekend && !isToday ? 'bg-gray-50/50' : ''} ${isToday ? 'bg-amber-50' : ''}`}>
-                                {isInWeek ? (
-                                  <div className={`w-4 h-4 mx-auto rounded-sm flex items-center justify-center text-[9px] ${isCompleted ? 'bg-[#1E3A5F] text-white' : 'bg-gray-200 text-gray-400'}`}>
-                                    {isCompleted ? '✓' : '·'}
-                                  </div>
-                                ) : (
-                                  <div className="w-4 h-4 mx-auto rounded-sm bg-gray-100/30"></div>
-                                )}
-                              </td>
-                            );
-                          })}
-                          <td className="p-1 text-center bg-blue-50/50 font-medium text-[10px]">{group.totalTarget}</td>
-                          <td className="p-1 text-center bg-green-50/50 font-medium text-green-700 text-[10px]">{group.totalCompleted}</td>
-                          <td className="p-1 bg-purple-50/50">
-                            <div className="flex items-center gap-0.5">
-                              <div className="flex-1 bg-gray-200 rounded-full h-1">
-                                <div 
-                                  className={`h-1 rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
-                                  style={{ width: `${Math.min(progressPct, 100)}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-[9px] font-medium w-6 text-right">{progressPct}%</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })()}
-                  {/* Daily Completion Rate Row */}
-                  <tr className="bg-amber-50/50 border-t-2 border-amber-200">
-                    <td className="p-1.5 sticky left-0 bg-amber-50/50 z-10 font-semibold text-gray-700 text-[11px]">Daily Rate</td>
+            {/* Monthly Grid - Improved Design */}
+            <div className={`rounded-xl border overflow-hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+              {/* Sticky Header with Days */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs" style={{ minWidth: '800px' }}>
+                  <thead>
+                    <tr className={darkMode ? 'bg-gray-900' : 'bg-gray-50'}>
+                      <th className={`text-left p-3 font-semibold sticky left-0 z-20 min-w-[200px] ${darkMode ? 'bg-gray-900 text-gray-300' : 'bg-gray-50 text-gray-700'}`}>
+                        Habit
+                      </th>
+                      {(() => {
+                        const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                        return Array.from({ length: daysInMonth }, (_, i) => {
+                          const d = new Date(monthlyViewMonth.year, monthlyViewMonth.month, i + 1);
+                          const dayName = ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()];
+                          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                          const isToday = d.toDateString() === new Date().toDateString();
+                          return (
+                            <th key={i} className={`p-1 text-center min-w-[28px] ${isToday ? 'bg-blue-500 text-white' : isWeekend ? (darkMode ? 'bg-gray-800' : 'bg-gray-100') : ''}`}>
+                              <div className={`text-[9px] font-normal ${isToday ? 'text-white/80' : (darkMode ? 'text-gray-500' : 'text-gray-400')}`}>{dayName}</div>
+                              <div className={`text-[11px] font-semibold ${isToday ? 'text-white' : ''}`}>{i + 1}</div>
+                            </th>
+                          );
+                        });
+                      })()}
+                      <th className={`p-2 text-center min-w-[50px] ${darkMode ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-700'}`}>Goal</th>
+                      <th className={`p-2 text-center min-w-[50px] ${darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-700'}`}>Done</th>
+                      <th className={`p-2 text-center min-w-[60px] ${darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-50 text-purple-700'}`}>%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {(() => {
                       const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
                       const daysInMonth = new Date(monthlyViewMonth.year, monthlyViewMonth.month + 1, 0).getDate();
+                      
+                      // Get all habits for this month
                       const monthHabits = habits.filter(h => {
                         const weekDate = new Date(h.weekStart + 'T00:00:00');
                         return weekDate.getMonth() === monthlyViewMonth.month && 
@@ -7839,56 +7869,158 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                (!viewParticipant || h.participant === viewParticipant);
                       });
 
-                      return Array.from({ length: daysInMonth }, (_, dayIdx) => {
-                        const dayNum = dayIdx + 1;
-                        const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
-                        const dayOfWeek = (dayDate.getDay() + 6) % 7;
-                        const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
-                        const isToday = dayDate.toDateString() === new Date().toDateString();
-                        
-                        let completed = 0, total = 0;
-                        monthHabits.forEach(h => {
-                          const weekStart = new Date(h.weekStart + 'T00:00:00');
-                          const weekEnd = new Date(weekStart);
-                          weekEnd.setDate(weekEnd.getDate() + 6);
-                          if (dayDate >= weekStart && dayDate <= weekEnd) {
-                            total++;
-                            if (h.daysCompleted?.includes(dayOfWeek)) completed++;
-                          }
-                        });
+                      // Group habits
+                      const habitGroups = {};
+                      monthHabits.forEach(h => {
+                        const key = monthlyMergeHabits 
+                          ? `${h.participant}:${h.habit}` 
+                          : `${h.participant}:${h.habit}:${h.weekStart}`;
+                        if (!habitGroups[key]) {
+                          habitGroups[key] = { 
+                            habit: h.habit, 
+                            participant: h.participant, 
+                            weeks: [], 
+                            weekHabitMap: {}, // Map weekStart -> habit id for editing
+                            totalTarget: 0, 
+                            totalCompleted: 0 
+                          };
+                        }
+                        habitGroups[key].weeks.push(h);
+                        habitGroups[key].weekHabitMap[h.weekStart] = h;
+                        habitGroups[key].totalTarget += h.target || 0;
+                        habitGroups[key].totalCompleted += h.daysCompleted?.length || 0;
+                      });
 
-                        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                      const sortedGroups = Object.values(habitGroups).sort((a, b) => a.habit.localeCompare(b.habit));
 
+                      if (sortedGroups.length === 0) {
                         return (
-                          <td key={dayIdx} className={`p-0 text-center ${isWeekend && !isToday ? 'bg-gray-50/50' : ''} ${isToday ? 'bg-amber-200' : ''}`}>
-                            <span className={`text-[9px] font-bold ${total === 0 ? 'text-gray-300' : pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                              {total > 0 ? `${pct}%` : '-'}
-                            </span>
-                          </td>
+                          <tr>
+                            <td colSpan={daysInMonth + 4} className={`p-12 text-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                              <p className="text-sm font-medium">No habits tracked this month</p>
+                              <p className="text-xs mt-1">Add habits in the Habit Tracker to see them here</p>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return sortedGroups.map((group, idx) => {
+                        const progressPct = group.totalTarget > 0 ? Math.round((group.totalCompleted / group.totalTarget) * 100) : 0;
+                        const isEvenRow = idx % 2 === 0;
+                        const isMyHabit = group.participant === myParticipant;
+                        
+                        return (
+                          <tr key={idx} className={`border-t transition-colors ${
+                            isEvenRow 
+                              ? darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50/50 border-gray-100'
+                              : darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                          } ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50/30'}`}>
+                            {/* Habit Name - Sticky */}
+                            <td className={`p-2 sticky left-0 z-10 ${
+                              isEvenRow 
+                                ? darkMode ? 'bg-gray-800/95' : 'bg-gray-50/95'
+                                : darkMode ? 'bg-gray-800/95' : 'bg-white/95'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className={`font-medium text-sm truncate ${darkMode ? 'text-white' : 'text-gray-800'}`} title={group.habit}>
+                                    {group.habit}
+                                  </div>
+                                  {selectedParticipant === 'All' && (
+                                    <div className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{group.participant}</div>
+                                  )}
+                                </div>
+                                {/* Mini progress bar next to name */}
+                                <div className={`w-12 h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                  <div 
+                                    className={`h-full rounded-full ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                    style={{ width: `${Math.min(progressPct, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            
+                            {/* Day Cells - Clickable Checkboxes */}
+                            {Array.from({ length: daysInMonth }, (_, dayIdx) => {
+                              const dayNum = dayIdx + 1;
+                              const dayDate = new Date(monthlyViewMonth.year, monthlyViewMonth.month, dayNum);
+                              const dayOfWeek = (dayDate.getDay() + 6) % 7; // Mon=0, Sun=6
+                              const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+                              const isToday = dayDate.toDateString() === new Date().toDateString();
+                              
+                              // Find which week this day belongs to
+                              const weekHabit = group.weeks.find(w => {
+                                const weekStart = new Date(w.weekStart + 'T00:00:00');
+                                const weekEnd = new Date(weekStart);
+                                weekEnd.setDate(weekEnd.getDate() + 6);
+                                return dayDate >= weekStart && dayDate <= weekEnd;
+                              });
+
+                              const isInWeek = !!weekHabit;
+                              const isCompleted = weekHabit?.daysCompleted?.includes(dayOfWeek);
+                              const canToggle = isMyHabit && isInWeek;
+
+                              return (
+                                <td key={dayIdx} className={`p-0 text-center ${isToday ? 'bg-blue-100/50' : isWeekend ? (darkMode ? 'bg-gray-700/30' : 'bg-gray-100/50') : ''}`}>
+                                  {isInWeek ? (
+                                    <button
+                                      onClick={() => canToggle && toggleDay(weekHabit.id, dayOfWeek)}
+                                      disabled={!canToggle}
+                                      className={`w-6 h-6 mx-auto rounded flex items-center justify-center transition-all ${
+                                        isCompleted 
+                                          ? 'bg-green-500 text-white' 
+                                          : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+                                      } ${canToggle ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
+                                    >
+                                      {isCompleted ? <Check className="w-3.5 h-3.5" /> : <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>·</span>}
+                                    </button>
+                                  ) : (
+                                    <div className={`w-6 h-6 mx-auto rounded ${darkMode ? 'bg-gray-800/30' : 'bg-gray-100/30'}`}></div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            
+                            {/* Stats Columns */}
+                            <td className={`p-2 text-center font-semibold ${darkMode ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-50/50 text-blue-700'}`}>
+                              {group.totalTarget}
+                            </td>
+                            <td className={`p-2 text-center font-semibold ${darkMode ? 'bg-green-900/20 text-green-400' : 'bg-green-50/50 text-green-700'}`}>
+                              {group.totalCompleted}
+                            </td>
+                            <td className={`p-2 ${darkMode ? 'bg-purple-900/20' : 'bg-purple-50/50'}`}>
+                              <div className="flex items-center justify-center gap-1">
+                                <span className={`text-xs font-bold ${progressPct >= 100 ? 'text-green-500' : progressPct >= 70 ? 'text-blue-500' : 'text-amber-500'}`}>
+                                  {progressPct}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
                         );
                       });
                     })()}
-                    <td colSpan="3" className="p-1 text-center text-[9px] text-gray-500 bg-amber-50/50">Avg</td>
-                  </tr>
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            {/* Mood Tracker */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-3 border border-purple-200">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm">
+            {/* Mood & Motivation Tracker */}
+            <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/20' : 'bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className={`font-semibold flex items-center gap-2 text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                   <Heart className="w-4 h-4 text-purple-500" />
                   Mood & Motivation
                 </h3>
                 <button 
                   onClick={() => setShowMoodModal(true)}
-                  className="px-2 py-1 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600"
+                  className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600"
                 >
-                  {todaysMoodEntry ? 'Update' : 'Log Today'}
+                  {todaysMoodEntry ? 'Update Today' : 'Log Today'}
                 </button>
               </div>
-              {/* Mood/Motivation as aligned grid */}
+              
+              {/* Mood Grid */}
               <div className="overflow-x-auto">
                 <div className="inline-flex gap-0">
                   {(() => {
@@ -7898,21 +8030,29 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       const dateStr = `${monthlyViewMonth.year}-${String(monthlyViewMonth.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
                       const moodEntry = moodData.find(m => m.date === dateStr && (selectedParticipant === 'All' || m.participant === selectedParticipant));
                       const isToday = dateStr === new Date().toISOString().split('T')[0];
+                      const moodEmoji = moodEntry?.mood ? ['😢', '😕', '😐', '🙂', '😊', '😄', '🤩', '🥳', '🌟', '💫'][moodEntry.mood - 1] || '·' : '·';
 
                       return (
-                        <div key={dayIdx} className={`flex flex-col items-center w-[22px] ${isToday ? 'bg-purple-200 rounded' : ''}`}>
-                          <span className="text-[9px] text-purple-600 font-medium">{moodEntry?.mood || '-'}</span>
-                          <span className="text-[9px] text-pink-600 font-medium">{moodEntry?.motivation || '-'}</span>
-                          <span className="text-[8px] text-gray-400">{dayNum}</span>
+                        <div key={dayIdx} className={`flex flex-col items-center min-w-[28px] py-1 ${isToday ? 'bg-purple-200/50 rounded' : ''}`}>
+                          <span className="text-sm">{moodEntry?.mood ? moodEmoji : '·'}</span>
+                          <span className={`text-[10px] ${moodEntry?.motivation ? (moodEntry.motivation >= 7 ? 'text-green-500' : moodEntry.motivation >= 4 ? 'text-amber-500' : 'text-red-500') : 'text-gray-400'}`}>
+                            {moodEntry?.motivation || '-'}
+                          </span>
+                          <span className={`text-[8px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{dayNum}</span>
                         </div>
                       );
                     });
                   })()}
                 </div>
               </div>
-              <div className="flex gap-3 mt-1 text-[10px] text-gray-500">
-                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-purple-500 rounded"></span> Mood</span>
-                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-pink-500 rounded"></span> Motivation</span>
+              
+              <div className="flex gap-4 mt-2 text-[10px]">
+                <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <span className="w-3 h-3 rounded bg-purple-500/30 flex items-center justify-center">😊</span> Mood (emoji)
+                </span>
+                <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <span className="w-3 h-3 rounded bg-pink-500/30 text-[8px] font-bold text-pink-600">7</span> Motivation (1-10)
+                </span>
               </div>
             </div>
           </div>
@@ -8453,7 +8593,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           <select value={editTaskForm.linked_habit_id || ''} onChange={e => setEditTaskForm({...editTaskForm, linked_habit_id: e.target.value || null})}
                             className={`w-full mt-1 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
                             <option value="">No linked habit</option>
-                            {getTodaysHabitsForLinking().map(h => (
+                            {getHabitsForLinking().map(h => (
                               <option key={h.id} value={h.id}>{h.habit}</option>
                             ))}
                           </select>
