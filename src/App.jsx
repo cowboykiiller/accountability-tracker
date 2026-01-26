@@ -922,6 +922,25 @@ export default function AccountabilityTracker() {
   const [aiSubtasks, setAiSubtasks] = useState([]);
   const [taskFilter, setTaskFilter] = useState('today'); // all, today, inbox, overdue, completed, scheduled
   const [editingTask, setEditingTask] = useState(null);
+  const [showEditTaskModal, setShowEditTaskModal] = useState(false);
+  const [editTaskForm, setEditTaskForm] = useState({ task: '', dueDate: '', time_slot: '', priority: 'Medium', category: 'Work', linked_habit_id: null });
+  const [habitCompletionPrompt, setHabitCompletionPrompt] = useState(null); // { habitId, habitName, linkedTasks }
+  
+  // Dashboard Widgets
+  const [dashboardWidgets, setDashboardWidgets] = useState(() => {
+    const saved = localStorage.getItem('dashboard_widgets');
+    return saved ? JSON.parse(saved) : [
+      { id: 'progress', name: 'Today\'s Progress', enabled: true, size: 'large' },
+      { id: 'tasks', name: 'Today\'s Tasks', enabled: true, size: 'large' },
+      { id: 'habits', name: 'Habit Streaks', enabled: true, size: 'medium' },
+      { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small' },
+      { id: 'calendar', name: 'Mini Calendar', enabled: false, size: 'medium' },
+      { id: 'coach', name: 'AI Coach', enabled: false, size: 'medium' },
+      { id: 'challenges', name: 'Active Challenges', enabled: false, size: 'small' },
+      { id: 'feed', name: 'Recent Activity', enabled: false, size: 'medium' }
+    ];
+  });
+  const [showWidgetCustomizer, setShowWidgetCustomizer] = useState(false);
   
   // Enhanced task features
   const [quickTaskInput, setQuickTaskInput] = useState('');
@@ -1330,7 +1349,8 @@ export default function AccountabilityTracker() {
         participant: t.participant,
         createdAt: t.created_at,
         completedAt: t.completed_at,
-        createdBy: t.created_by
+        createdBy: t.created_by,
+        linked_habit_id: t.linked_habit_id
       }));
       setTasks(tasksData);
     } catch (error) {
@@ -1369,6 +1389,11 @@ export default function AccountabilityTracker() {
           status: t.status,
           participant: t.participant,
           createdAt: t.created_at,
+          completedAt: t.completed_at,
+          createdBy: t.created_by,
+          linked_habit_id: t.linked_habit_id
+        }));
+        setTasks(tasksData);
           completedAt: t.completed_at,
           createdBy: t.created_by
         }));
@@ -4289,6 +4314,11 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
       
       if (!response.ok) throw new Error('Failed to update task');
       
+      // Check if this completes all linked tasks for a habit
+      if (newStatus === 'Completed') {
+        setTimeout(() => checkLinkedTasksComplete(taskId), 500);
+      }
+      
       fetchTasks();
     } catch (error) {
       console.error('Update task error:', error);
@@ -4334,6 +4364,116 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     } catch (error) {
       console.error('Update task error:', error);
     }
+  };
+
+  // Open edit task modal
+  const openEditTaskModal = (task) => {
+    setEditTaskForm({
+      task: task.task,
+      dueDate: task.dueDate || '',
+      time_slot: task.time_slot || '',
+      priority: task.priority || 'Medium',
+      category: task.category || 'Work',
+      linked_habit_id: task.linked_habit_id || null
+    });
+    setEditingTask(task);
+    setShowEditTaskModal(true);
+  };
+
+  // Save edited task
+  const saveEditedTask = async () => {
+    if (!editingTask) return;
+    
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.${editingTask.id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          task: editTaskForm.task,
+          due_date: editTaskForm.dueDate || null,
+          time_slot: editTaskForm.time_slot || null,
+          priority: editTaskForm.priority,
+          category: editTaskForm.category,
+          linked_habit_id: editTaskForm.linked_habit_id || null
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Save task error:', errorText);
+        alert('Failed to save task: ' + errorText);
+        return;
+      }
+      
+      fetchTasks();
+      setShowEditTaskModal(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Save task error:', error);
+      alert('Failed to save task: ' + error.message);
+    }
+  };
+
+  // Check if all linked tasks for a habit are complete and prompt user
+  const checkLinkedTasksComplete = (completedTaskId) => {
+    const completedTask = tasks.find(t => t.id === completedTaskId);
+    if (!completedTask?.linked_habit_id) return;
+    
+    const habitId = completedTask.linked_habit_id;
+    const linkedTasks = tasks.filter(t => t.linked_habit_id === habitId);
+    const allComplete = linkedTasks.every(t => t.status === 'Completed' || t.id === completedTaskId);
+    
+    if (allComplete && linkedTasks.length > 0) {
+      // Find the habit name
+      const habit = habits.find(h => h.id === habitId);
+      if (habit && !['Done', 'Exceeded'].includes(getStatus(habit))) {
+        setHabitCompletionPrompt({
+          habitId: habitId,
+          habitName: habit.habit,
+          linkedTasks: linkedTasks
+        });
+      }
+    }
+  };
+
+  // Mark habit complete from prompt
+  const markLinkedHabitComplete = async () => {
+    if (!habitCompletionPrompt) return;
+    
+    const habit = habits.find(h => h.id === habitCompletionPrompt.habitId);
+    if (habit) {
+      await updateHabitProgress(habit, habit.goal); // Mark as done
+    }
+    setHabitCompletionPrompt(null);
+  };
+
+  // Save dashboard widgets to localStorage
+  const saveDashboardWidgets = (widgets) => {
+    setDashboardWidgets(widgets);
+    localStorage.setItem('dashboard_widgets', JSON.stringify(widgets));
+  };
+
+  // Toggle widget enabled state
+  const toggleWidget = (widgetId) => {
+    const updated = dashboardWidgets.map(w => 
+      w.id === widgetId ? { ...w, enabled: !w.enabled } : w
+    );
+    saveDashboardWidgets(updated);
+  };
+
+  // Get today's habits for the current user
+  const getTodaysHabitsForLinking = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const myParticipant = userProfile?.linkedParticipant || user?.displayName;
+    return habits.filter(h => 
+      h.participant === myParticipant && 
+      h.date === today
+    );
   };
 
   // Quick add task with natural language parsing
@@ -5808,11 +5948,52 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         </div>
 
         {activeView === 'dashboard' && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="space-y-4">
+            {/* Dashboard Header with Customizer */}
+            <div className="flex items-center justify-between">
+              <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Dashboard</h2>
+              <button onClick={() => setShowWidgetCustomizer(true)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                <Settings className="w-4 h-4" />
+                Customize
+              </button>
+            </div>
+
+            {/* Widget Customizer Modal */}
+            {showWidgetCustomizer && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowWidgetCustomizer(false)}>
+                <div className={`w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Customize Dashboard</h3>
+                    <button onClick={() => setShowWidgetCustomizer(false)} className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Toggle widgets on or off to customize your dashboard view.</p>
+                  <div className="space-y-2">
+                    {dashboardWidgets.map(widget => (
+                      <button key={widget.id} onClick={() => toggleWidget(widget.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
+                          widget.enabled 
+                            ? darkMode ? 'bg-blue-900/30 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
+                            : darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50 border border-gray-200'
+                        }`}>
+                        <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{widget.name}</span>
+                        <div className={`w-10 h-6 rounded-full relative transition-colors ${widget.enabled ? 'bg-blue-600' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}>
+                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${widget.enabled ? 'right-1' : 'left-1'}`} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             {/* Main content - left 3 columns */}
             <div className="lg:col-span-3 space-y-4">
               {/* Quote of the Week - compact */}
-              {currentQuote && (
+              {dashboardWidgets.find(w => w.id === 'quote')?.enabled && currentQuote && (
                 <div className={`rounded-2xl overflow-hidden backdrop-blur-xl transition-colors duration-300 ${
                   darkMode 
                     ? 'bg-amber-500/10 border border-amber-500/20' 
@@ -6437,6 +6618,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               </div>
 
               {/* Today's Tasks - Glass */}
+              {dashboardWidgets.find(w => w.id === 'tasks')?.enabled && (
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
                   ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
@@ -6484,8 +6666,10 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   })()}
                 </div>
               </div>
+              )}
               
               {/* Streaks - compact - Glass */}
+              {dashboardWidgets.find(w => w.id === 'habits')?.enabled && (
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
                   ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
@@ -6511,8 +6695,10 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   );})}
                 </div>
               </div>
+              )}
               
               {/* Active Challenges Preview - Glass */}
+              {dashboardWidgets.find(w => w.id === 'challenges')?.enabled && (
               <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
                 darkMode 
                   ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
@@ -6540,7 +6726,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   Create Challenge
                 </button>
               </div>
+              )}
             </div>
+          </div>
           </div>
         )}
 
@@ -8125,1022 +8313,586 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             {/* Regular Task View (when not in focus mode) */}
             {taskViewMode !== 'focus' && (
               <>
-                {/* Daily Productivity Dashboard */}
-                {(() => {
-                  const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                  const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-                  const today = new Date().toISOString().split('T')[0];
-                  const todayTasks = viewTasks.filter(t => t.dueDate === today);
-                  const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
-                  const todayTotal = todayTasks.length;
-                  const completionPct = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
-                  const overdueTasks = viewTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== 'Completed');
-                  const inboxTasks = viewTasks.filter(t => !t.dueDate && t.status !== 'Completed');
-                  
-                  // Calculate productivity score based on recent completion
-                  const last7Days = [...Array(7)].map((_, i) => {
-                    const d = new Date();
-                    d.setDate(d.getDate() - i);
-                    return d.toISOString().split('T')[0];
-                  });
-                  const recentCompleted = viewTasks.filter(t => t.status === 'Completed' && last7Days.includes(t.completed_at?.split('T')[0])).length;
-                  
-                  return (
-                    <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700' : 'bg-gradient-to-br from-white to-gray-50 border border-gray-100'}`}>
-                      <div className="flex flex-col sm:flex-row items-center gap-4">
-                        {/* Progress Ring */}
-                        <div className="relative w-24 h-24 flex-shrink-0">
-                          <svg className="w-full h-full transform -rotate-90">
-                            <circle cx="48" cy="48" r="40" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="8" fill="none" />
-                            <circle cx="48" cy="48" r="40" stroke={completionPct >= 100 ? '#22c55e' : completionPct >= 50 ? '#3b82f6' : '#f59e0b'}
-                              strokeWidth="8" fill="none" strokeLinecap="round"
-                              strokeDasharray={`${completionPct * 2.51} 251`} className="transition-all duration-500" />
-                          </svg>
-                          <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{completionPct}%</span>
-                            <span className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today</span>
-                          </div>
-                        </div>
-                        
-                        {/* Stats Grid */}
-                        <div className="flex-1 grid grid-cols-4 gap-2 w-full">
-                          <div className={`p-2 rounded-xl text-center ${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
-                            <p className={`text-lg font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{todayCompleted}/{todayTotal}</p>
-                            <p className={`text-[9px] uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today</p>
-                          </div>
-                          <div className={`p-2 rounded-xl text-center ${overdueTasks.length > 0 ? (darkMode ? 'bg-red-500/10' : 'bg-red-50') : (darkMode ? 'bg-gray-700/50' : 'bg-gray-50')}`}>
-                            <p className={`text-lg font-bold ${overdueTasks.length > 0 ? 'text-red-500' : (darkMode ? 'text-gray-400' : 'text-gray-400')}`}>{overdueTasks.length}</p>
-                            <p className={`text-[9px] uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Overdue</p>
-                          </div>
-                          <div className={`p-2 rounded-xl text-center ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
-                            <p className={`text-lg font-bold ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>{inboxTasks.length}</p>
-                            <p className={`text-[9px] uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Inbox</p>
-                          </div>
-                          <div className={`p-2 rounded-xl text-center ${darkMode ? 'bg-green-500/10' : 'bg-green-50'}`}>
-                            <p className={`text-lg font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{recentCompleted}</p>
-                            <p className={`text-[9px] uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>7-Day</p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Motivational message */}
-                      <div className={`mt-3 pt-3 border-t text-center ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {completionPct >= 100 ? '🎉 Perfect day! All tasks complete!' :
-                           completionPct >= 75 ? '🔥 Almost there! Keep pushing!' :
-                           completionPct >= 50 ? '💪 Great progress! Stay focused!' :
-                           completionPct > 0 ? '🚀 Good start! Build momentum!' :
-                           todayTotal > 0 ? '✨ Ready to crush it today?' : '📝 Add some tasks to get started!'}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Smart Task Input - Redesigned */}
+                {/* Compact Header with Stats & Quick Add */}
                 <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}>
-                  {/* Input Header with Mode Toggle */}
-                  <div className={`flex items-center justify-between px-4 py-2 border-b ${darkMode ? 'border-gray-700 bg-gray-750' : 'border-gray-100 bg-gray-50'}`}>
-                    <div className="flex items-center gap-2">
-                      <Rocket className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      <span className={`text-xs font-semibold uppercase tracking-wide ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                        {batchAddMode ? 'Bulk Add Tasks' : 'Quick Add'}
-                      </span>
-                    </div>
-                    <div className={`flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                      <button onClick={() => setBatchAddMode(false)}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${!batchAddMode ? (darkMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                        Single
-                      </button>
-                      <button onClick={() => setBatchAddMode(true)}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${batchAddMode ? (darkMode ? 'bg-blue-600 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                        Bulk
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* Quick Add Mode */}
-                  {!batchAddMode ? (
-                    <div className="p-4">
-                      <form onSubmit={(e) => { e.preventDefault(); quickAddTask(quickTaskInput); }} className="space-y-3">
-                        <div className="flex gap-2">
-                          <div className="flex-1 relative">
-                            <input type="text" value={quickTaskInput} onChange={(e) => setQuickTaskInput(e.target.value)}
-                              placeholder="What needs to be done?"
-                              className={`w-full px-4 py-3.5 rounded-xl text-sm ${darkMode ? 'bg-gray-700 text-white placeholder-gray-400 border border-gray-600 focus:border-blue-500' : 'bg-gray-50 text-gray-800 placeholder-gray-400 border border-gray-200 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all`} />
-                            {quickTaskInput && (
-                              <button type="button" onClick={() => setQuickTaskInput('')} 
-                                className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full ${darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-400'}`}>
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                          <button type="submit" disabled={!quickTaskInput.trim()}
-                            className="px-5 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/20">
-                            <Plus className="w-5 h-5" />
-                          </button>
-                        </div>
-                        
-                        {/* Smart Chips */}
-                        <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => quickAddTask(quickTaskInput, 'today')} disabled={!quickTaskInput.trim()}
-                            className={`group flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-30 ${darkMode ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'}`}>
-                            <Calendar className="w-3.5 h-3.5" /> Today
-                          </button>
-                          <button type="button" onClick={() => quickAddTask(quickTaskInput, 'tomorrow')} disabled={!quickTaskInput.trim()}
-                            className={`group flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-30 ${darkMode ? 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20' : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200'}`}>
-                            <ArrowRight className="w-3.5 h-3.5" /> Tomorrow
-                          </button>
-                          <button type="button" onClick={() => quickAddTask(quickTaskInput, 'nextweek')} disabled={!quickTaskInput.trim()}
-                            className={`group flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-30 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200'}`}>
-                            <CalendarDays className="w-3.5 h-3.5" /> Next Week
-                          </button>
-                          <button type="button" onClick={() => quickAddTask(quickTaskInput, 'inbox')} disabled={!quickTaskInput.trim()}
-                            className={`group flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-30 ${darkMode ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20' : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'}`}>
-                            <Inbox className="w-3.5 h-3.5" /> Inbox
-                          </button>
-                        </div>
-                        
-                        {/* Hint */}
-                        <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                          💡 Try: "Call mom tomorrow at 3pm !high" or "Review report monday morning"
-                        </p>
-                      </form>
-                    </div>
-                  ) : (
-                    /* Bulk Add Mode - Interactive Cards */
-                    <div className="p-4 space-y-4">
-                      {/* Instructions */}
-                      <div className={`flex items-start gap-3 p-3 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
-                        <Lightbulb className={`w-5 h-5 flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                        <div>
-                          <p className={`text-sm font-medium ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>Add multiple tasks at once</p>
-                          <p className={`text-xs mt-0.5 ${darkMode ? 'text-blue-400/70' : 'text-blue-600/70'}`}>
-                            Type one task per line. Add <span className="font-mono bg-blue-500/20 px-1 rounded">!high</span> for priority.
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {/* Dynamic Task Input Area */}
-                      <div className="space-y-2">
-                        <textarea
-                          value={batchTaskInput}
-                          onChange={(e) => setBatchTaskInput(e.target.value)}
-                          placeholder="Enter tasks (one per line):&#10;&#10;Finish project proposal !high&#10;Schedule dentist appointment&#10;Buy groceries&#10;Review weekly goals"
-                          rows={4}
-                          className={`w-full px-4 py-3 rounded-xl text-sm resize-none ${darkMode ? 'bg-gray-700 text-white placeholder-gray-500 border border-gray-600 focus:border-blue-500' : 'bg-gray-50 text-gray-800 placeholder-gray-400 border border-gray-200 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all`}
-                        />
-                        
-                        {/* Preview Cards */}
-                        {batchTaskInput.trim() && (
-                          <div className="space-y-2 mt-3">
-                            <p className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                              Preview ({batchTaskInput.split('\n').filter(l => l.trim()).length} tasks):
-                            </p>
-                            <div className="grid gap-2 max-h-48 overflow-y-auto">
-                              {batchTaskInput.split('\n').filter(l => l.trim()).map((line, idx) => {
-                                const isHigh = /!high|!urgent|!important/i.test(line);
-                                const isLow = /!low/i.test(line);
-                                const cleanLine = line.replace(/!(high|urgent|important|low)/gi, '').trim();
-                                
-                                return (
-                                  <div key={idx} className={`flex items-center gap-2 p-2.5 rounded-lg transition-all ${
-                                    darkMode ? 'bg-gray-700/50 border border-gray-600' : 'bg-white border border-gray-200 shadow-sm'
-                                  }`}>
-                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                      isHigh ? 'bg-red-500' : isLow ? 'bg-gray-400' : 'bg-blue-500'
-                                    }`} />
-                                    <span className={`flex-1 text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                                      {cleanLine}
-                                    </span>
-                                    {isHigh && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 font-medium">HIGH</span>
-                                    )}
-                                    {isLow && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/10 text-gray-500 font-medium">LOW</span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Action Row */}
-                      <div className="flex items-center justify-between pt-2">
-                        <button onClick={() => { setBatchAddMode(false); setBatchTaskInput(''); }}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>
-                          Cancel
-                        </button>
-                        <button onClick={batchAddTasks} disabled={!batchTaskInput.trim()}
-                          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl text-sm font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg shadow-green-500/20">
-                          <CheckSquare className="w-4 h-4" />
-                          Add {batchTaskInput.split('\n').filter(l => l.trim()).length} Tasks
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* AI Smart Scheduler */}
-                <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200'}`}>
-                  <button 
-                    onClick={() => setShowAiScheduler(!showAiScheduler)}
-                    className={`w-full flex items-center justify-between px-4 py-3 ${darkMode ? 'hover:bg-white/5' : 'hover:bg-white/50'} transition-colors`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${darkMode ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
-                        <Wand2 className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                      </div>
-                      <div className="text-left">
-                        <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>AI Smart Scheduler</p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Describe your day, let AI organize it</p>
-                      </div>
-                    </div>
-                    <ChevronDown className={`w-5 h-5 transition-transform ${showAiScheduler ? 'rotate-180' : ''} ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                  </button>
-                  
-                  {showAiScheduler && (
-                    <div className="px-4 pb-4 space-y-4">
-                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-black/20' : 'bg-white/70'}`}>
-                        <textarea
-                          value={aiSchedulerInput}
-                          onChange={(e) => setAiSchedulerInput(e.target.value)}
-                          placeholder="Describe what you need to do today in natural language...&#10;&#10;Example: Today I have to first and foremost read a chapter and take my pills. After that I need to send some follow up emails including sending contracts for the new properties to the title company. I also need to review the quarterly report and call Mom for her birthday."
-                          rows={4}
-                          className={`w-full px-4 py-3 rounded-xl text-sm resize-none ${darkMode ? 'bg-gray-800 text-white placeholder-gray-500 border border-gray-700 focus:border-purple-500' : 'bg-gray-50 text-gray-800 placeholder-gray-400 border border-gray-200 focus:border-purple-500'} focus:outline-none focus:ring-2 focus:ring-purple-500/20`}
-                        />
-                        <div className="flex items-center justify-between mt-3">
-                          <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                            ✨ AI will create time-blocked tasks with priorities
-                          </p>
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              console.log('Plan My Day button clicked!');
-                              aiSmartSchedule();
-                            }} 
-                            disabled={!aiSchedulerInput.trim() || aiSchedulerLoading}
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl text-sm font-semibold disabled:opacity-30 transition-all shadow-lg shadow-purple-500/20"
-                          >
-                            {aiSchedulerLoading ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Planning...
-                              </>
-                            ) : (
-                              <>
-                                <Sparkles className="w-4 h-4" />
-                                Plan My Day
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {/* AI Generated Schedule Preview */}
-                      {aiScheduledTasks.length > 0 && (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                              📅 Your Scheduled Day
-                            </p>
-                            <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {aiScheduledTasks.length} tasks
+                  {(() => {
+                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                    const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
+                    const today = new Date().toISOString().split('T')[0];
+                    const todayTasks = viewTasks.filter(t => t.dueDate === today);
+                    const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
+                    const todayTotal = todayTasks.length;
+                    const completionPct = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
+                    const overdueTasks = viewTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== 'Completed');
+                    
+                    return (
+                      <div className={`flex items-center justify-between px-4 py-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                        {/* Progress */}
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-12 h-12">
+                            <svg className="w-full h-full transform -rotate-90">
+                              <circle cx="24" cy="24" r="20" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="4" fill="none" />
+                              <circle cx="24" cy="24" r="20" stroke={completionPct >= 100 ? '#22c55e' : '#3b82f6'}
+                                strokeWidth="4" fill="none" strokeLinecap="round"
+                                strokeDasharray={`${completionPct * 1.26} 126`} />
+                            </svg>
+                            <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {completionPct}%
                             </span>
                           </div>
-                          
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {aiScheduledTasks.map((task, idx) => (
-                              <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-800/70' : 'bg-white shadow-sm'}`}>
-                                <div className={`w-14 text-center flex-shrink-0 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                                  <p className="text-sm font-bold">{task.time_slot || '--:--'}</p>
-                                  {task.duration && <p className="text-[10px] opacity-60">{task.duration}m</p>}
+                          <div>
+                            <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {todayCompleted}/{todayTotal} done
+                            </p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {overdueTasks.length > 0 && <span className="text-red-500 mr-2">⚠️ {overdueTasks.length} overdue</span>}
+                              {completionPct >= 100 ? '🎉 All done!' : completionPct > 0 ? 'Keep going!' : 'Ready to start?'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Quick Add Inline */}
+                        <form onSubmit={(e) => { e.preventDefault(); quickAddTask(quickTaskInput); }} className="flex items-center gap-2 flex-1 max-w-md ml-4">
+                          <input type="text" value={quickTaskInput} onChange={(e) => setQuickTaskInput(e.target.value)}
+                            placeholder="Add a task..."
+                            className={`flex-1 px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white placeholder-gray-400 border border-gray-600' : 'bg-gray-50 text-gray-800 placeholder-gray-400 border border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500/30`} />
+                          <button type="submit" disabled={!quickTaskInput.trim()}
+                            className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-30">
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </form>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* Filter Tabs */}
+                  <div className={`flex items-center gap-1 px-3 py-2 overflow-x-auto ${darkMode ? 'bg-gray-750' : 'bg-gray-50'}`}>
+                    {[
+                      { id: 'today', label: 'Today', icon: Sun },
+                      { id: 'scheduled', label: 'Scheduled', icon: Calendar },
+                      { id: 'inbox', label: 'Inbox', icon: Inbox },
+                      { id: 'all', label: 'All', icon: ListTodo },
+                      { id: 'completed', label: 'Done', icon: CheckCircle2 }
+                    ].map(tab => (
+                      <button key={tab.id} onClick={() => setTaskFilter(tab.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                          taskFilter === tab.id
+                            ? darkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
+                            : darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-200'
+                        }`}>
+                        <tab.icon className="w-3.5 h-3.5" />
+                        {tab.label}
+                      </button>
+                    ))}
+                    
+                    <div className="flex-1" />
+                    
+                    {/* AI Tools Toggle */}
+                    <button onClick={() => setShowAiScheduler(!showAiScheduler)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
+                        showAiScheduler
+                          ? 'bg-purple-600 text-white'
+                          : darkMode ? 'text-purple-400 hover:bg-purple-500/20' : 'text-purple-600 hover:bg-purple-50'
+                      }`}>
+                      <Wand2 className="w-3.5 h-3.5" />
+                      AI Tools
+                    </button>
+                  </div>
+                </div>
+
+                {/* AI Tools Panel - Collapsible */}
+                {showAiScheduler && (
+                  <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gradient-to-br from-purple-900/40 to-pink-900/40 border border-purple-500/30' : 'bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200'}`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <Sparkles className={`w-5 h-5 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                      <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>AI Smart Scheduler</span>
+                      <button onClick={() => setShowRecurringModal(true)} className={`ml-auto text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-600'}`}>
+                        <Repeat className="w-3 h-3 inline mr-1" />Recurring
+                      </button>
+                    </div>
+                    <textarea value={aiSchedulerInput} onChange={(e) => setAiSchedulerInput(e.target.value)}
+                      placeholder="Describe your day: 'I need to take pills at 6am, exercise, work on the quarterly report, and call mom...'"
+                      rows={2}
+                      className={`w-full px-3 py-2 rounded-xl text-sm resize-none ${darkMode ? 'bg-gray-800 text-white placeholder-gray-500 border border-gray-700' : 'bg-white text-gray-800 placeholder-gray-400 border border-gray-200'} focus:outline-none focus:ring-2 focus:ring-purple-500/30`} />
+                    <div className="flex items-center justify-between mt-2">
+                      <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>AI creates time-blocked tasks with priorities</p>
+                      <button type="button" onClick={aiSmartSchedule} disabled={!aiSchedulerInput.trim() || aiSchedulerLoading}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium disabled:opacity-30">
+                        {aiSchedulerLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        {aiSchedulerLoading ? 'Planning...' : 'Plan Day'}
+                      </button>
+                    </div>
+                    
+                    {/* AI Generated Tasks Preview */}
+                    {aiScheduledTasks.length > 0 && !aiScheduledTasks[0]?.task?.startsWith('Error') && (
+                      <div className="mt-3 pt-3 border-t border-purple-500/20">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-xs font-medium ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                            Generated {aiScheduledTasks.length} tasks
+                          </span>
+                          <button type="button" onClick={addAiScheduledTasks}
+                            className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium">
+                            Add All to Tasks
+                          </button>
+                        </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {aiScheduledTasks.slice(0, 5).map((t, i) => (
+                            <div key={i} className={`flex items-center gap-2 text-xs p-2 rounded ${darkMode ? 'bg-gray-800/50' : 'bg-white/70'}`}>
+                              <span className={`font-mono ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{t.time_slot || '--:--'}</span>
+                              <span className={darkMode ? 'text-white' : 'text-gray-800'}>{t.task}</span>
+                            </div>
+                          ))}
+                          {aiScheduledTasks.length > 5 && (
+                            <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>+{aiScheduledTasks.length - 5} more...</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Task List - THE MAIN EVENT */}
+                <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {(() => {
+                      const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
+                      const today = new Date().toISOString().split('T')[0];
+                      const myParticipant = userProfile?.linkedParticipant || user?.displayName;
+                      
+                      let filteredTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
+                      
+                      if (taskFilter === 'today') {
+                        filteredTasks = filteredTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
+                      } else if (taskFilter === 'inbox') {
+                        filteredTasks = filteredTasks.filter(t => !t.dueDate && t.status !== 'Completed');
+                      } else if (taskFilter === 'scheduled') {
+                        filteredTasks = filteredTasks.filter(t => t.dueDate && t.dueDate >= today && t.status !== 'Completed');
+                      } else if (taskFilter === 'completed') {
+                        filteredTasks = filteredTasks.filter(t => t.status === 'Completed');
+                      } else if (taskFilter === 'all') {
+                        filteredTasks = filteredTasks.filter(t => t.status !== 'Completed');
+                      }
+                      
+                      // Sort: time slot first, then priority
+                      filteredTasks.sort((a, b) => {
+                        const aIsTop3 = top3Today.includes(a.id);
+                        const bIsTop3 = top3Today.includes(b.id);
+                        if (aIsTop3 && !bIsTop3) return -1;
+                        if (!aIsTop3 && bIsTop3) return 1;
+                        
+                        if (taskFilter === 'today') {
+                          if (a.time_slot && !b.time_slot) return -1;
+                          if (!a.time_slot && b.time_slot) return 1;
+                          if (a.time_slot && b.time_slot) return a.time_slot.localeCompare(b.time_slot);
+                        }
+                        
+                        const order = { 'High': 0, 'Medium': 1, 'Low': 2 };
+                        return (order[a.priority] || 1) - (order[b.priority] || 1);
+                      });
+
+                      if (filteredTasks.length === 0) {
+                        return (
+                          <div className="p-8 text-center">
+                            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                              <CheckCircle2 className={`w-7 h-7 ${darkMode ? 'text-green-400' : 'text-green-500'}`} />
+                            </div>
+                            <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                              {taskFilter === 'completed' ? 'No completed tasks yet' : 'All clear!'}
+                            </p>
+                            <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {taskFilter === 'today' ? 'Add tasks above to plan your day' : 'Nothing here'}
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      // Format time helper
+                      const formatTime = (slot) => {
+                        if (!slot) return null;
+                        const [h, m] = slot.split(':');
+                        const hour = parseInt(h);
+                        return `${hour > 12 ? hour - 12 : hour || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
+                      };
+
+                      // Group by time for today view
+                      const grouped = taskFilter === 'today' 
+                        ? filteredTasks.reduce((acc, task) => {
+                            const key = task.time_slot ? 'scheduled' : 'anytime';
+                            if (!acc[key]) acc[key] = [];
+                            acc[key].push(task);
+                            return acc;
+                          }, {})
+                        : { all: filteredTasks };
+
+                      return (
+                        <>
+                          {grouped.scheduled && grouped.scheduled.length > 0 && taskFilter === 'today' && (
+                            <div className={`px-4 py-2 ${darkMode ? 'bg-blue-900/20' : 'bg-blue-50'}`}>
+                              <span className={`text-xs font-semibold uppercase ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                                📅 Scheduled ({grouped.scheduled.length})
+                              </span>
+                            </div>
+                          )}
+                          {(grouped.scheduled || []).map(task => {
+                            const isMyTask = task.participant === myParticipant;
+                            const isTop3 = top3Today.includes(task.id);
+                            const linkedHabit = task.linked_habit_id ? habits.find(h => h.id === task.linked_habit_id) : null;
+                            
+                            return (
+                              <div key={task.id} className={`group flex items-center gap-3 px-4 py-3 transition-all ${
+                                task.status === 'Completed' ? (darkMode ? 'bg-gray-800/50' : 'bg-gray-50') : ''
+                              } ${darkMode ? 'hover:bg-gray-750' : 'hover:bg-gray-50'}`}>
+                                {/* Time Box */}
+                                <div className={`flex-shrink-0 w-16 py-1.5 text-center rounded-lg ${
+                                  task.time_slot
+                                    ? task.status === 'Completed'
+                                      ? darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-600'
+                                      : darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
+                                    : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'
+                                }`}>
+                                  <span className="text-xs font-bold">{formatTime(task.time_slot) || 'Anytime'}</span>
                                 </div>
+                                
+                                {/* Checkbox */}
+                                <button onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                                  disabled={!isMyTask}
+                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                    task.status === 'Completed' ? 'bg-green-500 border-green-500'
+                                    : isMyTask ? (darkMode ? 'border-gray-500 hover:border-green-500' : 'border-gray-300 hover:border-green-500')
+                                    : 'border-gray-200 opacity-50'
+                                  }`}>
+                                  {task.status === 'Completed' && <Check className="w-3 h-3 text-white" />}
+                                </button>
+                                
+                                {/* Task Content */}
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{task.task}</p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                      task.priority === 'High' ? 'bg-red-500/10 text-red-500' :
-                                      task.priority === 'Low' ? 'bg-gray-500/10 text-gray-500' :
-                                      'bg-blue-500/10 text-blue-500'
-                                    }`}>{task.priority}</span>
-                                    {task.category && (
-                                      <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{task.category}</span>
+                                  <div className="flex items-center gap-2">
+                                    {isTop3 && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0" />}
+                                    <span className={`text-sm ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-white' : 'text-gray-800')}`}>
+                                      {task.task}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    {task.priority === 'High' && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-600 font-medium">High</span>
+                                    )}
+                                    {linkedHabit && (
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
+                                        🔗 {linkedHabit.habit?.slice(0, 15)}{linkedHabit.habit?.length > 15 ? '...' : ''}
+                                      </span>
+                                    )}
+                                    {task.category && task.category !== 'Work' && (
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                        task.category === 'Health' ? 'bg-green-100 text-green-600' :
+                                        task.category === 'Personal' ? 'bg-purple-100 text-purple-600' :
+                                        'bg-gray-100 text-gray-500'
+                                      }`}>{task.category}</span>
                                     )}
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                          
-                          <div className="flex gap-2 pt-2">
-                            <button 
-                              onClick={() => setAiScheduledTasks([])}
-                              className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium ${darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                            >
-                              Clear
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={() => {
-                                console.log('Add All to Tasks button clicked!');
-                                addAiScheduledTasks();
-                              }}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-green-500/20"
-                            >
-                              <Check className="w-4 h-4" />
-                              Add All to Tasks
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* View Mode Toggle & Recurring Tasks */}
-                <div className="flex items-center justify-between">
-                  {/* View Mode */}
-                  <div className={`flex p-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                    <button onClick={() => setTaskViewMode('list')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${taskViewMode === 'list' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                      <ListTodo className="w-3.5 h-3.5" /> List
-                    </button>
-                    <button onClick={() => setTaskViewMode('calendar')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${taskViewMode === 'calendar' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                      <Calendar className="w-3.5 h-3.5" /> Calendar
-                    </button>
-                  </div>
-                  
-                  {/* Recurring + Add Buttons */}
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setShowRecurringModal(true)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium ${darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                      <Repeat className="w-3.5 h-3.5" /> Recurring
-                    </button>
-                    <button onClick={() => setShowAddTask(true)} 
-                      className="p-2 rounded-xl bg-[#1E3A5F] text-white hover:bg-[#162D4D]">
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Calendar View */}
-                {taskViewMode === 'calendar' && (
-                  <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-                    {/* Calendar Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => {
-                          const newDate = new Date(calendarViewDate);
-                          if (calendarViewType === 'day') newDate.setDate(newDate.getDate() - 1);
-                          else if (calendarViewType === 'week') newDate.setDate(newDate.getDate() - 7);
-                          else newDate.setMonth(newDate.getMonth() - 1);
-                          setCalendarViewDate(newDate);
-                        }} className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <h3 className={`text-sm font-semibold min-w-[140px] text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {calendarViewType === 'day' 
-                            ? calendarViewDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-                            : calendarViewType === 'week'
-                              ? `Week of ${calendarViewDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                              : calendarViewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                          }
-                        </h3>
-                        <button onClick={() => {
-                          const newDate = new Date(calendarViewDate);
-                          if (calendarViewType === 'day') newDate.setDate(newDate.getDate() + 1);
-                          else if (calendarViewType === 'week') newDate.setDate(newDate.getDate() + 7);
-                          else newDate.setMonth(newDate.getMonth() + 1);
-                          setCalendarViewDate(newDate);
-                        }} className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                      
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setCalendarViewDate(new Date())}
-                          className={`px-2 py-1 rounded text-xs font-medium ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                          Today
-                        </button>
-                        <div className={`flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          {['day', 'week', 'month'].map(type => (
-                            <button key={type} onClick={() => setCalendarViewType(type)}
-                              className={`px-2 py-1 rounded text-xs font-medium capitalize ${calendarViewType === type ? (darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                              {type}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Day View - Time Slots */}
-                    {calendarViewType === 'day' && (
-                      <div className="space-y-1 max-h-96 overflow-y-auto">
-                        {Array.from({ length: 16 }, (_, i) => i + 6).map(hour => {
-                          const timeStr = `${hour.toString().padStart(2, '0')}:00`;
-                          const dateStr = calendarViewDate.toISOString().split('T')[0];
-                          const hourTasks = tasks.filter(t => 
-                            t.dueDate === dateStr && 
-                            t.time_slot && 
-                            parseInt(t.time_slot.split(':')[0]) === hour
-                          );
-                          
-                          return (
-                            <div key={hour} className={`flex gap-3 py-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-                              <div className={`w-12 text-xs font-medium ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                {hour > 12 ? `${hour - 12}pm` : hour === 12 ? '12pm' : `${hour}am`}
-                              </div>
-                              <div className="flex-1 min-h-[40px]">
-                                {hourTasks.length > 0 ? (
-                                  <div className="space-y-1">
-                                    {hourTasks.map(task => (
-                                      <div key={task.id} 
-                                        onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
-                                        className={`px-3 py-2 rounded-lg cursor-pointer transition-all ${
-                                          task.status === 'Completed' 
-                                            ? (darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-200')
-                                            : task.priority === 'High'
-                                              ? (darkMode ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-200')
-                                              : (darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-200')
-                                        }`}>
-                                        <p className={`text-sm ${task.status === 'Completed' ? 'line-through opacity-60' : ''} ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                                          {task.task}
-                                        </p>
-                                      </div>
-                                    ))}
+                                
+                                {/* Actions */}
+                                {isMyTask && (
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => openEditTaskModal(task)} title="Edit"
+                                      className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-700' : 'text-gray-400 hover:text-blue-600 hover:bg-gray-100'}`}>
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={() => toggleTop3(task.id)} title="Star"
+                                      className={`p-1.5 rounded ${isTop3 ? 'text-amber-500' : (darkMode ? 'text-gray-400 hover:text-amber-400' : 'text-gray-400 hover:text-amber-500')}`}>
+                                      <Star className={`w-3.5 h-3.5 ${isTop3 ? 'fill-current' : ''}`} />
+                                    </button>
+                                    <button onClick={() => enterFocusMode(task.id)} title="Focus"
+                                      className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-green-400' : 'text-gray-400 hover:text-green-600'}`}>
+                                      <Target className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={() => deleteTask(task.id)} title="Delete"
+                                      className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
-                                ) : (
-                                  <div className={`h-full rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-700' : 'border-gray-100'}`} />
                                 )}
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    
-                    {/* Week View */}
-                    {calendarViewType === 'week' && (
-                      <div className="overflow-x-auto">
-                        <div className="grid grid-cols-7 gap-1 min-w-[600px]">
-                          {/* Week day headers */}
-                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => {
-                            const date = new Date(calendarViewDate);
-                            date.setDate(date.getDate() - date.getDay() + idx);
-                            const isToday = date.toDateString() === new Date().toDateString();
-                            
-                            return (
-                              <div key={day} className={`text-center py-2 ${isToday ? (darkMode ? 'bg-blue-500/20 rounded-t-lg' : 'bg-blue-50 rounded-t-lg') : ''}`}>
-                                <p className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{day}</p>
-                                <p className={`text-lg font-bold ${isToday ? 'text-blue-500' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
-                                  {date.getDate()}
-                                </p>
-                              </div>
                             );
                           })}
                           
-                          {/* Week day tasks */}
-                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((_, idx) => {
-                            const date = new Date(calendarViewDate);
-                            date.setDate(date.getDate() - date.getDay() + idx);
-                            const dateStr = date.toISOString().split('T')[0];
-                            const dayTasks = tasks.filter(t => t.dueDate === dateStr && t.status !== 'Completed');
-                            const isToday = date.toDateString() === new Date().toDateString();
+                          {grouped.anytime && grouped.anytime.length > 0 && taskFilter === 'today' && (
+                            <div className={`px-4 py-2 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                              <span className={`text-xs font-semibold uppercase ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                ⏰ Anytime ({grouped.anytime.length})
+                              </span>
+                            </div>
+                          )}
+                          {(grouped.anytime || grouped.all || []).map(task => {
+                            if (grouped.scheduled?.includes(task)) return null; // Already rendered above
+                            const isMyTask = task.participant === myParticipant;
+                            const isTop3 = top3Today.includes(task.id);
+                            const isOverdue = task.dueDate && task.dueDate < today && task.status !== 'Completed';
+                            const linkedHabit = task.linked_habit_id ? habits.find(h => h.id === task.linked_habit_id) : null;
                             
                             return (
-                              <div key={idx} className={`min-h-[120px] p-1 rounded-b-lg ${isToday ? (darkMode ? 'bg-blue-500/10' : 'bg-blue-50/50') : (darkMode ? 'bg-gray-700/30' : 'bg-gray-50')}`}>
-                                <div className="space-y-1">
-                                  {dayTasks.slice(0, 4).map(task => (
-                                    <div key={task.id} className={`px-1.5 py-1 rounded text-[10px] truncate ${
-                                      task.priority === 'High' 
-                                        ? (darkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700')
-                                        : (darkMode ? 'bg-gray-600 text-gray-200' : 'bg-white text-gray-700')
-                                    }`}>
-                                      {task.time_slot && <span className="font-medium">{task.time_slot.slice(0, 5)} </span>}
+                              <div key={task.id} className={`group flex items-center gap-3 px-4 py-3 transition-all ${
+                                task.status === 'Completed' ? (darkMode ? 'bg-gray-800/50' : 'bg-gray-50') 
+                                : isOverdue ? (darkMode ? 'bg-red-900/20' : 'bg-red-50')
+                                : ''
+                              } ${darkMode ? 'hover:bg-gray-750' : 'hover:bg-gray-50'}`}>
+                                {/* Date/Time Box */}
+                                <div className={`flex-shrink-0 w-16 py-1.5 text-center rounded-lg ${
+                                  isOverdue ? 'bg-red-100 text-red-600' 
+                                  : task.time_slot
+                                    ? darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
+                                    : task.dueDate
+                                      ? darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                                      : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'
+                                }`}>
+                                  <span className="text-[10px] font-bold">
+                                    {isOverdue ? '⚠️ Overdue' : task.dueDate ? new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Inbox'}
+                                  </span>
+                                </div>
+                                
+                                {/* Checkbox */}
+                                <button onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                                  disabled={!isMyTask}
+                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                    task.status === 'Completed' ? 'bg-green-500 border-green-500'
+                                    : isMyTask ? (darkMode ? 'border-gray-500 hover:border-green-500' : 'border-gray-300 hover:border-green-500')
+                                    : 'border-gray-200 opacity-50'
+                                  }`}>
+                                  {task.status === 'Completed' && <Check className="w-3 h-3 text-white" />}
+                                </button>
+                                
+                                {/* Task Content */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    {isTop3 && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0" />}
+                                    <span className={`text-sm ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-white' : 'text-gray-800')}`}>
                                       {task.task}
-                                    </div>
-                                  ))}
-                                  {dayTasks.length > 4 && (
-                                    <p className={`text-[10px] text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      +{dayTasks.length - 4} more
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Month View */}
-                    {calendarViewType === 'month' && (
-                      <div className="overflow-x-auto">
-                        {/* Day headers */}
-                        <div className="grid grid-cols-7 gap-1 mb-1">
-                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                            <div key={day} className={`text-center py-2 text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {day}
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {/* Calendar grid */}
-                        <div className="grid grid-cols-7 gap-1">
-                          {(() => {
-                            const year = calendarViewDate.getFullYear();
-                            const month = calendarViewDate.getMonth();
-                            const firstDay = new Date(year, month, 1);
-                            const lastDay = new Date(year, month + 1, 0);
-                            const startPadding = firstDay.getDay();
-                            const daysInMonth = lastDay.getDate();
-                            const today = new Date();
-                            const todayStr = today.toISOString().split('T')[0];
-                            
-                            const cells = [];
-                            
-                            // Add padding for days before the 1st
-                            for (let i = 0; i < startPadding; i++) {
-                              const prevMonthDay = new Date(year, month, -startPadding + i + 1);
-                              cells.push(
-                                <div key={`pad-${i}`} className={`min-h-[80px] p-1 rounded-lg ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50/50'}`}>
-                                  <span className={`text-xs ${darkMode ? 'text-gray-600' : 'text-gray-300'}`}>{prevMonthDay.getDate()}</span>
-                                </div>
-                              );
-                            }
-                            
-                            // Add days of the month
-                            for (let day = 1; day <= daysInMonth; day++) {
-                              const date = new Date(year, month, day);
-                              const dateStr = date.toISOString().split('T')[0];
-                              const dayTasks = tasks.filter(t => t.dueDate === dateStr);
-                              const incompleteTasks = dayTasks.filter(t => t.status !== 'Completed');
-                              const completedTasks = dayTasks.filter(t => t.status === 'Completed');
-                              const isToday = dateStr === todayStr;
-                              const isSelected = dateStr === calendarViewDate.toISOString().split('T')[0];
-                              
-                              cells.push(
-                                <div 
-                                  key={day} 
-                                  onClick={() => {
-                                    setCalendarViewDate(date);
-                                    setCalendarViewType('day');
-                                  }}
-                                  className={`min-h-[80px] p-1.5 rounded-lg cursor-pointer transition-all ${
-                                    isToday 
-                                      ? (darkMode ? 'bg-blue-500/20 border border-blue-500/40' : 'bg-blue-50 border border-blue-200')
-                                      : (darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-white hover:bg-gray-50 border border-gray-100')
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className={`text-xs font-medium ${
-                                      isToday ? 'text-blue-500' : (darkMode ? 'text-white' : 'text-gray-900')
-                                    }`}>
-                                      {day}
                                     </span>
-                                    {dayTasks.length > 0 && (
-                                      <span className={`text-[10px] px-1 rounded ${
-                                        incompleteTasks.length > 0 
-                                          ? (darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600')
-                                          : (darkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600')
-                                      }`}>
-                                        {dayTasks.length}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    {task.priority === 'High' && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-600 font-medium">High</span>
+                                    )}
+                                    {linkedHabit && (
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
+                                        🔗 {linkedHabit.habit?.slice(0, 15)}...
                                       </span>
                                     )}
                                   </div>
-                                  <div className="space-y-0.5">
-                                    {incompleteTasks.slice(0, 2).map(task => (
-                                      <div key={task.id} className={`text-[10px] px-1 py-0.5 rounded truncate ${
-                                        task.priority === 'High' 
-                                          ? (darkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700')
-                                          : (darkMode ? 'bg-gray-600 text-gray-200' : 'bg-gray-100 text-gray-700')
-                                      }`}>
-                                        {task.task}
-                                      </div>
-                                    ))}
-                                    {incompleteTasks.length > 2 && (
-                                      <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        +{incompleteTasks.length - 2} more
-                                      </p>
-                                    )}
+                                </div>
+                                
+                                {/* Actions */}
+                                {isMyTask && (
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => openEditTaskModal(task)} title="Edit"
+                                      className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-700' : 'text-gray-400 hover:text-blue-600 hover:bg-gray-100'}`}>
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={() => toggleTop3(task.id)} title="Star"
+                                      className={`p-1.5 rounded ${isTop3 ? 'text-amber-500' : (darkMode ? 'text-gray-400 hover:text-amber-400' : 'text-gray-400 hover:text-amber-500')}`}>
+                                      <Star className={`w-3.5 h-3.5 ${isTop3 ? 'fill-current' : ''}`} />
+                                    </button>
+                                    <button onClick={() => deleteTask(task.id)} title="Delete"
+                                      className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
-                                </div>
-                              );
-                            }
-                            
-                            // Add padding for remaining cells
-                            const totalCells = startPadding + daysInMonth;
-                            const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-                            for (let i = 1; i <= remainingCells; i++) {
-                              cells.push(
-                                <div key={`end-${i}`} className={`min-h-[80px] p-1 rounded-lg ${darkMode ? 'bg-gray-800/30' : 'bg-gray-50/50'}`}>
-                                  <span className={`text-xs ${darkMode ? 'text-gray-600' : 'text-gray-300'}`}>{i}</span>
-                                </div>
-                              );
-                            }
-                            
-                            return cells;
-                          })()}
+                                )}
+                              </div>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Edit Task Modal */}
+                {showEditTaskModal && editingTask && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowEditTaskModal(false)}>
+                    <div className={`w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Edit Task</h3>
+                        <button onClick={() => setShowEditTaskModal(false)} className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {/* Task Name */}
+                        <div>
+                          <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Task</label>
+                          <input type="text" value={editTaskForm.task} onChange={e => setEditTaskForm({...editTaskForm, task: e.target.value})}
+                            className={`w-full mt-1 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border focus:ring-2 focus:ring-blue-500/30`} />
+                        </div>
+                        
+                        {/* Date & Time */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Date</label>
+                            <input type="date" value={editTaskForm.dueDate} onChange={e => setEditTaskForm({...editTaskForm, dueDate: e.target.value})}
+                              className={`w-full mt-1 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`} />
+                          </div>
+                          <div>
+                            <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Time</label>
+                            <input type="time" value={editTaskForm.time_slot || ''} onChange={e => setEditTaskForm({...editTaskForm, time_slot: e.target.value})}
+                              className={`w-full mt-1 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`} />
+                          </div>
+                        </div>
+                        
+                        {/* Priority & Category */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Priority</label>
+                            <select value={editTaskForm.priority} onChange={e => setEditTaskForm({...editTaskForm, priority: e.target.value})}
+                              className={`w-full mt-1 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                              <option value="High">High</option>
+                              <option value="Medium">Medium</option>
+                              <option value="Low">Low</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Category</label>
+                            <select value={editTaskForm.category} onChange={e => setEditTaskForm({...editTaskForm, category: e.target.value})}
+                              className={`w-full mt-1 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                              <option value="Work">Work</option>
+                              <option value="Personal">Personal</option>
+                              <option value="Health">Health</option>
+                              <option value="Learning">Learning</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        {/* Link to Habit */}
+                        <div>
+                          <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            🔗 Link to Habit <span className="text-xs font-normal text-gray-400">(completes habit when all linked tasks done)</span>
+                          </label>
+                          <select value={editTaskForm.linked_habit_id || ''} onChange={e => setEditTaskForm({...editTaskForm, linked_habit_id: e.target.value || null})}
+                            className={`w-full mt-1 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                            <option value="">No linked habit</option>
+                            {getTodaysHabitsForLinking().map(h => (
+                              <option key={h.id} value={h.id}>{h.habit}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
-                    )}
+                      
+                      <div className="flex gap-3 mt-6">
+                        <button onClick={() => setShowEditTaskModal(false)}
+                          className={`flex-1 py-2.5 rounded-lg font-medium ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                          Cancel
+                        </button>
+                        <button onClick={saveEditedTask}
+                          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
+                          Save Changes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Habit Completion Prompt Modal */}
+                {habitCompletionPrompt && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                    <div className={`w-full max-w-sm rounded-2xl p-6 text-center ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                      <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle2 className="w-8 h-8 text-green-600" />
+                      </div>
+                      <h3 className={`text-lg font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        All Tasks Complete! 🎉
+                      </h3>
+                      <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        You've completed all tasks linked to <strong>"{habitCompletionPrompt.habitName}"</strong>. 
+                        Would you like to mark this habit as complete?
+                      </p>
+                      <div className="flex gap-3">
+                        <button onClick={() => setHabitCompletionPrompt(null)}
+                          className={`flex-1 py-2.5 rounded-lg font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                          Not Yet
+                        </button>
+                        <button onClick={markLinkedHabitComplete}
+                          className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium">
+                          Mark Complete
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {/* Recurring Task Modal */}
                 {showRecurringModal && (
-                  <div className={`rounded-2xl p-4 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-lg'}`}>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                        <Repeat className="w-4 h-4 inline mr-2" />
-                        Create Recurring Task
-                      </h3>
-                      <button onClick={() => setShowRecurringModal(false)} className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    
-                    <form onSubmit={(e) => {
-                      e.preventDefault();
-                      const formData = new FormData(e.target);
-                      addRecurringTask({
-                        task: formData.get('task'),
-                        pattern: formData.get('pattern'),
-                        days: formData.getAll('days'),
-                        time_slot: formData.get('time_slot') || null,
-                        priority: formData.get('priority'),
-                        category: formData.get('category')
-                      });
-                    }} className="space-y-3">
-                      <input name="task" required placeholder="Task name" 
-                        className={`w-full px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`} />
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <select name="pattern" className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                        </select>
-                        <input name="time_slot" type="time" 
-                          className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`} />
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowRecurringModal(false)}>
+                    <div className={`w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          <Repeat className="w-5 h-5 inline mr-2" />Create Recurring Task
+                        </h3>
+                        <button onClick={() => setShowRecurringModal(false)} className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+                          <X className="w-5 h-5" />
+                        </button>
                       </div>
                       
-                      <div className="flex flex-wrap gap-2">
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                          <label key={day} className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
-                            <input type="checkbox" name="days" value={day} className="w-3 h-3" />
-                            {day}
-                          </label>
-                        ))}
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        <select name="priority" className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
-                          <option value="Medium">Medium Priority</option>
-                          <option value="High">High Priority</option>
-                          <option value="Low">Low Priority</option>
-                        </select>
-                        <select name="category" className={`px-3 py-2 rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
-                          <option value="Work">Work</option>
-                          <option value="Personal">Personal</option>
-                          <option value="Health">Health</option>
-                          <option value="Learning">Learning</option>
-                        </select>
-                      </div>
-                      
-                      <button type="submit" className="w-full py-2.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D]">
-                        Create Recurring Task (4 weeks)
-                      </button>
-                    </form>
-                  </div>
-                )}
-                {aiBreakdownTask && (
-                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-200'}`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                        <span className={`text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>AI Task Breakdown</span>
-                      </div>
-                      <button onClick={() => { setAiBreakdownTask(null); setAiSubtasks([]); }}
-                        className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-purple-100'}`}>
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <p className={`text-sm mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>"{aiBreakdownTask.task}"</p>
-                    
-                    {aiBreakdownLoading ? (
-                      <div className="flex items-center gap-2 py-4">
-                        <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                        <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Breaking down task...</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {aiSubtasks.map((subtask, idx) => (
-                          <div key={idx} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-800/50' : 'bg-white/70'}`}>
-                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>{idx + 1}</span>
-                            <span className={`flex-1 text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{subtask}</span>
-                          </div>
-                        ))}
-                        {aiSubtasks.length > 0 && !aiSubtasks[0].startsWith('Error') && (
-                          <button onClick={addSubtasksFromAI}
-                            className="w-full mt-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium">
-                            <Plus className="w-4 h-4 inline mr-1" /> Add All Subtasks
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Top 3 Today */}
-                {top3Today.length > 0 && (
-                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20' : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'}`}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Star className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                      <span className={`text-sm font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Today's Top 3 Priorities</span>
-                    </div>
-                    <div className="space-y-2">
-                      {top3Today.map((taskId, idx) => {
-                        const task = tasks.find(t => t.id === taskId);
-                        if (!task) return null;
-                        return (
-                          <div key={taskId} className={`flex items-center gap-3 p-2 rounded-lg ${darkMode ? 'bg-gray-800/50' : 'bg-white/70'}`}>
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                              task.status === 'Completed' ? 'bg-green-500 text-white' : 'bg-amber-500 text-white'
-                            }`}>{idx + 1}</span>
-                            <span className={`flex-1 text-sm ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-white' : 'text-gray-800')}`}>
-                              {task.task}
-                            </span>
-                            {task.status !== 'Completed' && (
-                              <button onClick={() => enterFocusMode(taskId)} className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-amber-400' : 'hover:bg-amber-100 text-amber-600'}`}>
-                                <Target className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pomodoro Timer (when active but not in focus mode) */}
-                {pomodoroTask && taskViewMode !== 'focus' && (
-                  <div className={`rounded-xl p-4 ${darkMode ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-200'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Timer className={`w-5 h-5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        addRecurringTask({
+                          task: formData.get('task'),
+                          pattern: formData.get('pattern'),
+                          days: formData.getAll('days'),
+                          time_slot: formData.get('time_slot') || null,
+                          priority: formData.get('priority'),
+                          category: formData.get('category')
+                        });
+                      }} className="space-y-4">
+                        <input name="task" required placeholder="Task name"
+                          className={`w-full px-3 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`} />
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <select name="pattern" className={`px-3 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                          </select>
+                          <input name="time_slot" type="time" placeholder="Time"
+                            className={`px-3 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`} />
+                        </div>
+                        
                         <div>
-                          <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                            {tasks.find(t => t.id === pomodoroTask)?.task}
-                          </p>
-                          <p className={`text-2xl font-bold font-mono ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
-                            {Math.floor(pomodoroTime / 60).toString().padStart(2, '0')}:{(pomodoroTime % 60).toString().padStart(2, '0')}
-                          </p>
+                          <p className={`text-xs mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Days (for weekly):</p>
+                          <div className="flex flex-wrap gap-2">
+                            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                              <label key={day} className={`flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                                <input type="checkbox" name="days" value={day} className="w-3 h-3" />
+                                <span className="text-xs">{day}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => enterFocusMode(pomodoroTask)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-700'}`}>
-                          Focus
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <select name="priority" className={`px-3 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Low">Low</option>
+                          </select>
+                          <select name="category" className={`px-3 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 border-gray-200'} border`}>
+                            <option value="Work">Work</option>
+                            <option value="Personal">Personal</option>
+                            <option value="Health">Health</option>
+                            <option value="Learning">Learning</option>
+                          </select>
+                        </div>
+                        
+                        <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold">
+                          Create (4 weeks)
                         </button>
-                        <button onClick={() => setPomodoroRunning(!pomodoroRunning)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${pomodoroRunning ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'}`}>
-                          {pomodoroRunning ? 'Pause' : 'Start'}
-                        </button>
-                        <button onClick={() => { setPomodoroTask(null); setPomodoroTime(25 * 60); setPomodoroRunning(false); }}
-                          className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-500'}`}>
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
+                      </form>
                     </div>
                   </div>
-                )}
-
-                {/* Filters - Show in list view only */}
-                {taskViewMode === 'list' && (
-                  <>
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex gap-1.5 overflow-x-auto pb-1">
-                        {[
-                          { id: 'today', label: 'Today', icon: Calendar },
-                          { id: 'inbox', label: 'Inbox', icon: Inbox },
-                          { id: 'scheduled', label: 'Scheduled', icon: CalendarClock },
-                          { id: 'all', label: 'All', icon: ListTodo },
-                          { id: 'completed', label: 'Done', icon: CheckCircle2 }
-                        ].map(filter => {
-                          const Icon = filter.icon;
-                          return (
-                            <button key={filter.id} onClick={() => setTaskFilter(filter.id)}
-                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                                taskFilter === filter.id
-                                  ? darkMode ? 'bg-white text-gray-900' : 'bg-[#1E3A5F] text-white'
-                                  : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-600 border border-gray-200'
-                              }`}>
-                              <Icon className="w-3.5 h-3.5" />
-                              {filter.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <div className={`flex p-0.5 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                          <button onClick={() => setSelectedParticipant(myParticipant)}
-                            className={`px-2.5 py-1 rounded-md text-xs font-medium ${selectedParticipant === myParticipant ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                            Mine
-                          </button>
-                          <button onClick={() => setSelectedParticipant('All')}
-                            className={`px-2.5 py-1 rounded-md text-xs font-medium ${selectedParticipant === 'All' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900 shadow-sm') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                            All
-                          </button>
-                        </div>
-                        <button onClick={() => setShowAddTask(true)} className={`p-2 rounded-lg ${darkMode ? 'bg-[#1E3A5F] text-white' : 'bg-[#1E3A5F] text-white'}`}>
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                {/* Task List */}
-                <div className="space-y-2">
-                  {(() => {
-                    const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                    const today = new Date().toISOString().split('T')[0];
-                    
-                    let filteredTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-                    
-                    if (taskFilter === 'today') {
-                      filteredTasks = filteredTasks.filter(t => t.dueDate === today && t.status !== 'Completed');
-                    } else if (taskFilter === 'inbox') {
-                      filteredTasks = filteredTasks.filter(t => !t.dueDate && t.status !== 'Completed');
-                    } else if (taskFilter === 'scheduled') {
-                      filteredTasks = filteredTasks.filter(t => t.dueDate && t.dueDate >= today && t.status !== 'Completed');
-                    } else if (taskFilter === 'completed') {
-                      filteredTasks = filteredTasks.filter(t => t.status === 'Completed');
-                    } else if (taskFilter === 'all') {
-                      filteredTasks = filteredTasks.filter(t => t.status !== 'Completed');
-                    }
-                    
-                    // Sort by priority then date
-                    filteredTasks.sort((a, b) => {
-                      // Top 3 first
-                      const aIsTop3 = top3Today.includes(a.id);
-                      const bIsTop3 = top3Today.includes(b.id);
-                      if (aIsTop3 && !bIsTop3) return -1;
-                      if (!aIsTop3 && bIsTop3) return 1;
-                      
-                      // Then overdue
-                      const aOverdue = a.dueDate && a.dueDate < today && a.status !== 'Completed';
-                      const bOverdue = b.dueDate && b.dueDate < today && b.status !== 'Completed';
-                      if (aOverdue && !bOverdue) return -1;
-                      if (!aOverdue && bOverdue) return 1;
-                      
-                      // For today's tasks, sort by time slot first
-                      if (taskFilter === 'today' || (a.dueDate === today && b.dueDate === today)) {
-                        // Tasks with time slots come before those without
-                        if (a.time_slot && !b.time_slot) return -1;
-                        if (!a.time_slot && b.time_slot) return 1;
-                        // Sort by time slot
-                        if (a.time_slot && b.time_slot) return a.time_slot.localeCompare(b.time_slot);
-                      }
-                      
-                      // Then priority
-                      const order = { 'High': 0, 'Medium': 1, 'Low': 2 };
-                      const priorityDiff = (order[a.priority] || 1) - (order[b.priority] || 1);
-                      if (priorityDiff !== 0) return priorityDiff;
-                      
-                      // Then time slot (for non-today views)
-                      if (a.time_slot && b.time_slot) return a.time_slot.localeCompare(b.time_slot);
-                      if (a.time_slot) return -1;
-                      if (b.time_slot) return 1;
-                      
-                      // Then date
-                      return (a.dueDate || 'z').localeCompare(b.dueDate || 'z');
-                    });
-
-                    if (filteredTasks.length === 0) {
-                      return (
-                        <div className={`rounded-xl p-8 text-center ${darkMode ? 'bg-gray-800' : 'bg-white border border-gray-100'}`}>
-                          <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                            <CheckCircle2 className={`w-7 h-7 ${darkMode ? 'text-green-400' : 'text-green-500'}`} />
-                          </div>
-                          <h3 className={`font-semibold mb-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                            {taskFilter === 'completed' ? 'No completed tasks' : taskFilter === 'inbox' ? 'Inbox empty' : 'All clear!'}
-                          </h3>
-                          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {taskFilter === 'today' ? 'No tasks for today. Enjoy!' : 'Use the quick add above to create tasks.'}
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    return filteredTasks.map(task => {
-                      const isOverdue = task.dueDate && task.dueDate < today && task.status !== 'Completed';
-                      const isToday = task.dueDate === today;
-                      const isMyTask = task.participant === myParticipant;
-                      const isTop3 = top3Today.includes(task.id);
-                      
-                      // Format time slot nicely
-                      const formatTimeSlot = (slot) => {
-                        if (!slot) return null;
-                        const [hours, mins] = slot.split(':');
-                        const h = parseInt(hours);
-                        const period = h >= 12 ? 'PM' : 'AM';
-                        const displayHour = h > 12 ? h - 12 : (h === 0 ? 12 : h);
-                        return `${displayHour}:${mins} ${period}`;
-                      };
-                      
-                      return (
-                        <div key={task.id} className={`group flex items-start gap-3 p-3 rounded-xl transition-all ${
-                          task.status === 'Completed'
-                            ? darkMode ? 'bg-gray-800/30' : 'bg-gray-50'
-                            : isOverdue
-                              ? darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
-                              : darkMode ? 'bg-gray-800 hover:bg-gray-750 border border-gray-700' : 'bg-white border border-gray-100 hover:border-gray-200 hover:shadow-sm'
-                        }`}>
-                          {/* Time Box - Visual */}
-                          <div className={`flex-shrink-0 w-16 text-center py-1 rounded-lg ${
-                            task.time_slot 
-                              ? task.status === 'Completed'
-                                ? darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-600'
-                                : darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-600 border border-blue-200'
-                              : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'
-                          }`}>
-                            {task.time_slot ? (
-                              <>
-                                <p className="text-xs font-bold">{formatTimeSlot(task.time_slot)}</p>
-                              </>
-                            ) : (
-                              <p className="text-xs">No time</p>
-                            )}
-                          </div>
-                          
-                          {/* Checkbox */}
-                          <button
-                            onClick={() => isMyTask && updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
-                            disabled={!isMyTask}
-                            className={`w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                              task.status === 'Completed' ? 'bg-green-500 border-green-500'
-                              : isMyTask ? (darkMode ? 'border-gray-500 hover:border-green-500' : 'border-gray-300 hover:border-green-500')
-                              : 'border-gray-200 opacity-50'
-                            }`}>
-                            {task.status === 'Completed' && <Check className="w-3 h-3 text-white" />}
-                          </button>
-                          
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm ${task.status === 'Completed' ? 'line-through text-gray-400' : (darkMode ? 'text-white' : 'text-gray-800')}`}>
-                              {isTop3 && <Star className="w-3 h-3 inline mr-1 text-amber-500 fill-amber-500" />}
-                              {task.task}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              {task.dueDate && !isToday && (
-                                <span className={`text-xs px-1.5 py-0.5 rounded ${isOverdue ? 'bg-red-100 text-red-600' : (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
-                                  {isOverdue && '⚠️ '}{new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </span>
-                              )}
-                              {isToday && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Today</span>}
-                              {!task.dueDate && <span className={`text-xs px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>Inbox</span>}
-                              {task.priority === 'High' && <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-600 font-medium">High</span>}
-                              {task.priority === 'Low' && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Low</span>}
-                              {task.category && task.category !== 'Work' && (
-                                <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                  task.category === 'Health' ? 'bg-green-100 text-green-600' :
-                                  task.category === 'Personal' ? 'bg-purple-100 text-purple-600' :
-                                  task.category === 'Learning' ? 'bg-blue-100 text-blue-600' :
-                                  'bg-gray-100 text-gray-600'
-                                }`}>{task.category}</span>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Quick Actions */}
-                          {isMyTask && task.status !== 'Completed' && (
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 sm:opacity-100">
-                              <button onClick={() => toggleTop3(task.id)} title="Top 3" className={`p-1.5 rounded ${isTop3 ? 'text-amber-500' : (darkMode ? 'text-gray-400 hover:text-amber-400' : 'text-gray-400 hover:text-amber-500')}`}>
-                                <Star className={`w-3.5 h-3.5 ${isTop3 ? 'fill-current' : ''}`} />
-                              </button>
-                              <button onClick={() => breakdownTaskWithAI(task)} title="AI Breakdown" className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-purple-400' : 'text-gray-400 hover:text-purple-500'}`}>
-                                <Sparkles className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => enterFocusMode(task.id)} title="Focus" className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-400 hover:text-blue-500'}`}>
-                                <Target className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => deleteTask(task.id)} title="Delete" className={`p-1.5 rounded ${darkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-                  </>
                 )}
               </>
             )}
+
           </div>
         )}
 
