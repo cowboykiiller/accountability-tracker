@@ -955,6 +955,11 @@ export default function AccountabilityTracker() {
   const [monthlyMergeHabits, setMonthlyMergeHabits] = useState(true); // Merge like-named habits in monthly view
   const [monthlyMergeMode, setMonthlyMergeMode] = useState(false); // Manual merge selection mode
   const [selectedHabitsForMerge, setSelectedHabitsForMerge] = useState(new Set()); // Selected habit keys for merging
+  const [manualMergeGroups, setManualMergeGroups] = useState(() => {
+    // Load from localStorage
+    const saved = localStorage.getItem('manual_merge_groups');
+    return saved ? JSON.parse(saved) : []; // Array of arrays: [['key1', 'key2'], ['key3', 'key4', 'key5']]
+  });
   
   // Tasks state
   const [tasks, setTasks] = useState([]);
@@ -973,19 +978,19 @@ export default function AccountabilityTracker() {
   
   // Dashboard Widgets
   const [dashboardWidgets, setDashboardWidgets] = useState(() => {
-    const saved = localStorage.getItem('dashboard_widgets_v4');
+    const saved = localStorage.getItem('dashboard_widgets_v5');
     return saved ? JSON.parse(saved) : [
-      { id: 'progress', name: 'Today\'s Progress', enabled: true, size: 'medium', order: 0, icon: 'Target' },
-      { id: 'stats', name: 'Key Metrics', enabled: true, size: 'large', order: 1, icon: 'BarChart3' },
-      { id: 'dailyHabits', name: 'Daily Habits', enabled: true, size: 'medium', order: 2, icon: 'CheckSquare' },
-      { id: 'dailyTasks', name: 'Daily Tasks', enabled: true, size: 'medium', order: 3, icon: 'ListTodo' },
-      { id: 'weeklyTrend', name: 'Weekly Trend', enabled: true, size: 'large', order: 4, icon: 'TrendingUp' },
-      { id: 'teamLeaderboard', name: 'Team Leaderboard', enabled: true, size: 'medium', order: 5, icon: 'Trophy' },
-      { id: 'habits', name: 'Streaks', enabled: false, size: 'small', order: 6, icon: 'Flame' },
-      { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small', order: 7, icon: 'Quote' },
-      { id: 'lifeBalance', name: 'Life Balance', enabled: false, size: 'medium', order: 8, icon: 'Target' },
-      { id: 'pomodoro', name: 'Focus Timer', enabled: true, size: 'small', order: 9, icon: 'Timer' },
-      { id: 'quickWin', name: 'Quick Win', enabled: true, size: 'small', order: 10, icon: 'Zap' },
+      { id: 'stats', name: 'Key Metrics', enabled: true, size: 'large', order: 0, icon: 'BarChart3' },
+      { id: 'progress', name: 'Today\'s Progress', enabled: true, size: 'small', order: 1, icon: 'Target' },
+      { id: 'pomodoro', name: 'Focus Timer', enabled: true, size: 'small', order: 2, icon: 'Timer' },
+      { id: 'quickWin', name: 'Quick Win', enabled: true, size: 'small', order: 3, icon: 'Zap' },
+      { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small', order: 4, icon: 'Quote' },
+      { id: 'dailyHabits', name: 'Daily Habits', enabled: true, size: 'medium', order: 5, icon: 'CheckSquare' },
+      { id: 'dailyTasks', name: 'Daily Tasks', enabled: true, size: 'medium', order: 6, icon: 'ListTodo' },
+      { id: 'weeklyTrend', name: 'Weekly Trend', enabled: true, size: 'medium', order: 7, icon: 'TrendingUp' },
+      { id: 'teamLeaderboard', name: 'Team Leaderboard', enabled: true, size: 'medium', order: 8, icon: 'Trophy' },
+      { id: 'habits', name: 'Streaks', enabled: false, size: 'small', order: 9, icon: 'Flame' },
+      { id: 'lifeBalance', name: 'Life Balance', enabled: false, size: 'medium', order: 10, icon: 'Target' },
       { id: 'weekAtGlance', name: 'Week at a Glance', enabled: false, size: 'large', order: 11, icon: 'Calendar' },
       { id: 'categoryBreakdown', name: 'Category Breakdown', enabled: false, size: 'medium', order: 12, icon: 'PieChart' },
       { id: 'tasks', name: 'Task Overview', enabled: false, size: 'medium', order: 13, icon: 'CheckSquare' },
@@ -4515,7 +4520,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
   // Save dashboard widgets to localStorage
   const saveDashboardWidgets = (widgets) => {
     setDashboardWidgets(widgets);
-    localStorage.setItem('dashboard_widgets_v4', JSON.stringify(widgets));
+    localStorage.setItem('dashboard_widgets_v5', JSON.stringify(widgets));
   };
 
   // Toggle widget enabled state
@@ -6226,14 +6231,22 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             )}
 
             {/* Draggable Widget Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {dashboardWidgets
                 .filter(w => w.enabled)
                 .sort((a, b) => a.order - b.order)
                 .map(widget => {
                   const isDragging = draggingWidget === widget.id;
                   const isDragOver = dragOverWidget === widget.id;
-                  const sizeClass = widget.size === 'large' ? 'md:col-span-2' : widget.size === 'full' ? 'md:col-span-2 lg:col-span-3' : '';
+                  // Size classes: small=1col, medium=2col, large=4col (full width)
+                  const sizeClass = widget.size === 'large' 
+                    ? 'sm:col-span-2 lg:col-span-4' 
+                    : widget.size === 'medium' 
+                      ? 'sm:col-span-2 lg:col-span-2' 
+                      : 'col-span-1'; // small
+                  
+                  // Height classes based on size
+                  const heightClass = widget.size === 'small' ? 'max-h-[200px]' : widget.size === 'medium' ? '' : '';
                   
                   return (
                     <div
@@ -6249,7 +6262,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         isEditingDashboard ? 'cursor-grab active:cursor-grabbing' : ''
                       }`}
                     >
-                      <div className={`h-full rounded-2xl backdrop-blur-xl transition-colors duration-300 relative overflow-hidden ${
+                      <div className={`h-full ${heightClass} rounded-2xl backdrop-blur-xl transition-colors duration-300 relative overflow-hidden ${
                         darkMode 
                           ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                           : 'bg-white/70 border border-white/50'
@@ -6277,14 +6290,20 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         )}
                         
                         {/* Widget: Quote */}
-                        {widget.id === 'quote' && currentQuote && (
+                        {widget.id === 'quote' && (
                           <div className="p-4">
                             <div className="flex items-center gap-2 mb-2">
                               <Quote className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                              <span className={`text-xs font-medium ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>{currentQuote.theme || 'Weekly Wisdom'}</span>
+                              <span className={`text-xs font-medium ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>{currentQuote?.theme || 'Weekly Wisdom'}</span>
                             </div>
-                            <blockquote className={`text-sm italic ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>"{currentQuote.quote}"</blockquote>
-                            <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>— {currentQuote.author}</p>
+                            {currentQuote ? (
+                              <>
+                                <blockquote className={`text-sm italic ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>"{currentQuote.quote}"</blockquote>
+                                <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>— {currentQuote.author}</p>
+                              </>
+                            ) : (
+                              <p className={`text-sm italic ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>"The only way to do great work is to love what you do."</p>
+                            )}
                           </div>
                         )}
                         
@@ -8334,8 +8353,16 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       <button 
                         onClick={() => {
                           if (selectedHabitsForMerge.size >= 2) {
-                            // Just enable auto-merge for now - manual merge would need backend
-                            setMonthlyMergeHabits(true);
+                            // Create a new merge group from selected habits
+                            const newGroup = Array.from(selectedHabitsForMerge);
+                            // Remove any of these keys from existing groups
+                            const updatedGroups = manualMergeGroups.filter(group => 
+                              !group.some(key => newGroup.includes(key))
+                            );
+                            // Add the new merged group
+                            updatedGroups.push(newGroup);
+                            setManualMergeGroups(updatedGroups);
+                            localStorage.setItem('manual_merge_groups', JSON.stringify(updatedGroups));
                           }
                           setMonthlyMergeMode(false);
                           setSelectedHabitsForMerge(new Set());
@@ -8357,13 +8384,26 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       </button>
                     </div>
                   ) : (
-                    <button 
-                      onClick={() => { setMonthlyMergeMode(true); setMonthlyMergeHabits(false); }}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}
-                    >
-                      <Link2 className="w-3.5 h-3.5" />
-                      Manual Merge
-                    </button>
+                    <>
+                      <button 
+                        onClick={() => { setMonthlyMergeMode(true); setMonthlyMergeHabits(false); }}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                        Select to Merge
+                      </button>
+                      {manualMergeGroups.length > 0 && (
+                        <button 
+                          onClick={() => {
+                            setManualMergeGroups([]);
+                            localStorage.removeItem('manual_merge_groups');
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                        >
+                          Clear Merges ({manualMergeGroups.length})
+                        </button>
+                      )}
+                    </>
                   )}
                   
                   {/* Auto Merge Toggle */}
@@ -8479,15 +8519,13 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                (!viewParticipant || h.participant === viewParticipant);
                       });
 
-                      // Group habits based on merge mode
-                      const habitGroups = {};
+                      // Step 1: Create base habit groups (each habit-week combo gets its own key)
+                      const baseGroups = {};
                       monthHabits.forEach(h => {
-                        const key = monthlyMergeHabits && !monthlyMergeMode
-                          ? `${h.participant}:${h.habit}` 
-                          : `${h.participant}:${h.habit}:${h.weekStart}`;
-                        if (!habitGroups[key]) {
-                          habitGroups[key] = { 
-                            key,
+                        const baseKey = `${h.participant}:${h.habit}:${h.weekStart}`;
+                        if (!baseGroups[baseKey]) {
+                          baseGroups[baseKey] = { 
+                            key: baseKey,
                             habit: h.habit, 
                             participant: h.participant, 
                             weeks: [], 
@@ -8495,10 +8533,69 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                             totalCompleted: 0 
                           };
                         }
-                        habitGroups[key].weeks.push(h);
-                        habitGroups[key].totalTarget += h.target || 0;
-                        habitGroups[key].totalCompleted += h.daysCompleted?.length || 0;
+                        baseGroups[baseKey].weeks.push(h);
+                        baseGroups[baseKey].totalTarget += h.target || 0;
+                        baseGroups[baseKey].totalCompleted += h.daysCompleted?.length || 0;
                       });
+
+                      // Step 2: Apply grouping based on mode
+                      let habitGroups = {};
+                      
+                      if (monthlyMergeHabits && !monthlyMergeMode) {
+                        // Auto-merge: group by participant + habit name
+                        Object.values(baseGroups).forEach(group => {
+                          const mergeKey = `${group.participant}:${group.habit}`;
+                          if (!habitGroups[mergeKey]) {
+                            habitGroups[mergeKey] = { 
+                              key: mergeKey,
+                              habit: group.habit, 
+                              participant: group.participant, 
+                              weeks: [], 
+                              totalTarget: 0, 
+                              totalCompleted: 0,
+                              baseKeys: []
+                            };
+                          }
+                          habitGroups[mergeKey].weeks.push(...group.weeks);
+                          habitGroups[mergeKey].totalTarget += group.totalTarget;
+                          habitGroups[mergeKey].totalCompleted += group.totalCompleted;
+                          habitGroups[mergeKey].baseKeys.push(group.key);
+                        });
+                      } else if (manualMergeGroups.length > 0 && !monthlyMergeMode) {
+                        // Manual merge: apply saved merge groups
+                        const processedKeys = new Set();
+                        
+                        // First, process manual merge groups
+                        manualMergeGroups.forEach((mergeGroup, groupIdx) => {
+                          const groupsToMerge = Object.values(baseGroups).filter(g => mergeGroup.includes(g.key));
+                          if (groupsToMerge.length > 0) {
+                            const mergeKey = `merged_${groupIdx}`;
+                            habitGroups[mergeKey] = {
+                              key: mergeKey,
+                              habit: groupsToMerge.map(g => g.habit).filter((v, i, a) => a.indexOf(v) === i).join(' / '),
+                              participant: groupsToMerge[0].participant,
+                              weeks: groupsToMerge.flatMap(g => g.weeks),
+                              totalTarget: groupsToMerge.reduce((sum, g) => sum + g.totalTarget, 0),
+                              totalCompleted: groupsToMerge.reduce((sum, g) => sum + g.totalCompleted, 0),
+                              baseKeys: groupsToMerge.map(g => g.key),
+                              isMerged: true
+                            };
+                            groupsToMerge.forEach(g => processedKeys.add(g.key));
+                          }
+                        });
+                        
+                        // Then add remaining unmerged groups
+                        Object.values(baseGroups).forEach(group => {
+                          if (!processedKeys.has(group.key)) {
+                            habitGroups[group.key] = { ...group, baseKeys: [group.key] };
+                          }
+                        });
+                      } else {
+                        // No merging - keep each week separate
+                        Object.values(baseGroups).forEach(group => {
+                          habitGroups[group.key] = { ...group, baseKeys: [group.key] };
+                        });
+                      }
 
                       const sortedGroups = Object.values(habitGroups).sort((a, b) => a.habit.localeCompare(b.habit));
 
@@ -8517,7 +8614,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         const progressPct = group.totalTarget > 0 ? Math.round((group.totalCompleted / group.totalTarget) * 100) : 0;
                         const isEvenRow = idx % 2 === 0;
                         const isMyHabit = group.participant === myParticipant;
-                        const isSelected = selectedHabitsForMerge.has(group.key);
+                        // For selection, use the first baseKey or key
+                        const selectKey = group.baseKeys?.[0] || group.key;
+                        const isSelected = monthlyMergeMode && (
+                          selectedHabitsForMerge.has(selectKey) || 
+                          (group.baseKeys && group.baseKeys.some(k => selectedHabitsForMerge.has(k)))
+                        );
                         
                         return (
                           <tr key={group.key} className={`border-t transition-colors ${
@@ -8532,10 +8634,13 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                 <button 
                                   onClick={() => {
                                     const newSet = new Set(selectedHabitsForMerge);
+                                    // Use selectKey for toggle
                                     if (isSelected) {
-                                      newSet.delete(group.key);
+                                      // Remove all baseKeys
+                                      (group.baseKeys || [selectKey]).forEach(k => newSet.delete(k));
                                     } else {
-                                      newSet.add(group.key);
+                                      // Add selectKey
+                                      newSet.add(selectKey);
                                     }
                                     setSelectedHabitsForMerge(newSet);
                                   }}
@@ -8557,8 +8662,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                 ? darkMode ? 'bg-gray-800/95' : 'bg-gray-50/95'
                                 : darkMode ? 'bg-gray-800/95' : 'bg-white/95'
                             }`}>
-                              <div className={`font-medium text-sm truncate ${darkMode ? 'text-white' : 'text-gray-800'}`} title={group.habit}>
-                                {group.habit}
+                              <div className="flex items-center gap-1">
+                                {group.isMerged && <Link2 className="w-3 h-3 text-purple-500 flex-shrink-0" />}
+                                <span className={`font-medium text-sm truncate ${darkMode ? 'text-white' : 'text-gray-800'}`} title={group.habit}>
+                                  {group.habit}
+                                </span>
                               </div>
                               {selectedParticipant === 'All' && (
                                 <div className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{group.participant}</div>
