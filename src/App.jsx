@@ -979,7 +979,7 @@ export default function AccountabilityTracker() {
   
   // Dashboard Widgets
   const [dashboardWidgets, setDashboardWidgets] = useState(() => {
-    const saved = localStorage.getItem('dashboard_widgets_v6');
+    const saved = localStorage.getItem('dashboard_widgets_v7');
     return saved ? JSON.parse(saved) : [
       { id: 'performanceDashboard', name: 'Performance Dashboard', enabled: true, size: 'large', order: 0, icon: 'BarChart3' },
       { id: 'progress', name: 'Today\'s Progress', enabled: true, size: 'small', order: 1, icon: 'Target' },
@@ -988,21 +988,22 @@ export default function AccountabilityTracker() {
       { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small', order: 4, icon: 'Quote' },
       { id: 'dailyHabits', name: 'Daily Habits', enabled: true, size: 'medium', order: 5, icon: 'CheckSquare' },
       { id: 'dailyTasks', name: 'Daily Tasks', enabled: true, size: 'medium', order: 6, icon: 'ListTodo' },
-      { id: 'weeklyTrend', name: 'Weekly Trend', enabled: false, size: 'medium', order: 7, icon: 'TrendingUp' },
-      { id: 'teamLeaderboard', name: 'Team Leaderboard', enabled: true, size: 'medium', order: 8, icon: 'Trophy' },
-      { id: 'stats', name: 'Key Metrics', enabled: false, size: 'large', order: 9, icon: 'BarChart3' },
-      { id: 'habits', name: 'Streaks', enabled: false, size: 'small', order: 10, icon: 'Flame' },
-      { id: 'lifeBalance', name: 'Life Balance', enabled: false, size: 'medium', order: 11, icon: 'Target' },
-      { id: 'weekAtGlance', name: 'Week at a Glance', enabled: false, size: 'large', order: 12, icon: 'Calendar' },
-      { id: 'categoryBreakdown', name: 'Category Breakdown', enabled: false, size: 'medium', order: 13, icon: 'PieChart' },
-      { id: 'tasks', name: 'Task Overview', enabled: false, size: 'medium', order: 14, icon: 'CheckSquare' },
-      { id: 'calendar', name: 'Mini Calendar', enabled: false, size: 'medium', order: 15, icon: 'Calendar' },
-      { id: 'coach', name: 'AI Coach', enabled: false, size: 'medium', order: 16, icon: 'Brain' },
-      { id: 'challenges', name: 'Active Challenges', enabled: false, size: 'small', order: 17, icon: 'Trophy' },
-      { id: 'feed', name: 'Recent Activity', enabled: false, size: 'medium', order: 18, icon: 'MessageSquare' },
-      { id: 'goals', name: '2026 Goals', enabled: false, size: 'small', order: 19, icon: 'Target' },
-      { id: 'mood', name: 'Mood Tracker', enabled: false, size: 'small', order: 20, icon: 'Heart' },
-      { id: 'motivationalQuote', name: 'Motivation Boost', enabled: false, size: 'small', order: 21, icon: 'Sparkles' }
+      { id: 'analyticsCenter', name: 'Analytics Center', enabled: false, size: 'xl', order: 7, icon: 'BarChart3' },
+      { id: 'weeklyTrend', name: 'Weekly Trend', enabled: false, size: 'medium', order: 8, icon: 'TrendingUp' },
+      { id: 'teamLeaderboard', name: 'Team Leaderboard', enabled: true, size: 'medium', order: 9, icon: 'Trophy' },
+      { id: 'stats', name: 'Key Metrics', enabled: false, size: 'large', order: 10, icon: 'BarChart3' },
+      { id: 'habits', name: 'Streaks', enabled: false, size: 'small', order: 11, icon: 'Flame' },
+      { id: 'lifeBalance', name: 'Life Balance', enabled: false, size: 'medium', order: 12, icon: 'Target' },
+      { id: 'weekAtGlance', name: 'Week at a Glance', enabled: false, size: 'large', order: 13, icon: 'Calendar' },
+      { id: 'categoryBreakdown', name: 'Category Breakdown', enabled: false, size: 'medium', order: 14, icon: 'PieChart' },
+      { id: 'tasks', name: 'Task Overview', enabled: false, size: 'medium', order: 15, icon: 'CheckSquare' },
+      { id: 'calendar', name: 'Mini Calendar', enabled: false, size: 'medium', order: 16, icon: 'Calendar' },
+      { id: 'coach', name: 'AI Coach', enabled: false, size: 'medium', order: 17, icon: 'Brain' },
+      { id: 'challenges', name: 'Active Challenges', enabled: false, size: 'small', order: 18, icon: 'Trophy' },
+      { id: 'feed', name: 'Recent Activity', enabled: false, size: 'medium', order: 19, icon: 'MessageSquare' },
+      { id: 'goals', name: '2026 Goals', enabled: false, size: 'small', order: 20, icon: 'Target' },
+      { id: 'mood', name: 'Mood Tracker', enabled: false, size: 'small', order: 21, icon: 'Heart' },
+      { id: 'motivationalQuote', name: 'Motivation Boost', enabled: false, size: 'small', order: 22, icon: 'Sparkles' }
     ];
   });
   const [performanceDashboardStyle, setPerformanceDashboardStyle] = useState(() => {
@@ -4526,7 +4527,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
   // Save dashboard widgets to localStorage
   const saveDashboardWidgets = (widgets) => {
     setDashboardWidgets(widgets);
-    localStorage.setItem('dashboard_widgets_v6', JSON.stringify(widgets));
+    localStorage.setItem('dashboard_widgets_v7', JSON.stringify(widgets));
   };
 
   // Toggle widget enabled state
@@ -4561,11 +4562,15 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     e.dataTransfer.setData('text/plain', widgetId);
   };
 
-  // Handle drag over
+  // Handle drag over - track position for insert indicator
   const handleDragOver = (e, widgetId) => {
     e.preventDefault();
     if (draggingWidget && draggingWidget !== widgetId) {
-      setDragOverWidget(widgetId);
+      // Calculate if we're in the top or bottom half of the target
+      const rect = e.currentTarget.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const isTopHalf = y < rect.height / 2;
+      setDragOverWidget({ id: widgetId, position: isTopHalf ? 'before' : 'after' });
     }
   };
 
@@ -4575,7 +4580,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     setDragOverWidget(null);
   };
 
-  // Handle drop - reorder widgets
+  // Handle drop - insert widget at position
   const handleDrop = (e, targetWidgetId) => {
     e.preventDefault();
     if (!draggingWidget || draggingWidget === targetWidgetId) {
@@ -4585,12 +4590,22 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
 
     const widgets = [...dashboardWidgets];
     const dragIndex = widgets.findIndex(w => w.id === draggingWidget);
-    const dropIndex = widgets.findIndex(w => w.id === targetWidgetId);
+    let dropIndex = widgets.findIndex(w => w.id === targetWidgetId);
 
     if (dragIndex !== -1 && dropIndex !== -1) {
-      // Remove dragged item and insert at new position
+      // Adjust drop index based on position (before/after)
+      const insertAfter = dragOverWidget?.position === 'after';
+      
+      // Remove dragged item first
       const [draggedWidget] = widgets.splice(dragIndex, 1);
-      widgets.splice(dropIndex, 0, draggedWidget);
+      
+      // Recalculate drop index after removal
+      dropIndex = widgets.findIndex(w => w.id === targetWidgetId);
+      if (dropIndex === -1) dropIndex = widgets.length;
+      
+      // Insert at the correct position
+      const insertIndex = insertAfter ? dropIndex + 1 : dropIndex;
+      widgets.splice(insertIndex, 0, draggedWidget);
 
       // Update order values
       const reordered = widgets.map((w, i) => ({ ...w, order: i }));
@@ -6243,16 +6258,19 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 .sort((a, b) => a.order - b.order)
                 .map(widget => {
                   const isDragging = draggingWidget === widget.id;
-                  const isDragOver = dragOverWidget === widget.id;
-                  // Size classes: small=1col, medium=2col, large=4col (full width)
-                  const sizeClass = widget.size === 'large' 
-                    ? 'sm:col-span-2 lg:col-span-4' 
-                    : widget.size === 'medium' 
-                      ? 'sm:col-span-2 lg:col-span-2' 
-                      : 'col-span-1'; // small
+                  const isDragOverBefore = dragOverWidget?.id === widget.id && dragOverWidget?.position === 'before';
+                  const isDragOverAfter = dragOverWidget?.id === widget.id && dragOverWidget?.position === 'after';
+                  // Size classes: small=1col, medium=2col, large=4col (full width), xl=4col tall
+                  const sizeClass = widget.size === 'xl'
+                    ? 'sm:col-span-2 lg:col-span-4'
+                    : widget.size === 'large' 
+                      ? 'sm:col-span-2 lg:col-span-4' 
+                      : widget.size === 'medium' 
+                        ? 'sm:col-span-2 lg:col-span-2' 
+                        : 'col-span-1'; // small
                   
                   // Height classes based on size
-                  const heightClass = widget.size === 'small' ? 'max-h-[200px]' : widget.size === 'medium' ? '' : '';
+                  const heightClass = widget.size === 'small' ? 'max-h-[200px]' : widget.size === 'xl' ? 'min-h-[400px]' : '';
                   
                   return (
                     <div
@@ -6262,17 +6280,20 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       onDragOver={(e) => handleDragOver(e, widget.id)}
                       onDragEnd={handleDragEnd}
                       onDrop={(e) => handleDrop(e, widget.id)}
-                      className={`${sizeClass} rounded-2xl transition-all duration-200 ${
-                        isDragging ? 'opacity-50 scale-95' : ''
-                      } ${isDragOver ? 'ring-2 ring-blue-500 ring-offset-2' : ''} ${
-                        isEditingDashboard ? 'cursor-grab active:cursor-grabbing' : ''
-                      }`}
+                      className={`${sizeClass} rounded-2xl transition-all duration-200 relative ${
+                        isDragging ? 'opacity-50 scale-95 z-50' : ''
+                      } ${isEditingDashboard ? 'cursor-grab active:cursor-grabbing' : ''}`}
                     >
+                      {/* iOS-style insert indicator - before */}
+                      {isDragOverBefore && isEditingDashboard && (
+                        <div className="absolute -top-2 left-0 right-0 h-1 bg-blue-500 rounded-full z-20 shadow-lg shadow-blue-500/50" />
+                      )}
+                      
                       <div className={`h-full ${heightClass} rounded-2xl backdrop-blur-xl transition-colors duration-300 relative overflow-hidden ${
                         darkMode 
                           ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
                           : 'bg-white/70 border border-white/50'
-                      }`}>
+                      } ${isEditingDashboard ? 'ring-1 ring-dashed ring-gray-400/50' : ''}`}>
                         {/* Edit Mode Overlay */}
                         {isEditingDashboard && (
                           <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
@@ -6285,6 +6306,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               <option value="small">Small</option>
                               <option value="medium">Medium</option>
                               <option value="large">Large</option>
+                              <option value="xl">Extra Large</option>
                             </select>
                             <button 
                               onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }}
@@ -6293,6 +6315,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               <X className="w-3 h-3" />
                             </button>
                           </div>
+                        )}
+                        
+                        {/* iOS-style insert indicator - after */}
+                        {isDragOverAfter && isEditingDashboard && (
+                          <div className="absolute -bottom-2 left-0 right-0 h-1 bg-blue-500 rounded-full z-20 shadow-lg shadow-blue-500/50" />
                         )}
                         
                         {/* Widget: Performance Dashboard */}
@@ -6325,15 +6352,21 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               const groupHabits = habits.filter(h => periodWeeks.includes(h.weekStart));
                               const groupCompleted = groupHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
                               const groupTarget = groupHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                              const groupRate = groupTarget > 0 ? Math.round((groupCompleted / groupTarget) * 100) : 0;
                               
-                              // Per-participant rates for comparison
+                              // Per-participant rates for comparison (exclude 0% scores)
                               const participantRates = allParticipants.map(p => {
                                 const pHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === p);
                                 const pCompleted = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
                                 const pTarget = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
                                 return { name: p, rate: pTarget > 0 ? Math.round((pCompleted / pTarget) * 100) : 0, completed: pCompleted, target: pTarget };
-                              }).sort((a, b) => b.rate - a.rate);
+                              }).filter(p => p.rate > 0 || p.name === myParticipant) // Keep current user even if 0%, exclude others with 0%
+                                .sort((a, b) => b.rate - a.rate);
+                              
+                              // Recalculate group rate excluding 0% participants
+                              const activeParticipants = participantRates.filter(p => p.rate > 0);
+                              const groupRate = activeParticipants.length > 0 
+                                ? Math.round(activeParticipants.reduce((sum, p) => sum + p.rate, 0) / activeParticipants.length)
+                                : 0;
                               
                               const myRank = participantRates.findIndex(p => p.name === myParticipant) + 1;
                               const diff = myRate - groupRate;
@@ -6614,12 +6647,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Progress</span>
                             </div>
                             {(() => {
-                              const today = new Date();
-                              const dayOfWeek = today.getDay();
-                              const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                              const currentWeekHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                              const todayCompleted = currentWeekHabits.filter(h => (h.daysCompleted || []).includes(todayIndex)).length;
-                              const todayTotal = currentWeekHabits.length;
+                              const today = new Date().toISOString().split('T')[0];
+                              // Use tasks for daily completion rate
+                              const todayTasks = tasks.filter(t => t.dueDate === today && t.participant === myParticipant);
+                              const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
+                              const todayTotal = todayTasks.length;
                               const pct = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
                               
                               return (
@@ -6636,7 +6668,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                   </div>
                                   <div>
                                     <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}/{todayTotal}</p>
-                                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>habits today</p>
+                                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>tasks today</p>
                                   </div>
                                 </div>
                               );
@@ -7162,7 +7194,16 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                   const completed = pHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
                                   const rate = pHabits.length > 0 ? Math.round((completed / pHabits.length) * 100) : 0;
                                   return { name: p, rate, completed, total: pHabits.length };
-                                }).sort((a, b) => b.rate - a.rate);
+                                }).filter(p => p.rate > 0 || p.name === myParticipant) // Exclude 0% scores except current user
+                                  .sort((a, b) => b.rate - a.rate);
+                                
+                                if (leaderboard.length === 0) {
+                                  return (
+                                    <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                      No scores yet this week
+                                    </p>
+                                  );
+                                }
                                 
                                 return leaderboard.map((entry, idx) => (
                                   <div key={entry.name} className={`flex items-center gap-2 p-2 rounded-lg ${
@@ -7337,6 +7378,199 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               const dayIndex = new Date().getDate() % quotes.length;
                               return (
                                 <p className={`text-xs italic ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>"{quotes[dayIndex]}"</p>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Widget: Analytics Center (XL) */}
+                        {widget.id === 'analyticsCenter' && (
+                          <div className="p-5">
+                            {(() => {
+                              // Comprehensive analytics data
+                              const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
+                              const last12Weeks = weeksWithData.slice(-12);
+                              const today = new Date().toISOString().split('T')[0];
+                              
+                              // Task stats
+                              const myTasks = tasks.filter(t => t.participant === myParticipant);
+                              const todayTasks = myTasks.filter(t => t.dueDate === today);
+                              const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
+                              const weekTasks = myTasks.filter(t => {
+                                if (!t.dueDate) return false;
+                                const taskDate = new Date(t.dueDate);
+                                const weekAgo = new Date();
+                                weekAgo.setDate(weekAgo.getDate() - 7);
+                                return taskDate >= weekAgo;
+                              });
+                              const weekCompleted = weekTasks.filter(t => t.status === 'Completed').length;
+                              
+                              // Habit stats
+                              const myHabits = habits.filter(h => h.participant === myParticipant);
+                              const currentWeekHabits = myHabits.filter(h => h.weekStart === currentWeek);
+                              const totalDaysLogged = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                              const totalTarget = myHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                              const overallRate = totalTarget > 0 ? Math.round((totalDaysLogged / totalTarget) * 100) : 0;
+                              
+                              // Weekly trend
+                              const weeklyData = last12Weeks.map(week => {
+                                const wHabits = myHabits.filter(h => h.weekStart === week);
+                                const completed = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                                const target = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                                return { week: week.slice(5), rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
+                              });
+                              
+                              // Category stats
+                              const categoryStats = HABIT_CATEGORIES.map(cat => {
+                                const catHabits = myHabits.filter(h => h.category === cat.id);
+                                const completed = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                                const target = catHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                                return { ...cat, completed, target, rate: target > 0 ? Math.round((completed / target) * 100) : 0, count: catHabits.length };
+                              }).filter(c => c.count > 0).sort((a, b) => b.rate - a.rate);
+                              
+                              // Team comparison (excluding 0% scores)
+                              const teamStats = allParticipants.map(p => {
+                                const pHabits = habits.filter(h => h.participant === p);
+                                const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                                const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                                return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
+                              }).filter(p => p.rate > 0).sort((a, b) => b.rate - a.rate);
+                              
+                              const myRank = teamStats.findIndex(p => p.name === myParticipant) + 1;
+                              const teamAvg = teamStats.length > 0 ? Math.round(teamStats.reduce((sum, p) => sum + p.rate, 0) / teamStats.length) : 0;
+                              
+                              // Streak calculation
+                              const streak = calculateStreaks[myParticipant] || 0;
+                              
+                              return (
+                                <div className="space-y-5">
+                                  {/* Header */}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <BarChart3 className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                                      <span className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Analytics Center</span>
+                                    </div>
+                                    <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                      Last updated: {new Date().toLocaleTimeString()}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Top Stats Row */}
+                                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
+                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Today's Tasks</p>
+                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}/{todayTasks.length}</p>
+                                    </div>
+                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-100'}`}>
+                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-green-400' : 'text-green-600'}`}>Week Tasks</p>
+                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{weekCompleted}/{weekTasks.length}</p>
+                                    </div>
+                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-100'}`}>
+                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Overall Rate</p>
+                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{overallRate}%</p>
+                                    </div>
+                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-100'}`}>
+                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Current Streak</p>
+                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>🔥 {streak}</p>
+                                    </div>
+                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-pink-500/10 border border-pink-500/20' : 'bg-pink-50 border border-pink-100'}`}>
+                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-pink-400' : 'text-pink-600'}`}>Team Rank</p>
+                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>#{myRank || '-'}</p>
+                                    </div>
+                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-cyan-500/10 border border-cyan-500/20' : 'bg-cyan-50 border border-cyan-100'}`}>
+                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>vs Team Avg</p>
+                                      <p className={`text-2xl font-bold ${overallRate >= teamAvg ? 'text-green-500' : 'text-red-500'}`}>
+                                        {overallRate >= teamAvg ? '+' : ''}{overallRate - teamAvg}%
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Charts Row */}
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {/* 12-Week Trend */}
+                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                      <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>12-Week Trend</p>
+                                      <div className="h-36">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                          <AreaChart data={weeklyData}>
+                                            <defs>
+                                              <linearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                                              </linearGradient>
+                                            </defs>
+                                            <XAxis dataKey="week" tick={{ fontSize: 9, fill: darkMode ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} />
+                                            <YAxis hide domain={[0, 100]} />
+                                            <Tooltip content={({ payload, label }) => payload?.length ? (
+                                              <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-800 text-white' : 'bg-white shadow text-gray-800'}`}>
+                                                <p>{label}: {payload[0].value}%</p>
+                                              </div>
+                                            ) : null} />
+                                            <Area type="monotone" dataKey="rate" stroke="#8b5cf6" strokeWidth={2} fill="url(#analyticsGradient)" />
+                                          </AreaChart>
+                                        </ResponsiveContainer>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Category Breakdown */}
+                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                      <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Category Performance</p>
+                                      <div className="space-y-2">
+                                        {categoryStats.slice(0, 5).map(cat => (
+                                          <div key={cat.id} className="flex items-center gap-2">
+                                            <span className="w-6 text-center">{cat.icon}</span>
+                                            <span className={`text-xs w-20 truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cat.name}</span>
+                                            <div className={`flex-1 h-2 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                              <div className={`h-full rounded-full ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${cat.rate}%` }} />
+                                            </div>
+                                            <span className={`text-xs font-bold w-10 text-right ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{cat.rate}%</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Bottom Row: Team & Habits */}
+                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                    {/* Team Leaderboard */}
+                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                      <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Team Rankings (All Time)</p>
+                                      <div className="space-y-1.5">
+                                        {teamStats.slice(0, 5).map((p, idx) => (
+                                          <div key={p.name} className={`flex items-center gap-2 p-1.5 rounded ${p.name === myParticipant ? (darkMode ? 'bg-blue-500/20' : 'bg-blue-50') : ''}`}>
+                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                              idx === 0 ? 'bg-amber-500 text-white' : idx === 1 ? 'bg-gray-400 text-white' : idx === 2 ? 'bg-orange-600 text-white' : (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
+                                            }`}>{idx + 1}</span>
+                                            <span className={`flex-1 text-xs truncate ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{p.name}</span>
+                                            <span className={`text-xs font-bold ${p.rate >= 80 ? 'text-green-500' : p.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{p.rate}%</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* This Week's Habits */}
+                                    <div className={`p-4 rounded-xl lg:col-span-2 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                      <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>This Week's Habits ({currentWeekHabits.length})</p>
+                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {currentWeekHabits.slice(0, 6).map(habit => {
+                                          const status = getStatus(habit);
+                                          const pct = habit.target > 0 ? Math.round(((habit.daysCompleted?.length || 0) / habit.target) * 100) : 0;
+                                          return (
+                                            <div key={habit.id} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-600/50' : 'bg-white'}`}>
+                                              <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{habit.habit}</p>
+                                              <div className="flex items-center gap-2 mt-1">
+                                                <div className={`flex-1 h-1.5 rounded-full ${darkMode ? 'bg-gray-500' : 'bg-gray-200'}`}>
+                                                  <div className={`h-full rounded-full ${status === 'Done' || status === 'Exceeded' ? 'bg-green-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                                </div>
+                                                <span className={`text-[10px] font-bold ${status === 'Done' || status === 'Exceeded' ? 'text-green-500' : 'text-gray-500'}`}>{pct}%</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
                               );
                             })()}
                           </div>
@@ -8679,9 +8913,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                             updatedGroups.push(newGroup);
                             setManualMergeGroups(updatedGroups);
                             localStorage.setItem('manual_merge_groups', JSON.stringify(updatedGroups));
+                            // Clear selection but STAY in merge mode for next group
+                            setSelectedHabitsForMerge(new Set());
                           }
-                          setMonthlyMergeMode(false);
-                          setSelectedHabitsForMerge(new Set());
                         }}
                         disabled={selectedHabitsForMerge.size < 2}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
@@ -8696,7 +8930,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         onClick={() => { setMonthlyMergeMode(false); setSelectedHabitsForMerge(new Set()); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
                       >
-                        Cancel
+                        Done
                       </button>
                     </div>
                   ) : (
@@ -8913,19 +9147,36 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         });
                       }
 
-                      // Sort by most used (highest completion) to least used
+                      // Define merge group colors for highlighting
+                      const mergeGroupColors = [
+                        { bg: 'bg-blue-500/20', border: 'border-blue-500/30', bgLight: 'bg-blue-50', borderLight: 'border-blue-200' },
+                        { bg: 'bg-green-500/20', border: 'border-green-500/30', bgLight: 'bg-green-50', borderLight: 'border-green-200' },
+                        { bg: 'bg-amber-500/20', border: 'border-amber-500/30', bgLight: 'bg-amber-50', borderLight: 'border-amber-200' },
+                        { bg: 'bg-pink-500/20', border: 'border-pink-500/30', bgLight: 'bg-pink-50', borderLight: 'border-pink-200' },
+                        { bg: 'bg-cyan-500/20', border: 'border-cyan-500/30', bgLight: 'bg-cyan-50', borderLight: 'border-cyan-200' },
+                        { bg: 'bg-orange-500/20', border: 'border-orange-500/30', bgLight: 'bg-orange-50', borderLight: 'border-orange-200' },
+                      ];
+                      
+                      // Get merge group index for a habit key
+                      const getMergeGroupIndex = (key) => {
+                        return manualMergeGroups.findIndex(group => group.includes(key));
+                      };
+
+                      // Sort: alphabetically in merge mode, by usage otherwise
                       const sortedGroups = Object.values(habitGroups).sort((a, b) => {
-                        // First by total completed (descending)
+                        if (monthlyMergeMode) {
+                          // Alphabetical sort in merge mode
+                          return a.habit.localeCompare(b.habit);
+                        }
+                        // Normal mode: sort by most used (highest completion) to least used
                         if (b.totalCompleted !== a.totalCompleted) {
                           return b.totalCompleted - a.totalCompleted;
                         }
-                        // Then by completion percentage (descending)
                         const aPct = a.totalTarget > 0 ? a.totalCompleted / a.totalTarget : 0;
                         const bPct = b.totalTarget > 0 ? b.totalCompleted / b.totalTarget : 0;
                         if (bPct !== aPct) {
                           return bPct - aPct;
                         }
-                        // Finally alphabetically
                         return a.habit.localeCompare(b.habit);
                       });
 
@@ -8951,44 +9202,63 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           (group.baseKeys && group.baseKeys.some(k => selectedHabitsForMerge.has(k)))
                         );
                         
+                        // Check if this habit belongs to an existing merge group
+                        const mergeGroupIdx = getMergeGroupIndex(selectKey);
+                        const isMergedGroup = mergeGroupIdx >= 0;
+                        const mergeColor = isMergedGroup ? mergeGroupColors[mergeGroupIdx % mergeGroupColors.length] : null;
+                        
+                        // Determine row background
+                        let rowBg;
+                        if (isSelected) {
+                          rowBg = darkMode ? 'bg-purple-500/30 border-purple-500/40' : 'bg-purple-100 border-purple-300';
+                        } else if (monthlyMergeMode && isMergedGroup) {
+                          rowBg = darkMode ? `${mergeColor.bg} ${mergeColor.border}` : `${mergeColor.bgLight} ${mergeColor.borderLight}`;
+                        } else if (isEvenRow) {
+                          rowBg = darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50/50 border-gray-100';
+                        } else {
+                          rowBg = darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+                        }
+                        
                         return (
-                          <tr key={group.key} className={`border-t transition-colors ${
-                            isSelected ? (darkMode ? 'bg-purple-500/20 border-purple-500/30' : 'bg-purple-50 border-purple-200') :
-                            isEvenRow 
-                              ? darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50/50 border-gray-100'
-                              : darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-                          } ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50/30'}`}>
+                          <tr key={group.key} className={`border-t transition-colors ${rowBg} ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-blue-50/30'}`}>
                             {/* Checkbox for merge mode */}
                             {monthlyMergeMode && (
                               <td className="p-2">
-                                <button 
-                                  onClick={() => {
-                                    const newSet = new Set(selectedHabitsForMerge);
-                                    // Use selectKey for toggle
-                                    if (isSelected) {
-                                      // Remove all baseKeys
-                                      (group.baseKeys || [selectKey]).forEach(k => newSet.delete(k));
-                                    } else {
-                                      // Add selectKey
-                                      newSet.add(selectKey);
-                                    }
-                                    setSelectedHabitsForMerge(newSet);
-                                  }}
-                                  className={`w-5 h-5 rounded flex items-center justify-center border-2 ${
-                                    isSelected 
-                                      ? 'bg-purple-500 border-purple-500 text-white'
-                                      : darkMode ? 'border-gray-600 hover:border-purple-400' : 'border-gray-300 hover:border-purple-400'
-                                  }`}
-                                >
-                                  {isSelected && <Check className="w-3 h-3" />}
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  {isMergedGroup && (
+                                    <span className={`w-2 h-2 rounded-full ${darkMode ? mergeColor.bg.replace('/20', '') : mergeColor.bgLight.replace('50', '500')}`} 
+                                      style={{ backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#ec4899', '#06b6d4', '#f97316'][mergeGroupIdx % 6] }}
+                                      title={`Merge group ${mergeGroupIdx + 1}`}
+                                    />
+                                  )}
+                                  <button 
+                                    onClick={() => {
+                                      const newSet = new Set(selectedHabitsForMerge);
+                                      if (isSelected) {
+                                        (group.baseKeys || [selectKey]).forEach(k => newSet.delete(k));
+                                      } else {
+                                        newSet.add(selectKey);
+                                      }
+                                      setSelectedHabitsForMerge(newSet);
+                                    }}
+                                    className={`w-5 h-5 rounded flex items-center justify-center border-2 ${
+                                      isSelected 
+                                        ? 'bg-purple-500 border-purple-500 text-white'
+                                        : darkMode ? 'border-gray-600 hover:border-purple-400' : 'border-gray-300 hover:border-purple-400'
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="w-3 h-3" />}
+                                  </button>
+                                </div>
                               </td>
                             )}
                             
                             {/* Habit Name - Sticky */}
                             <td className={`p-2 sticky left-0 z-10 ${
-                              isSelected ? (darkMode ? 'bg-purple-500/20' : 'bg-purple-50') :
-                              isEvenRow 
+                              isSelected ? (darkMode ? 'bg-purple-500/30' : 'bg-purple-100') :
+                              monthlyMergeMode && isMergedGroup 
+                                ? (darkMode ? mergeColor.bg : mergeColor.bgLight)
+                                : isEvenRow 
                                 ? darkMode ? 'bg-gray-800/95' : 'bg-gray-50/95'
                                 : darkMode ? 'bg-gray-800/95' : 'bg-white/95'
                             }`}>
