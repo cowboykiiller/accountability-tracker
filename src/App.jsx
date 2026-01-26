@@ -7131,7 +7131,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           1 vs 1 Duel
                         </button>
                         <button
-                          onClick={() => setNewBet({ ...newBet, isGroup: true, challenged: [] })}
+                          onClick={() => setNewBet({ ...newBet, isGroup: true, challenged: [], allowMultipleWinners: true })}
                           className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-gray-700 text-white/70 hover:bg-gray-600'}`}
                         >
                           <Users className="w-4 h-4" />
@@ -7273,14 +7273,17 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       {/* Multiple Winners Option (for group challenges) */}
                       {newBet.isGroup && (
                         <div>
-                          <label className="text-purple-300 text-sm font-medium block mb-2">🎖️ Winners</label>
+                          <label className="text-purple-300 text-sm font-medium block mb-2">🎖️ Winner Mode</label>
                           <button
                             onClick={() => setNewBet({ ...newBet, allowMultipleWinners: !newBet.allowMultipleWinners })}
                             className={`w-full py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.allowMultipleWinners ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gray-700 text-white/70 hover:bg-gray-600'}`}
                           >
                             <Users className="w-4 h-4" />
-                            {newBet.allowMultipleWinners ? 'Multi-Winner' : 'Single Winner'}
+                            {newBet.allowMultipleWinners ? '✅ Multiple Winners Allowed' : 'Single Winner Only'}
                           </button>
+                          <p className="text-xs text-gray-400 mt-1 text-center">
+                            {newBet.allowMultipleWinners ? 'Everyone who completes the goal wins!' : 'Only one person can win'}
+                          </p>
                         </div>
                       )}
                     </div>
