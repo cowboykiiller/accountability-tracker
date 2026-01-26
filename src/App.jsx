@@ -930,18 +930,22 @@ export default function AccountabilityTracker() {
   
   // Dashboard Widgets
   const [dashboardWidgets, setDashboardWidgets] = useState(() => {
-    const saved = localStorage.getItem('dashboard_widgets_v2');
+    const saved = localStorage.getItem('dashboard_widgets_v3');
     return saved ? JSON.parse(saved) : [
-      { id: 'progress', name: 'Today\'s Progress', enabled: true, size: 'large', order: 0, icon: 'Target' },
-      { id: 'tasks', name: 'Today\'s Tasks', enabled: true, size: 'medium', order: 1, icon: 'CheckSquare' },
-      { id: 'habits', name: 'Habit Streaks', enabled: true, size: 'medium', order: 2, icon: 'Flame' },
-      { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small', order: 3, icon: 'Quote' },
-      { id: 'calendar', name: 'Mini Calendar', enabled: false, size: 'medium', order: 4, icon: 'Calendar' },
-      { id: 'coach', name: 'AI Coach', enabled: false, size: 'medium', order: 5, icon: 'Brain' },
-      { id: 'challenges', name: 'Active Challenges', enabled: false, size: 'small', order: 6, icon: 'Trophy' },
-      { id: 'feed', name: 'Recent Activity', enabled: false, size: 'medium', order: 7, icon: 'MessageSquare' },
-      { id: 'goals', name: '2026 Goals', enabled: false, size: 'small', order: 8, icon: 'Target' },
-      { id: 'mood', name: 'Mood Tracker', enabled: false, size: 'small', order: 9, icon: 'Heart' }
+      { id: 'progress', name: 'Today\'s Progress', enabled: true, size: 'medium', order: 0, icon: 'Target' },
+      { id: 'stats', name: 'Key Metrics', enabled: true, size: 'large', order: 1, icon: 'BarChart3' },
+      { id: 'dailyHabits', name: 'Daily Habits', enabled: true, size: 'medium', order: 2, icon: 'CheckSquare' },
+      { id: 'dailyTasks', name: 'Daily Tasks', enabled: true, size: 'medium', order: 3, icon: 'ListTodo' },
+      { id: 'habits', name: 'Streaks', enabled: true, size: 'small', order: 4, icon: 'Flame' },
+      { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small', order: 5, icon: 'Quote' },
+      { id: 'lifeBalance', name: 'Life Balance', enabled: true, size: 'medium', order: 6, icon: 'Target' },
+      { id: 'tasks', name: 'Task Overview', enabled: false, size: 'medium', order: 7, icon: 'CheckSquare' },
+      { id: 'calendar', name: 'Mini Calendar', enabled: false, size: 'medium', order: 8, icon: 'Calendar' },
+      { id: 'coach', name: 'AI Coach', enabled: false, size: 'medium', order: 9, icon: 'Brain' },
+      { id: 'challenges', name: 'Active Challenges', enabled: false, size: 'small', order: 10, icon: 'Trophy' },
+      { id: 'feed', name: 'Recent Activity', enabled: false, size: 'medium', order: 11, icon: 'MessageSquare' },
+      { id: 'goals', name: '2026 Goals', enabled: false, size: 'small', order: 12, icon: 'Target' },
+      { id: 'mood', name: 'Mood Tracker', enabled: false, size: 'small', order: 13, icon: 'Heart' }
     ];
   });
   const [showWidgetCustomizer, setShowWidgetCustomizer] = useState(false);
@@ -2972,8 +2976,9 @@ JSON array only:`
     const habitsToUse = dashboardView === 'personal' ? myRangeHabits : getRangeHabits;
     const total = habitsToUse.length, completed = habitsToUse.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
     const exceeded = habitsToUse.filter(h => getStatus(h) === 'Exceeded').length, missed = habitsToUse.filter(h => getStatus(h) === 'Missed').length;
+    const inProgress = total - completed - missed;
     const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { total, completed, exceeded, missed, rate, trend: 5 };
+    return { total, completed, exceeded, missed, inProgress, rate, trend: 5 };
   }, [getRangeHabits, myRangeHabits, dashboardView]);
 
   // Team comparison - calculate your rank
@@ -4459,7 +4464,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
   // Save dashboard widgets to localStorage
   const saveDashboardWidgets = (widgets) => {
     setDashboardWidgets(widgets);
-    localStorage.setItem('dashboard_widgets_v2', JSON.stringify(widgets));
+    localStorage.setItem('dashboard_widgets_v3', JSON.stringify(widgets));
   };
 
   // Toggle widget enabled state
@@ -4544,7 +4549,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
   // Get widget icon component
   const getWidgetIcon = (iconName) => {
     const icons = {
-      Target, CheckSquare, Flame, Quote, Calendar, Brain, Trophy, MessageSquare, Heart
+      Target, CheckSquare, Flame, Quote, Calendar, Brain, Trophy, MessageSquare, Heart, BarChart3, ListTodo
     };
     return icons[iconName] || Target;
   };
@@ -6231,11 +6236,13 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Progress</span>
                             </div>
                             {(() => {
-                              const today = new Date().toISOString().split('T')[0];
-                              const todayHabits = habits.filter(h => h.date === today && h.participant === myParticipant);
-                              const completed = todayHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                              const total = todayHabits.length;
-                              const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                              const today = new Date();
+                              const dayOfWeek = today.getDay();
+                              const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                              const currentWeekHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+                              const todayCompleted = currentWeekHabits.filter(h => (h.daysCompleted || []).includes(todayIndex)).length;
+                              const todayTotal = currentWeekHabits.length;
+                              const pct = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
                               
                               return (
                                 <div className="flex items-center gap-4">
@@ -6250,10 +6257,267 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                     </div>
                                   </div>
                                   <div>
-                                    <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{completed}/{total}</p>
-                                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>habits completed</p>
+                                    <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}/{todayTotal}</p>
+                                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>habits today</p>
                                   </div>
                                 </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Widget: Key Metrics */}
+                        {widget.id === 'stats' && (
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <BarChart3 className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Key Metrics</span>
+                              </div>
+                              <select 
+                                value={scorecardRange} 
+                                onChange={(e) => setScorecardRange(e.target.value)}
+                                className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
+                              >
+                                <option value="week">This Week</option>
+                                <option value="4weeks">Last 4 Weeks</option>
+                                <option value="quarter">Quarter</option>
+                                <option value="year">Year</option>
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-5 gap-2">
+                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                <Target className="w-4 h-4 mx-auto text-purple-500 mb-1" />
+                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.rate}%</p>
+                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Complete</p>
+                              </div>
+                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                <CheckCircle2 className="w-4 h-4 mx-auto text-blue-500 mb-1" />
+                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.total}</p>
+                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total</p>
+                              </div>
+                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                <Award className="w-4 h-4 mx-auto text-green-500 mb-1" />
+                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.exceeded}</p>
+                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Exceeded</p>
+                              </div>
+                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                <XCircle className="w-4 h-4 mx-auto text-red-500 mb-1" />
+                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.missed}</p>
+                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Missed</p>
+                              </div>
+                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                <Clock className="w-4 h-4 mx-auto text-amber-500 mb-1" />
+                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.inProgress}</p>
+                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>In Progress</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Widget: Daily Habits */}
+                        {widget.id === 'dailyHabits' && (
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <CheckSquare className={`w-4 h-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Habits</span>
+                              </div>
+                              <button onClick={() => setActiveView('tracker')} className={`text-xs ${darkMode ? 'text-green-400' : 'text-green-600'}`}>View all →</button>
+                            </div>
+                            {(() => {
+                              const today = new Date();
+                              const dayOfWeek = today.getDay();
+                              const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                              const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+                              
+                              if (myHabits.length === 0) return <p className={`text-xs text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No habits this week</p>;
+                              
+                              return (
+                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                  {myHabits.map(habit => {
+                                    const isCompleted = (habit.daysCompleted || []).includes(todayIndex);
+                                    return (
+                                      <div key={habit.id} className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                                        isCompleted 
+                                          ? darkMode ? 'bg-green-500/20' : 'bg-green-50' 
+                                          : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                                      }`}>
+                                        <button 
+                                          onClick={() => toggleDay(habit.id, todayIndex)}
+                                          className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-all ${
+                                            isCompleted 
+                                              ? 'bg-green-500 text-white' 
+                                              : darkMode ? 'bg-gray-600 hover:bg-green-500/50' : 'bg-gray-200 hover:bg-green-200'
+                                          }`}
+                                        >
+                                          {isCompleted && <Check className="w-3 h-3" />}
+                                        </button>
+                                        <span className={`text-xs flex-1 ${isCompleted ? 'line-through opacity-60' : ''} ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                          {habit.habit}
+                                        </span>
+                                        <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                          {(habit.daysCompleted || []).length}/{habit.target || 5}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Widget: Daily Tasks */}
+                        {widget.id === 'dailyTasks' && (
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <ListTodo className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Tasks</span>
+                              </div>
+                              <button onClick={() => setActiveView('tasks')} className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>View all →</button>
+                            </div>
+                            {(() => {
+                              const today = new Date().toISOString().split('T')[0];
+                              const todayTasks = tasks.filter(t => t.participant === myParticipant && t.dueDate === today);
+                              const completed = todayTasks.filter(t => t.status === 'Completed').length;
+                              
+                              if (todayTasks.length === 0) return (
+                                <div className="text-center py-4">
+                                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No tasks for today</p>
+                                  <button onClick={() => setActiveView('tasks')} className={`text-xs mt-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                                    + Add task
+                                  </button>
+                                </div>
+                              );
+                              
+                              return (
+                                <>
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <div className={`flex-1 h-1.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                      <div 
+                                        className={`h-1.5 rounded-full ${completed === todayTasks.length ? 'bg-green-500' : 'bg-blue-500'}`}
+                                        style={{ width: `${(completed / todayTasks.length) * 100}%` }}
+                                      />
+                                    </div>
+                                    <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{completed}/{todayTasks.length}</span>
+                                  </div>
+                                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                                    {todayTasks.map(task => (
+                                      <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg ${
+                                        task.status === 'Completed' 
+                                          ? darkMode ? 'bg-green-500/20' : 'bg-green-50'
+                                          : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                                      }`}>
+                                        <button 
+                                          onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
+                                          className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                                            task.status === 'Completed' 
+                                              ? 'bg-green-500 border-green-500 text-white' 
+                                              : darkMode ? 'border-gray-500 hover:border-green-400' : 'border-gray-300 hover:border-green-400'
+                                          }`}
+                                        >
+                                          {task.status === 'Completed' && <Check className="w-2.5 h-2.5" />}
+                                        </button>
+                                        <span className={`text-xs flex-1 truncate ${task.status === 'Completed' ? 'line-through opacity-60' : ''} ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                          {task.task}
+                                        </span>
+                                        {task.time_slot && <span className={`text-[10px] ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{task.time_slot}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Widget: Life Balance */}
+                        {widget.id === 'lifeBalance' && (
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <BarChart3 className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Life Balance</span>
+                            </div>
+                            {(() => {
+                              // Calculate life balance data
+                              const myHabits = habits.filter(h => h.participant === myParticipant);
+                              const categoryData = HABIT_CATEGORIES.map(cat => {
+                                const catHabits = myHabits.filter(h => h.category === cat.id);
+                                const totalDaysCompleted = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                                const completedHabits = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                                const completionRate = catHabits.length > 0 ? (completedHabits / catHabits.length) * 100 : 0;
+                                return { ...cat, volume: totalDaysCompleted, completionRate, habitCount: catHabits.length };
+                              });
+                              
+                              const maxVolume = Math.max(...categoryData.map(c => c.volume), 1);
+                              const scores = categoryData.map(cat => {
+                                const volumeScore = (cat.volume / maxVolume) * 100;
+                                const score = cat.habitCount > 0 
+                                  ? Math.round((volumeScore * 0.4) + (cat.completionRate * 0.6))
+                                  : 0;
+                                return { ...cat, score };
+                              });
+                              
+                              return (
+                                <>
+                                  {/* Simple Radar Chart */}
+                                  <div className="relative w-full max-w-[180px] mx-auto aspect-square">
+                                    <svg viewBox="0 0 200 200" className="w-full h-full">
+                                      {/* Background rings */}
+                                      {[20, 40, 60, 80, 100].map((r, i) => (
+                                        <circle key={i} cx="100" cy="100" r={r * 0.7} fill="none" 
+                                          stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="1" opacity={0.5} />
+                                      ))}
+                                      
+                                      {/* Axis lines */}
+                                      {scores.map((_, i) => {
+                                        const angle = (i * 360 / scores.length - 90) * (Math.PI / 180);
+                                        const x2 = 100 + Math.cos(angle) * 70;
+                                        const y2 = 100 + Math.sin(angle) * 70;
+                                        return (
+                                          <line key={i} x1="100" y1="100" x2={x2} y2={y2} 
+                                            stroke={darkMode ? '#4B5563' : '#d1d5db'} strokeWidth="1" />
+                                        );
+                                      })}
+                                      
+                                      {/* Data polygon */}
+                                      <polygon
+                                        points={scores.map((cat, i) => {
+                                          const angle = (i * 360 / scores.length - 90) * (Math.PI / 180);
+                                          const r = (cat.score / 100) * 70;
+                                          return `${100 + Math.cos(angle) * r},${100 + Math.sin(angle) * r}`;
+                                        }).join(' ')}
+                                        fill="rgba(59, 130, 246, 0.2)"
+                                        stroke="#3b82f6"
+                                        strokeWidth="2"
+                                      />
+                                      
+                                      {/* Labels */}
+                                      {scores.map((cat, i) => {
+                                        const angle = (i * 360 / scores.length - 90) * (Math.PI / 180);
+                                        const x = 100 + Math.cos(angle) * 90;
+                                        const y = 100 + Math.sin(angle) * 90;
+                                        return (
+                                          <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle"
+                                            className={`text-[10px] font-medium ${darkMode ? 'fill-gray-400' : 'fill-gray-600'}`}>
+                                            {cat.icon}
+                                          </text>
+                                        );
+                                      })}
+                                    </svg>
+                                  </div>
+                                  {/* Category Legend */}
+                                  <div className="grid grid-cols-4 gap-1 mt-2">
+                                    {scores.slice(0, 8).map(cat => (
+                                      <div key={cat.id} className="text-center">
+                                        <span className="text-sm">{cat.icon}</span>
+                                        <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{cat.score}%</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
                               );
                             })()}
                           </div>
@@ -6361,12 +6625,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               <button onClick={() => setActiveView('compete')} className={`text-xs ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>View all →</button>
                             </div>
                             {(() => {
-                              const active = challenges.filter(c => c.status === 'active').slice(0, 2);
-                              if (active.length === 0) return <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No active challenges</p>;
-                              return active.map(c => (
-                                <div key={c.id} className={`p-2 rounded-lg mb-2 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                  <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{c.title}</p>
-                                  <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{c.participants?.length || 0} participants</p>
+                              const activeBets = bets.filter(b => b.status === 'active').slice(0, 2);
+                              if (activeBets.length === 0) return <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No active challenges</p>;
+                              return activeBets.map(bet => (
+                                <div key={bet.id} className={`p-2 rounded-lg mb-2 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                  <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{bet.goal}</p>
+                                  <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</p>
                                 </div>
                               ));
                             })()}
