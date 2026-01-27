@@ -6340,196 +6340,445 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           <div className="absolute -bottom-2 left-0 right-0 h-1 bg-blue-500 rounded-full z-20 shadow-lg shadow-blue-500/50" />
                         )}
                         
-                        {/* Widget: Command Center (Integrated Analytics + Performance) */}
+                        {/* Widget: Command Center (Comprehensive Analytics Dashboard) */}
                         {widget.id === 'commandCenter' && (
-                          <div className="p-4">
+                          <div className="p-4 h-full overflow-y-auto">
                             {(() => {
                               const today = new Date().toISOString().split('T')[0];
                               const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
-                              const last8Weeks = weeksWithData.slice(-8);
                               
-                              // Task stats
+                              // Get period weeks based on selection
+                              const getPeriodWeeks = () => {
+                                switch (performanceDashboardPeriod) {
+                                  case 'week': return weeksWithData.slice(-1);
+                                  case 'month': return weeksWithData.slice(-4);
+                                  case 'quarter': return weeksWithData.slice(-13);
+                                  case 'year': return weeksWithData.slice(-52);
+                                  default: return weeksWithData.slice(-4);
+                                }
+                              };
+                              const periodWeeks = getPeriodWeeks();
+                              const last12Weeks = weeksWithData.slice(-12);
+                              
+                              // TODAY'S STATS
+                              const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
                               const myTasks = tasks.filter(t => t.participant === myParticipant);
                               const todayTasks = myTasks.filter(t => t.dueDate === today);
                               const todayTasksCompleted = todayTasks.filter(t => t.status === 'Completed').length;
                               const taskPct = todayTasks.length > 0 ? Math.round((todayTasksCompleted / todayTasks.length) * 100) : 0;
                               
-                              // Habit stats for current week
+                              const weekTasks = myTasks.filter(t => {
+                                if (!t.dueDate) return false;
+                                const taskDate = new Date(t.dueDate);
+                                const weekAgo = new Date();
+                                weekAgo.setDate(weekAgo.getDate() - 7);
+                                return taskDate >= weekAgo;
+                              });
+                              const weekTasksCompleted = weekTasks.filter(t => t.status === 'Completed').length;
+                              
+                              // HABIT STATS
                               const currentWeekHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                              const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
                               const todayHabitsCompleted = currentWeekHabits.filter(h => (h.daysCompleted || []).includes(todayIdx)).length;
                               const habitPct = currentWeekHabits.length > 0 ? Math.round((todayHabitsCompleted / currentWeekHabits.length) * 100) : 0;
                               
-                              // Overall habit completion
+                              // Period habits
+                              const myPeriodHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === myParticipant);
+                              const myPeriodCompleted = myPeriodHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                              const myPeriodTarget = myPeriodHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                              const myPeriodRate = myPeriodTarget > 0 ? Math.round((myPeriodCompleted / myPeriodTarget) * 100) : 0;
+                              const myHabitsHit = myPeriodHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
+                              
+                              // All-time stats
                               const myAllHabits = habits.filter(h => h.participant === myParticipant);
                               const totalCompleted = myAllHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
                               const totalTarget = myAllHabits.reduce((sum, h) => sum + (h.target || 0), 0);
                               const overallRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
                               
-                              // Team stats (exclude 0%)
+                              // TEAM STATS (exclude 0%)
                               const teamStats = allParticipants.map(p => {
-                                const pHabits = habits.filter(h => h.participant === p);
+                                const pHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === p);
                                 const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
                                 const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
-                              }).filter(p => p.rate > 0).sort((a, b) => b.rate - a.rate);
+                                return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0, completed, target };
+                              }).filter(p => p.rate > 0 || p.name === myParticipant).sort((a, b) => b.rate - a.rate);
                               
+                              const activeTeam = teamStats.filter(p => p.rate > 0);
+                              const teamAvg = activeTeam.length > 0 ? Math.round(activeTeam.reduce((sum, p) => sum + p.rate, 0) / activeTeam.length) : 0;
                               const myRank = teamStats.findIndex(p => p.name === myParticipant) + 1;
-                              const teamAvg = teamStats.length > 0 ? Math.round(teamStats.reduce((sum, p) => sum + p.rate, 0) / teamStats.length) : 0;
+                              const diff = myPeriodRate - teamAvg;
                               const streak = calculateStreaks[myParticipant] || 0;
                               
-                              // Trend data
-                              const trendData = last8Weeks.map(week => {
+                              // TREND DATA
+                              const trendData = last12Weeks.map(week => {
                                 const wHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
-                                const completed = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const target = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                return { week: week.slice(5), rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
+                                const wCompleted = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                                const wTarget = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                                const gHabits = habits.filter(h => h.weekStart === week);
+                                const gCompleted = gHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                                const gTarget = gHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                                return { 
+                                  week: week.slice(5), 
+                                  you: wTarget > 0 ? Math.round((wCompleted / wTarget) * 100) : 0,
+                                  group: gTarget > 0 ? Math.round((gCompleted / gTarget) * 100) : 0
+                                };
                               });
+                              
+                              // CATEGORY BREAKDOWN
+                              const categoryData = HABIT_CATEGORIES.map(cat => {
+                                const catHabits = myPeriodHabits.filter(h => h.category === cat.id);
+                                const catCompleted = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                                const catTarget = catHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                                return { 
+                                  id: cat.id, 
+                                  name: cat.name, 
+                                  icon: cat.icon, 
+                                  color: cat.color,
+                                  rate: catTarget > 0 ? Math.round((catCompleted / catTarget) * 100) : 0, 
+                                  count: catHabits.length,
+                                  completed: catCompleted,
+                                  target: catTarget
+                                };
+                              }).filter(c => c.count > 0).sort((a, b) => b.rate - a.rate);
+                              
+                              // Best/Worst categories
+                              const bestCat = categoryData[0];
+                              const worstCat = categoryData[categoryData.length - 1];
                               
                               return (
                                 <div className="space-y-4">
-                                  {/* Header with tabs */}
-                                  <div className="flex items-center justify-between">
+                                  {/* Header Row */}
+                                  <div className="flex items-center justify-between flex-wrap gap-2">
                                     <div className="flex items-center gap-2">
-                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-gradient-to-br from-blue-500 to-purple-600' : 'bg-gradient-to-br from-blue-500 to-purple-600'}`}>
-                                        <BarChart3 className="w-4 h-4 text-white" />
+                                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500`}>
+                                        <BarChart3 className="w-5 h-5 text-white" />
                                       </div>
-                                      <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Command Center</span>
+                                      <div>
+                                        <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Command Center</h3>
+                                        <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                        </p>
+                                      </div>
                                     </div>
-                                    <div className={`flex rounded-lg p-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                                      {['overview', 'trends', 'team'].map(tab => (
-                                        <button
-                                          key={tab}
-                                          onClick={() => setCommandCenterTab(tab)}
-                                          className={`px-2 py-1 text-xs rounded capitalize transition-all ${
-                                            commandCenterTab === tab
-                                              ? darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-800 shadow-sm'
-                                              : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
-                                          }`}
-                                        >
-                                          {tab}
-                                        </button>
-                                      ))}
+                                    <div className="flex items-center gap-2">
+                                      <select 
+                                        value={performanceDashboardPeriod}
+                                        onChange={(e) => setPerformanceDashboardPeriod(e.target.value)}
+                                        className={`text-xs px-2 py-1 rounded-lg ${darkMode ? 'bg-gray-700 text-gray-300 border-gray-600' : 'bg-gray-100 text-gray-700 border-gray-200'} border`}
+                                      >
+                                        <option value="week">This Week</option>
+                                        <option value="month">Last 4 Weeks</option>
+                                        <option value="quarter">Quarter</option>
+                                        <option value="year">Year</option>
+                                      </select>
+                                      <div className={`flex rounded-lg p-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                                        {['overview', 'analytics', 'team'].map(tab => (
+                                          <button
+                                            key={tab}
+                                            onClick={() => setCommandCenterTab(tab)}
+                                            className={`px-2 py-1 text-xs rounded capitalize transition-all ${
+                                              commandCenterTab === tab
+                                                ? darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-800 shadow-sm'
+                                                : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+                                            }`}
+                                          >
+                                            {tab}
+                                          </button>
+                                        ))}
+                                      </div>
                                     </div>
                                   </div>
                                   
-                                  {/* Overview Tab */}
+                                  {/* ==================== OVERVIEW TAB ==================== */}
                                   {commandCenterTab === 'overview' && (
-                                    <>
-                                      {/* Main Progress Circles */}
-                                      <div className="grid grid-cols-2 gap-4">
-                                        {/* Tasks Circle */}
-                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+                                    <div className="space-y-4">
+                                      {/* Today's Focus Row */}
+                                      <div className="grid grid-cols-2 gap-3">
+                                        {/* Tasks Today */}
+                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30' : 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'}`}>
                                           <div className="flex items-center gap-3">
-                                            <div className="relative w-14 h-14">
+                                            <div className="relative w-12 h-12">
                                               <svg className="w-full h-full transform -rotate-90">
-                                                <circle cx="28" cy="28" r="24" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="4" fill="none" />
-                                                <circle cx="28" cy="28" r="24" stroke="#3b82f6" strokeWidth="4" fill="none" strokeLinecap="round"
-                                                  strokeDasharray={`${taskPct * 1.5} 150`} />
+                                                <circle cx="24" cy="24" r="20" stroke={darkMode ? '#374151' : '#dbeafe'} strokeWidth="4" fill="none" />
+                                                <circle cx="24" cy="24" r="20" stroke="#3b82f6" strokeWidth="4" fill="none" strokeLinecap="round"
+                                                  strokeDasharray={`${taskPct * 1.26} 126`} />
                                               </svg>
-                                              <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{taskPct}%</span>
+                                              <ListTodo className={`absolute inset-0 m-auto w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
                                             </div>
                                             <div>
-                                              <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Today's Tasks</p>
-                                              <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayTasksCompleted}/{todayTasks.length}</p>
+                                              <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Tasks Today</p>
+                                              <p className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayTasksCompleted}<span className="text-sm opacity-50">/{todayTasks.length}</span></p>
                                             </div>
                                           </div>
                                         </div>
                                         
-                                        {/* Habits Circle */}
-                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-purple-500/10' : 'bg-purple-50'}`}>
+                                        {/* Habits Today */}
+                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/30' : 'bg-gradient-to-br from-green-50 to-green-100 border border-green-200'}`}>
                                           <div className="flex items-center gap-3">
-                                            <div className="relative w-14 h-14">
+                                            <div className="relative w-12 h-12">
                                               <svg className="w-full h-full transform -rotate-90">
-                                                <circle cx="28" cy="28" r="24" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="4" fill="none" />
-                                                <circle cx="28" cy="28" r="24" stroke="#8b5cf6" strokeWidth="4" fill="none" strokeLinecap="round"
-                                                  strokeDasharray={`${habitPct * 1.5} 150`} />
+                                                <circle cx="24" cy="24" r="20" stroke={darkMode ? '#374151' : '#dcfce7'} strokeWidth="4" fill="none" />
+                                                <circle cx="24" cy="24" r="20" stroke="#22c55e" strokeWidth="4" fill="none" strokeLinecap="round"
+                                                  strokeDasharray={`${habitPct * 1.26} 126`} />
                                               </svg>
-                                              <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{habitPct}%</span>
+                                              <CheckSquare className={`absolute inset-0 m-auto w-4 h-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
                                             </div>
                                             <div>
-                                              <p className={`text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Today's Habits</p>
-                                              <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayHabitsCompleted}/{currentWeekHabits.length}</p>
+                                              <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-green-400' : 'text-green-600'}`}>Habits Today</p>
+                                              <p className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayHabitsCompleted}<span className="text-sm opacity-50">/{currentWeekHabits.length}</span></p>
                                             </div>
                                           </div>
                                         </div>
                                       </div>
                                       
-                                      {/* Quick Stats Row */}
+                                      {/* Key Metrics Row */}
                                       <div className="grid grid-cols-4 gap-2">
-                                        <div className="text-center">
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{overallRate}%</p>
-                                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>All-Time</p>
+                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-purple-500/10' : 'bg-purple-50'}`}>
+                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myPeriodRate}%</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Period Rate</p>
                                         </div>
-                                        <div className="text-center">
+                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-orange-500/10' : 'bg-orange-50'}`}>
                                           <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>🔥 {streak}</p>
-                                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Streak</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>Streak</p>
                                         </div>
-                                        <div className="text-center">
+                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
                                           <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>#{myRank || '-'}</p>
-                                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Rank</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Team Rank</p>
                                         </div>
-                                        <div className="text-center">
-                                          <p className={`text-lg font-bold ${overallRate >= teamAvg ? 'text-green-500' : 'text-red-500'}`}>
-                                            {overallRate >= teamAvg ? '+' : ''}{overallRate - teamAvg}%
-                                          </p>
-                                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>vs Team</p>
+                                        <div className={`p-2 rounded-lg text-center ${darkMode ? (diff >= 0 ? 'bg-green-500/10' : 'bg-red-500/10') : (diff >= 0 ? 'bg-green-50' : 'bg-red-50')}`}>
+                                          <p className={`text-lg font-bold ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>{diff >= 0 ? '+' : ''}{diff}%</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>vs Team</p>
                                         </div>
                                       </div>
-                                    </>
-                                  )}
-                                  
-                                  {/* Trends Tab */}
-                                  {commandCenterTab === 'trends' && (
-                                    <div className="space-y-3">
-                                      <div className="h-28">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                          <AreaChart data={trendData}>
-                                            <defs>
-                                              <linearGradient id="cmdCenterGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                                              </linearGradient>
-                                            </defs>
-                                            <XAxis dataKey="week" tick={{ fontSize: 9, fill: darkMode ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} />
-                                            <YAxis hide domain={[0, 100]} />
-                                            <Tooltip content={({ payload, label }) => payload?.length ? (
-                                              <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white shadow text-gray-800'}`}>
-                                                {label}: {payload[0].value}%
+                                      
+                                      {/* Mini Trend Chart */}
+                                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>12-Week Trend</span>
+                                          <div className="flex items-center gap-3 text-[10px]">
+                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span> You</span>
+                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span> Group</span>
+                                          </div>
+                                        </div>
+                                        <div className="h-20">
+                                          <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={trendData}>
+                                              <defs>
+                                                <linearGradient id="cmdYouGrad" x1="0" y1="0" x2="0" y2="1">
+                                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                                </linearGradient>
+                                              </defs>
+                                              <XAxis dataKey="week" tick={{ fontSize: 8, fill: darkMode ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} interval={1} />
+                                              <YAxis hide domain={[0, 100]} />
+                                              <Tooltip content={({ payload, label }) => payload?.length ? (
+                                                <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-800 text-white' : 'bg-white shadow text-gray-800'}`}>
+                                                  <p className="font-medium">{label}</p>
+                                                  <p className="text-blue-500">You: {payload[0]?.value}%</p>
+                                                  <p className="text-purple-500">Group: {payload[1]?.value}%</p>
+                                                </div>
+                                              ) : null} />
+                                              <Area type="monotone" dataKey="you" stroke="#3b82f6" strokeWidth={2} fill="url(#cmdYouGrad)" />
+                                              <Area type="monotone" dataKey="group" stroke="#a855f7" strokeWidth={1.5} fill="none" strokeDasharray="3 3" />
+                                            </AreaChart>
+                                          </ResponsiveContainer>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Category Quick View */}
+                                      {categoryData.length > 0 && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {categoryData.slice(0, 4).map(cat => (
+                                            <div key={cat.id} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'}`}>
+                                              <span className="text-lg">{cat.icon}</span>
+                                              <div className="flex-1 min-w-0">
+                                                <p className={`text-[10px] truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cat.name}</p>
+                                                <div className={`h-1 rounded-full mt-0.5 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                                  <div className={`h-full rounded-full ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${cat.rate}%` }} />
+                                                </div>
                                               </div>
-                                            ) : null} />
-                                            <Area type="monotone" dataKey="rate" stroke="#8b5cf6" strokeWidth={2} fill="url(#cmdCenterGrad)" />
-                                          </AreaChart>
-                                        </ResponsiveContainer>
-                                      </div>
-                                      <div className="flex justify-between text-xs">
-                                        <span className={darkMode ? 'text-gray-500' : 'text-gray-400'}>8-week trend</span>
-                                        <span className={`font-medium ${trendData.length > 1 && trendData[trendData.length-1].rate >= trendData[0].rate ? 'text-green-500' : 'text-red-500'}`}>
-                                          {trendData.length > 1 ? (trendData[trendData.length-1].rate >= trendData[0].rate ? '↑ Improving' : '↓ Declining') : '-'}
-                                        </span>
-                                      </div>
+                                              <span className={`text-xs font-bold ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{cat.rate}%</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   
-                                  {/* Team Tab */}
-                                  {commandCenterTab === 'team' && (
-                                    <div className="space-y-2">
-                                      {teamStats.slice(0, 5).map((p, idx) => (
-                                        <div key={p.name} className={`flex items-center gap-2 p-2 rounded-lg ${
-                                          p.name === myParticipant ? (darkMode ? 'bg-blue-500/20' : 'bg-blue-50') : ''
-                                        }`}>
-                                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                            idx === 0 ? 'bg-amber-500 text-white' : idx === 1 ? 'bg-gray-400 text-white' : idx === 2 ? 'bg-orange-600 text-white' : (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
-                                          }`}>{idx + 1}</span>
-                                          <span className={`flex-1 text-xs truncate ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{p.name}</span>
-                                          <div className={`w-16 h-1.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                            <div className={`h-full rounded-full ${p.rate >= 80 ? 'bg-green-500' : p.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${p.rate}%` }} />
-                                          </div>
-                                          <span className={`text-xs font-bold w-8 text-right ${p.rate >= 80 ? 'text-green-500' : p.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{p.rate}%</span>
+                                  {/* ==================== ANALYTICS TAB ==================== */}
+                                  {commandCenterTab === 'analytics' && (
+                                    <div className="space-y-4">
+                                      {/* Stats Cards */}
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30' : 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'}`}>
+                                          <p className={`text-[10px] uppercase tracking-wider mb-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Your Rate</p>
+                                          <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myPeriodRate}%</p>
+                                          <p className={`text-[10px] ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>{diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}% vs team</p>
                                         </div>
-                                      ))}
-                                      {teamStats.length === 0 && (
-                                        <p className={`text-xs text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No team data yet</p>
+                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30' : 'bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200'}`}>
+                                          <p className={`text-[10px] uppercase tracking-wider mb-1 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Team Avg</p>
+                                          <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{teamAvg}%</p>
+                                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{activeTeam.length} active</p>
+                                        </div>
+                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30' : 'bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200'}`}>
+                                          <p className={`text-[10px] uppercase tracking-wider mb-1 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>All-Time</p>
+                                          <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{overallRate}%</p>
+                                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{totalCompleted}/{totalTarget}</p>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Detailed Stats */}
+                                      <div className="grid grid-cols-4 gap-2">
+                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myHabitsHit}</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Habits Hit</p>
+                                        </div>
+                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myPeriodCompleted}</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Days Done</p>
+                                        </div>
+                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{weekTasksCompleted}</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Week Tasks</p>
+                                        </div>
+                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{periodWeeks.length}</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Weeks</p>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Comparison Bar Chart */}
+                                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                        <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Weekly Comparison</p>
+                                        <div className="h-28">
+                                          <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={trendData.slice(-8)} barCategoryGap="15%">
+                                              <XAxis dataKey="week" tick={{ fontSize: 9, fill: darkMode ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
+                                              <YAxis hide domain={[0, 100]} />
+                                              <Tooltip content={({ payload, label }) => payload?.length ? (
+                                                <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-800 text-white' : 'bg-white shadow text-gray-800'}`}>
+                                                  <p className="text-blue-500">You: {payload[0]?.value}%</p>
+                                                  <p className="text-purple-500">Group: {payload[1]?.value}%</p>
+                                                </div>
+                                              ) : null} />
+                                              <Bar dataKey="you" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                                              <Bar dataKey="group" fill="#a855f7" radius={[3, 3, 0, 0]} />
+                                            </BarChart>
+                                          </ResponsiveContainer>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Category Performance */}
+                                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                        <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Category Performance</p>
+                                        <div className="space-y-2">
+                                          {categoryData.slice(0, 6).map(cat => (
+                                            <div key={cat.id} className="flex items-center gap-2">
+                                              <span className="w-5 text-center text-sm">{cat.icon}</span>
+                                              <span className={`text-[10px] w-16 truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cat.name}</span>
+                                              <div className={`flex-1 h-2 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                                <div className={`h-full rounded-full transition-all ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${cat.rate}%` }} />
+                                              </div>
+                                              <span className={`text-xs font-bold w-9 text-right ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{cat.rate}%</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Insights */}
+                                      {(bestCat || worstCat) && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {bestCat && (
+                                            <div className={`p-2 rounded-lg ${darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-100'}`}>
+                                              <p className={`text-[10px] ${darkMode ? 'text-green-400' : 'text-green-600'}`}>💪 Strongest</p>
+                                              <p className={`text-xs font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{bestCat.icon} {bestCat.name}</p>
+                                              <p className="text-green-500 text-sm font-bold">{bestCat.rate}%</p>
+                                            </div>
+                                          )}
+                                          {worstCat && categoryData.length > 1 && (
+                                            <div className={`p-2 rounded-lg ${darkMode ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-100'}`}>
+                                              <p className={`text-[10px] ${darkMode ? 'text-red-400' : 'text-red-600'}`}>🎯 Focus Area</p>
+                                              <p className={`text-xs font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{worstCat.icon} {worstCat.name}</p>
+                                              <p className="text-red-500 text-sm font-bold">{worstCat.rate}%</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  
+                                  {/* ==================== TEAM TAB ==================== */}
+                                  {commandCenterTab === 'team' && (
+                                    <div className="space-y-4">
+                                      {/* Team Overview */}
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
+                                          <Trophy className={`w-5 h-5 mx-auto mb-1 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>#{myRank || '-'}</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Your Rank</p>
+                                        </div>
+                                        <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-purple-500/10' : 'bg-purple-50'}`}>
+                                          <Users className={`w-5 h-5 mx-auto mb-1 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{activeTeam.length}</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Active Members</p>
+                                        </div>
+                                        <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+                                          <TrendingUp className={`w-5 h-5 mx-auto mb-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{teamAvg}%</p>
+                                          <p className={`text-[9px] ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Team Average</p>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Leaderboard */}
+                                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                        <p className={`text-xs font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Team Leaderboard</p>
+                                        <div className="space-y-2">
+                                          {teamStats.map((p, idx) => (
+                                            <div key={p.name} className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                                              p.name === myParticipant 
+                                                ? darkMode ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
+                                                : ''
+                                            }`}>
+                                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                                idx === 0 ? 'bg-amber-500 text-white' : 
+                                                idx === 1 ? 'bg-gray-400 text-white' : 
+                                                idx === 2 ? 'bg-orange-600 text-white' : 
+                                                (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
+                                              }`}>
+                                                {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                                              </span>
+                                              <span className={`flex-1 text-sm font-medium ${p.name === myParticipant ? (darkMode ? 'text-blue-300' : 'text-blue-700') : (darkMode ? 'text-gray-200' : 'text-gray-700')}`}>
+                                                {p.name} {p.name === myParticipant && '(You)'}
+                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                <div className={`w-20 h-2 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                                  <div className={`h-full rounded-full ${p.rate >= 80 ? 'bg-green-500' : p.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${p.rate}%` }} />
+                                                </div>
+                                                <span className={`text-sm font-bold w-10 text-right ${p.rate >= 80 ? 'text-green-500' : p.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{p.rate}%</span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                          {teamStats.length === 0 && (
+                                            <p className={`text-xs text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No team data yet</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Your Position */}
+                                      {myRank > 0 && (
+                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
+                                          <div className="flex items-center justify-between">
+                                            <div>
+                                              <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Your Performance</p>
+                                              <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myPeriodRate}%</p>
+                                            </div>
+                                            <div className="text-right">
+                                              <p className={`text-xs ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}% vs average
+                                              </p>
+                                              <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{myPeriodCompleted}/{myPeriodTarget} days logged</p>
+                                            </div>
+                                          </div>
+                                        </div>
                                       )}
                                     </div>
                                   )}
