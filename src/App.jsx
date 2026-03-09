@@ -977,46 +977,15 @@ export default function AccountabilityTracker() {
   const [habitCompletionPrompt, setHabitCompletionPrompt] = useState(null); // { habitId, habitName, linkedTasks }
   const [expandedCompletedDays, setExpandedCompletedDays] = useState({}); // Track expanded/collapsed days in completed tasks view
   
-  // Dashboard Widgets
+  // Dashboard Widgets - Simplified for actual use
   const [dashboardWidgets, setDashboardWidgets] = useState(() => {
-    const saved = localStorage.getItem('dashboard_widgets_v8');
+    const saved = localStorage.getItem('dashboard_widgets_v9');
     return saved ? JSON.parse(saved) : [
-      // Command Center is always first and pinned
-      { id: 'commandCenter', name: 'Command Center', enabled: true, size: 'medium', order: 0, icon: 'BarChart3', pinned: true },
-      // Enhanced widgets that go side-by-side
-      { id: 'habitTracker', name: 'Habit Tracker', enabled: true, size: 'medium', order: 1, icon: 'CheckSquare' },
-      { id: 'taskManager', name: 'Task Manager', enabled: true, size: 'medium', order: 2, icon: 'ListTodo' },
-      // Other widgets
-      { id: 'teamLeaderboard', name: 'Team Leaderboard', enabled: true, size: 'medium', order: 3, icon: 'Trophy' },
-      { id: 'progress', name: 'Today\'s Progress', enabled: false, size: 'small', order: 4, icon: 'Target' },
-      { id: 'pomodoro', name: 'Focus Timer', enabled: true, size: 'small', order: 5, icon: 'Timer' },
-      { id: 'quickWin', name: 'Quick Win', enabled: false, size: 'small', order: 6, icon: 'Zap' },
-      { id: 'quote', name: 'Daily Quote', enabled: true, size: 'small', order: 7, icon: 'Quote' },
-      { id: 'weeklyTrend', name: 'Weekly Trend', enabled: false, size: 'medium', order: 8, icon: 'TrendingUp' },
-      { id: 'stats', name: 'Key Metrics', enabled: false, size: 'large', order: 9, icon: 'BarChart3' },
-      { id: 'habits', name: 'Streaks', enabled: false, size: 'small', order: 10, icon: 'Flame' },
-      { id: 'lifeBalance', name: 'Life Balance', enabled: false, size: 'medium', order: 11, icon: 'Target' },
-      { id: 'weekAtGlance', name: 'Week at a Glance', enabled: false, size: 'large', order: 12, icon: 'Calendar' },
-      { id: 'categoryBreakdown', name: 'Category Breakdown', enabled: false, size: 'medium', order: 13, icon: 'PieChart' },
-      { id: 'calendar', name: 'Mini Calendar', enabled: false, size: 'medium', order: 14, icon: 'Calendar' },
-      { id: 'coach', name: 'AI Coach', enabled: false, size: 'medium', order: 15, icon: 'Brain' },
-      { id: 'challenges', name: 'Active Challenges', enabled: false, size: 'small', order: 16, icon: 'Trophy' },
-      { id: 'feed', name: 'Recent Activity', enabled: false, size: 'medium', order: 17, icon: 'MessageSquare' },
-      { id: 'goals', name: '2026 Goals', enabled: false, size: 'small', order: 18, icon: 'Target' },
-      { id: 'mood', name: 'Mood Tracker', enabled: false, size: 'small', order: 19, icon: 'Heart' },
-      { id: 'motivationalQuote', name: 'Motivation Boost', enabled: false, size: 'small', order: 20, icon: 'Sparkles' }
+      { id: 'myHabits', name: 'My Habits', enabled: true, size: 'medium', order: 0 },
+      { id: 'teamStandings', name: 'Team Standings', enabled: true, size: 'medium', order: 1 },
+      { id: 'myStats', name: 'My Stats', enabled: true, size: 'large', order: 2 }
     ];
   });
-  const [commandCenterTab, setCommandCenterTab] = useState('overview'); // overview, trends, team
-  const [performanceDashboardStyle, setPerformanceDashboardStyle] = useState(() => {
-    return localStorage.getItem('performance_dashboard_style') || 'cards'; // 'cards', 'charts', 'compact'
-  });
-  const [performanceDashboardPeriod, setPerformanceDashboardPeriod] = useState('month'); // 'week', 'month', 'quarter', 'year'
-  const [showWidgetCustomizer, setShowWidgetCustomizer] = useState(false);
-  const [showWidgetPicker, setShowWidgetPicker] = useState(false);
-  const [draggingWidget, setDraggingWidget] = useState(null);
-  const [dragOverWidget, setDragOverWidget] = useState(null);
-  const [isEditingDashboard, setIsEditingDashboard] = useState(false);
   
   // Enhanced task features
   const [quickTaskInput, setQuickTaskInput] = useState('');
@@ -4529,7 +4498,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
   // Save dashboard widgets to localStorage
   const saveDashboardWidgets = (widgets) => {
     setDashboardWidgets(widgets);
-    localStorage.setItem('dashboard_widgets_v8', JSON.stringify(widgets));
+    localStorage.setItem('dashboard_widgets_v9', JSON.stringify(widgets));
   };
 
   // Toggle widget enabled state
@@ -6172,2850 +6141,313 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           )}
         </div>
 
+
         {activeView === 'dashboard' && (
-          <div className="space-y-4">
-            {/* Dashboard Header */}
-            <div className="flex items-center justify-between">
-              <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Dashboard</h2>
-              <div className="flex items-center gap-2">
-                {isEditingDashboard ? (
-                  <>
-                    <button onClick={() => setShowWidgetPicker(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-green-600 hover:bg-green-700 text-white">
-                      <Plus className="w-4 h-4" />
-                      Add Widget
-                    </button>
-                    <button onClick={() => setIsEditingDashboard(false)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-blue-600 hover:bg-blue-700 text-white">
-                      <Check className="w-4 h-4" />
-                      Done
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={() => setIsEditingDashboard(true)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                    <Settings className="w-4 h-4" />
-                    Customize
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Edit Mode Instructions */}
-            {isEditingDashboard && (
-              <div className={`rounded-xl p-3 flex items-center gap-3 ${darkMode ? 'bg-blue-900/30 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'}`}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
-                  <Sparkles className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                </div>
-                <div>
-                  <p className={`text-sm font-medium ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>Edit Mode Active</p>
-                  <p className={`text-xs ${darkMode ? 'text-blue-400/70' : 'text-blue-600/70'}`}>Drag widgets to reorder • Click ✕ to remove • Click "Add Widget" for more</p>
-                </div>
-              </div>
-            )}
-
-            {/* Widget Picker Modal */}
-            {showWidgetPicker && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowWidgetPicker(false)}>
-                <div className={`w-full max-w-lg rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Add Widget</h3>
-                    <button onClick={() => setShowWidgetPicker(false)} className={`p-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Click a widget to add it to your dashboard</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {dashboardWidgets.filter(w => !w.enabled).map(widget => {
-                      const IconComponent = getWidgetIcon(widget.icon);
-                      return (
-                        <button key={widget.id} onClick={() => addWidgetFromPicker(widget.id)}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-105 ${
-                            darkMode ? 'bg-gray-700 hover:bg-gray-600 border border-gray-600' : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
-                          }`}>
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                            darkMode ? 'bg-gradient-to-br from-blue-500/20 to-purple-500/20' : 'bg-gradient-to-br from-blue-100 to-purple-100'
-                          }`}>
-                            <IconComponent className={`w-6 h-6 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                          </div>
-                          <span className={`text-sm font-medium text-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>{widget.name}</span>
-                        </button>
-                      );
-                    })}
-                    {dashboardWidgets.filter(w => !w.enabled).length === 0 && (
-                      <div className="col-span-full text-center py-8">
-                        <CheckCircle2 className={`w-12 h-12 mx-auto mb-2 ${darkMode ? 'text-green-400' : 'text-green-500'}`} />
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>All widgets are already on your dashboard!</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Draggable Widget Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {dashboardWidgets
-                .filter(w => w.enabled)
-                .sort((a, b) => {
-                  // Command Center always first (pinned)
-                  if (a.id === 'commandCenter') return -1;
-                  if (b.id === 'commandCenter') return 1;
-                  return a.order - b.order;
-                })
-                .map(widget => {
-                  const isDragging = draggingWidget === widget.id;
-                  const isDragOverBefore = dragOverWidget?.id === widget.id && dragOverWidget?.position === 'before';
-                  const isDragOverAfter = dragOverWidget?.id === widget.id && dragOverWidget?.position === 'after';
-                  const isPinned = widget.id === 'commandCenter';
-                  // Size classes: small=1col, medium=2col, large=4col (full width), xl=4col tall
-                  const sizeClass = widget.size === 'xl'
-                    ? 'sm:col-span-2 lg:col-span-4'
-                    : widget.size === 'large' 
-                      ? 'sm:col-span-2 lg:col-span-4' 
-                      : widget.size === 'medium' 
-                        ? 'sm:col-span-2 lg:col-span-2' 
-                        : 'col-span-1'; // small
-                  
-                  // Height classes based on size and widget type
-                  const heightClass = widget.size === 'small' ? 'max-h-[200px]' 
-                    : widget.size === 'xl' ? 'min-h-[400px]' 
-                    : (widget.id === 'habitTracker' || widget.id === 'taskManager') ? 'min-h-[320px]'
-                    : '';
-                  
-                  return (
-                    <div
-                      key={widget.id}
-                      draggable={isEditingDashboard && !isPinned}
-                      onDragStart={(e) => !isPinned && handleDragStart(e, widget.id)}
-                      onDragOver={(e) => handleDragOver(e, widget.id)}
-                      onDragEnd={handleDragEnd}
-                      onDrop={(e) => handleDrop(e, widget.id)}
-                      className={`${sizeClass} rounded-2xl transition-all duration-200 relative ${
-                        isDragging ? 'opacity-50 scale-95 z-50' : ''
-                      } ${isEditingDashboard && !isPinned ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                    >
-                      {/* iOS-style insert indicator - before */}
-                      {isDragOverBefore && isEditingDashboard && (
-                        <div className="absolute -top-2 left-0 right-0 h-1 bg-blue-500 rounded-full z-20 shadow-lg shadow-blue-500/50" />
-                      )}
-                      
-                      <div className={`h-full ${heightClass} rounded-2xl backdrop-blur-xl transition-colors duration-300 relative overflow-hidden ${
-                        darkMode 
-                          ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
-                          : 'bg-white/70 border border-white/50'
-                      } ${isEditingDashboard ? 'ring-1 ring-dashed ring-gray-400/50' : ''} ${isPinned && isEditingDashboard ? 'ring-blue-500/50' : ''}`}>
-                        {/* Edit Mode Overlay */}
-                        {isEditingDashboard && (
-                          <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-                            {isPinned && (
-                              <span className={`text-[10px] px-2 py-1 rounded ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                                📌 Pinned
-                              </span>
-                            )}
-                            <select 
-                              value={widget.size}
-                              onChange={(e) => changeWidgetSize(widget.id, e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
-                            >
-                              <option value="small">Small</option>
-                              <option value="medium">Medium</option>
-                              <option value="large">Large</option>
-                              <option value="xl">Extra Large</option>
-                            </select>
-                            {!isPinned && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }}
-                                className="p-1 rounded-full bg-red-500 hover:bg-red-600 text-white"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* iOS-style insert indicator - after */}
-                        {isDragOverAfter && isEditingDashboard && (
-                          <div className="absolute -bottom-2 left-0 right-0 h-1 bg-blue-500 rounded-full z-20 shadow-lg shadow-blue-500/50" />
-                        )}
-                        
-                        {/* Widget: Command Center (Comprehensive Analytics Dashboard) */}
-                        {widget.id === 'commandCenter' && (
-                          <div className="p-4 h-full overflow-y-auto">
-                            {(() => {
-                              const today = new Date().toISOString().split('T')[0];
-                              const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
-                              
-                              // Get period weeks based on selection
-                              const getPeriodWeeks = () => {
-                                switch (performanceDashboardPeriod) {
-                                  case 'week': return weeksWithData.slice(-1);
-                                  case 'month': return weeksWithData.slice(-4);
-                                  case 'quarter': return weeksWithData.slice(-13);
-                                  case 'year': return weeksWithData.slice(-52);
-                                  default: return weeksWithData.slice(-4);
-                                }
-                              };
-                              const periodWeeks = getPeriodWeeks();
-                              const last12Weeks = weeksWithData.slice(-12);
-                              
-                              // TODAY'S STATS
-                              const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
-                              const myTasks = tasks.filter(t => t.participant === myParticipant);
-                              const todayTasks = myTasks.filter(t => t.dueDate === today);
-                              const todayTasksCompleted = todayTasks.filter(t => t.status === 'Completed').length;
-                              const taskPct = todayTasks.length > 0 ? Math.round((todayTasksCompleted / todayTasks.length) * 100) : 0;
-                              
-                              const weekTasks = myTasks.filter(t => {
-                                if (!t.dueDate) return false;
-                                const taskDate = new Date(t.dueDate);
-                                const weekAgo = new Date();
-                                weekAgo.setDate(weekAgo.getDate() - 7);
-                                return taskDate >= weekAgo;
-                              });
-                              const weekTasksCompleted = weekTasks.filter(t => t.status === 'Completed').length;
-                              
-                              // HABIT STATS
-                              const currentWeekHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                              const todayHabitsCompleted = currentWeekHabits.filter(h => (h.daysCompleted || []).includes(todayIdx)).length;
-                              const habitPct = currentWeekHabits.length > 0 ? Math.round((todayHabitsCompleted / currentWeekHabits.length) * 100) : 0;
-                              
-                              // Period habits
-                              const myPeriodHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === myParticipant);
-                              const myPeriodCompleted = myPeriodHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                              const myPeriodTarget = myPeriodHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                              const myPeriodRate = myPeriodTarget > 0 ? Math.round((myPeriodCompleted / myPeriodTarget) * 100) : 0;
-                              const myHabitsHit = myPeriodHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                              
-                              // All-time stats
-                              const myAllHabits = habits.filter(h => h.participant === myParticipant);
-                              const totalCompleted = myAllHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                              const totalTarget = myAllHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                              const overallRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
-                              
-                              // TEAM STATS (exclude 0%)
-                              const teamStats = allParticipants.map(p => {
-                                const pHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === p);
-                                const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0, completed, target };
-                              }).filter(p => p.rate > 0 || p.name === myParticipant).sort((a, b) => b.rate - a.rate);
-                              
-                              const activeTeam = teamStats.filter(p => p.rate > 0);
-                              const teamAvg = activeTeam.length > 0 ? Math.round(activeTeam.reduce((sum, p) => sum + p.rate, 0) / activeTeam.length) : 0;
-                              const myRank = teamStats.findIndex(p => p.name === myParticipant) + 1;
-                              const diff = myPeriodRate - teamAvg;
-                              const streak = calculateStreaks[myParticipant] || 0;
-                              
-                              // TREND DATA
-                              const trendData = last12Weeks.map(week => {
-                                const wHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
-                                const wCompleted = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const wTarget = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                const gHabits = habits.filter(h => h.weekStart === week);
-                                const gCompleted = gHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const gTarget = gHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                return { 
-                                  week: week.slice(5), 
-                                  you: wTarget > 0 ? Math.round((wCompleted / wTarget) * 100) : 0,
-                                  group: gTarget > 0 ? Math.round((gCompleted / gTarget) * 100) : 0
-                                };
-                              });
-                              
-                              // CATEGORY BREAKDOWN
-                              const categoryData = HABIT_CATEGORIES.map(cat => {
-                                const catHabits = myPeriodHabits.filter(h => h.category === cat.id);
-                                const catCompleted = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const catTarget = catHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                return { 
-                                  id: cat.id, 
-                                  name: cat.name, 
-                                  icon: cat.icon, 
-                                  color: cat.color,
-                                  rate: catTarget > 0 ? Math.round((catCompleted / catTarget) * 100) : 0, 
-                                  count: catHabits.length,
-                                  completed: catCompleted,
-                                  target: catTarget
-                                };
-                              }).filter(c => c.count > 0).sort((a, b) => b.rate - a.rate);
-                              
-                              // Best/Worst categories
-                              const bestCat = categoryData[0];
-                              const worstCat = categoryData[categoryData.length - 1];
-                              
-                              return (
-                                <div className="space-y-4">
-                                  {/* Header Row */}
-                                  <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center gap-2">
-                                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500`}>
-                                        <BarChart3 className="w-5 h-5 text-white" />
-                                      </div>
-                                      <div>
-                                        <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Command Center</h3>
-                                        <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <select 
-                                        value={performanceDashboardPeriod}
-                                        onChange={(e) => setPerformanceDashboardPeriod(e.target.value)}
-                                        className={`text-xs px-2 py-1 rounded-lg ${darkMode ? 'bg-gray-700 text-gray-300 border-gray-600' : 'bg-gray-100 text-gray-700 border-gray-200'} border`}
-                                      >
-                                        <option value="week">This Week</option>
-                                        <option value="month">Last 4 Weeks</option>
-                                        <option value="quarter">Quarter</option>
-                                        <option value="year">Year</option>
-                                      </select>
-                                      <div className={`flex rounded-lg p-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                                        {['overview', 'analytics', 'team'].map(tab => (
-                                          <button
-                                            key={tab}
-                                            onClick={() => setCommandCenterTab(tab)}
-                                            className={`px-2 py-1 text-xs rounded capitalize transition-all ${
-                                              commandCenterTab === tab
-                                                ? darkMode ? 'bg-gray-600 text-white' : 'bg-white text-gray-800 shadow-sm'
-                                                : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
-                                            }`}
-                                          >
-                                            {tab}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* ==================== OVERVIEW TAB ==================== */}
-                                  {commandCenterTab === 'overview' && (
-                                    <div className="space-y-4">
-                                      {/* Today's Focus Row */}
-                                      <div className="grid grid-cols-2 gap-3">
-                                        {/* Tasks Today */}
-                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30' : 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'}`}>
-                                          <div className="flex items-center gap-3">
-                                            <div className="relative w-12 h-12">
-                                              <svg className="w-full h-full transform -rotate-90">
-                                                <circle cx="24" cy="24" r="20" stroke={darkMode ? '#374151' : '#dbeafe'} strokeWidth="4" fill="none" />
-                                                <circle cx="24" cy="24" r="20" stroke="#3b82f6" strokeWidth="4" fill="none" strokeLinecap="round"
-                                                  strokeDasharray={`${taskPct * 1.26} 126`} />
-                                              </svg>
-                                              <ListTodo className={`absolute inset-0 m-auto w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                                            </div>
-                                            <div>
-                                              <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Tasks Today</p>
-                                              <p className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayTasksCompleted}<span className="text-sm opacity-50">/{todayTasks.length}</span></p>
-                                            </div>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Habits Today */}
-                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/30' : 'bg-gradient-to-br from-green-50 to-green-100 border border-green-200'}`}>
-                                          <div className="flex items-center gap-3">
-                                            <div className="relative w-12 h-12">
-                                              <svg className="w-full h-full transform -rotate-90">
-                                                <circle cx="24" cy="24" r="20" stroke={darkMode ? '#374151' : '#dcfce7'} strokeWidth="4" fill="none" />
-                                                <circle cx="24" cy="24" r="20" stroke="#22c55e" strokeWidth="4" fill="none" strokeLinecap="round"
-                                                  strokeDasharray={`${habitPct * 1.26} 126`} />
-                                              </svg>
-                                              <CheckSquare className={`absolute inset-0 m-auto w-4 h-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                                            </div>
-                                            <div>
-                                              <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-green-400' : 'text-green-600'}`}>Habits Today</p>
-                                              <p className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayHabitsCompleted}<span className="text-sm opacity-50">/{currentWeekHabits.length}</span></p>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Key Metrics Row */}
-                                      <div className="grid grid-cols-4 gap-2">
-                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-purple-500/10' : 'bg-purple-50'}`}>
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myPeriodRate}%</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Period Rate</p>
-                                        </div>
-                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-orange-500/10' : 'bg-orange-50'}`}>
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>🔥 {streak}</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>Streak</p>
-                                        </div>
-                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>#{myRank || '-'}</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Team Rank</p>
-                                        </div>
-                                        <div className={`p-2 rounded-lg text-center ${darkMode ? (diff >= 0 ? 'bg-green-500/10' : 'bg-red-500/10') : (diff >= 0 ? 'bg-green-50' : 'bg-red-50')}`}>
-                                          <p className={`text-lg font-bold ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>{diff >= 0 ? '+' : ''}{diff}%</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>vs Team</p>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Mini Trend Chart */}
-                                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                        <div className="flex items-center justify-between mb-2">
-                                          <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>12-Week Trend</span>
-                                          <div className="flex items-center gap-3 text-[10px]">
-                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span> You</span>
-                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span> Group</span>
-                                          </div>
-                                        </div>
-                                        <div className="h-20">
-                                          <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={trendData}>
-                                              <defs>
-                                                <linearGradient id="cmdYouGrad" x1="0" y1="0" x2="0" y2="1">
-                                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                                </linearGradient>
-                                              </defs>
-                                              <XAxis dataKey="week" tick={{ fontSize: 8, fill: darkMode ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} interval={1} />
-                                              <YAxis hide domain={[0, 100]} />
-                                              <Tooltip content={({ payload, label }) => payload?.length ? (
-                                                <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-800 text-white' : 'bg-white shadow text-gray-800'}`}>
-                                                  <p className="font-medium">{label}</p>
-                                                  <p className="text-blue-500">You: {payload[0]?.value}%</p>
-                                                  <p className="text-purple-500">Group: {payload[1]?.value}%</p>
-                                                </div>
-                                              ) : null} />
-                                              <Area type="monotone" dataKey="you" stroke="#3b82f6" strokeWidth={2} fill="url(#cmdYouGrad)" />
-                                              <Area type="monotone" dataKey="group" stroke="#a855f7" strokeWidth={1.5} fill="none" strokeDasharray="3 3" />
-                                            </AreaChart>
-                                          </ResponsiveContainer>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Category Quick View */}
-                                      {categoryData.length > 0 && (
-                                        <div className="grid grid-cols-2 gap-2">
-                                          {categoryData.slice(0, 4).map(cat => (
-                                            <div key={cat.id} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'}`}>
-                                              <span className="text-lg">{cat.icon}</span>
-                                              <div className="flex-1 min-w-0">
-                                                <p className={`text-[10px] truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cat.name}</p>
-                                                <div className={`h-1 rounded-full mt-0.5 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                                  <div className={`h-full rounded-full ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${cat.rate}%` }} />
-                                                </div>
-                                              </div>
-                                              <span className={`text-xs font-bold ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{cat.rate}%</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  
-                                  {/* ==================== ANALYTICS TAB ==================== */}
-                                  {commandCenterTab === 'analytics' && (
-                                    <div className="space-y-4">
-                                      {/* Stats Cards */}
-                                      <div className="grid grid-cols-3 gap-2">
-                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30' : 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'}`}>
-                                          <p className={`text-[10px] uppercase tracking-wider mb-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Your Rate</p>
-                                          <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myPeriodRate}%</p>
-                                          <p className={`text-[10px] ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>{diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}% vs team</p>
-                                        </div>
-                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30' : 'bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200'}`}>
-                                          <p className={`text-[10px] uppercase tracking-wider mb-1 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Team Avg</p>
-                                          <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{teamAvg}%</p>
-                                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{activeTeam.length} active</p>
-                                        </div>
-                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30' : 'bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200'}`}>
-                                          <p className={`text-[10px] uppercase tracking-wider mb-1 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>All-Time</p>
-                                          <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{overallRate}%</p>
-                                          <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{totalCompleted}/{totalTarget}</p>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Detailed Stats */}
-                                      <div className="grid grid-cols-4 gap-2">
-                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myHabitsHit}</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Habits Hit</p>
-                                        </div>
-                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myPeriodCompleted}</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Days Done</p>
-                                        </div>
-                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{weekTasksCompleted}</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Week Tasks</p>
-                                        </div>
-                                        <div className={`p-2 rounded-lg text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{periodWeeks.length}</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Weeks</p>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Comparison Bar Chart */}
-                                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                        <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Weekly Comparison</p>
-                                        <div className="h-28">
-                                          <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={trendData.slice(-8)} barCategoryGap="15%">
-                                              <XAxis dataKey="week" tick={{ fontSize: 9, fill: darkMode ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
-                                              <YAxis hide domain={[0, 100]} />
-                                              <Tooltip content={({ payload, label }) => payload?.length ? (
-                                                <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-800 text-white' : 'bg-white shadow text-gray-800'}`}>
-                                                  <p className="text-blue-500">You: {payload[0]?.value}%</p>
-                                                  <p className="text-purple-500">Group: {payload[1]?.value}%</p>
-                                                </div>
-                                              ) : null} />
-                                              <Bar dataKey="you" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-                                              <Bar dataKey="group" fill="#a855f7" radius={[3, 3, 0, 0]} />
-                                            </BarChart>
-                                          </ResponsiveContainer>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Category Performance */}
-                                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                        <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Category Performance</p>
-                                        <div className="space-y-2">
-                                          {categoryData.slice(0, 6).map(cat => (
-                                            <div key={cat.id} className="flex items-center gap-2">
-                                              <span className="w-5 text-center text-sm">{cat.icon}</span>
-                                              <span className={`text-[10px] w-16 truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cat.name}</span>
-                                              <div className={`flex-1 h-2 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                                <div className={`h-full rounded-full transition-all ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${cat.rate}%` }} />
-                                              </div>
-                                              <span className={`text-xs font-bold w-9 text-right ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{cat.rate}%</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Insights */}
-                                      {(bestCat || worstCat) && (
-                                        <div className="grid grid-cols-2 gap-2">
-                                          {bestCat && (
-                                            <div className={`p-2 rounded-lg ${darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-100'}`}>
-                                              <p className={`text-[10px] ${darkMode ? 'text-green-400' : 'text-green-600'}`}>💪 Strongest</p>
-                                              <p className={`text-xs font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{bestCat.icon} {bestCat.name}</p>
-                                              <p className="text-green-500 text-sm font-bold">{bestCat.rate}%</p>
-                                            </div>
-                                          )}
-                                          {worstCat && categoryData.length > 1 && (
-                                            <div className={`p-2 rounded-lg ${darkMode ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-100'}`}>
-                                              <p className={`text-[10px] ${darkMode ? 'text-red-400' : 'text-red-600'}`}>🎯 Focus Area</p>
-                                              <p className={`text-xs font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{worstCat.icon} {worstCat.name}</p>
-                                              <p className="text-red-500 text-sm font-bold">{worstCat.rate}%</p>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  
-                                  {/* ==================== TEAM TAB ==================== */}
-                                  {commandCenterTab === 'team' && (
-                                    <div className="space-y-4">
-                                      {/* Team Overview */}
-                                      <div className="grid grid-cols-3 gap-2">
-                                        <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
-                                          <Trophy className={`w-5 h-5 mx-auto mb-1 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>#{myRank || '-'}</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Your Rank</p>
-                                        </div>
-                                        <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-purple-500/10' : 'bg-purple-50'}`}>
-                                          <Users className={`w-5 h-5 mx-auto mb-1 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{activeTeam.length}</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Active Members</p>
-                                        </div>
-                                        <div className={`p-3 rounded-xl text-center ${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
-                                          <TrendingUp className={`w-5 h-5 mx-auto mb-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                                          <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{teamAvg}%</p>
-                                          <p className={`text-[9px] ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Team Average</p>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Leaderboard */}
-                                      <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                        <p className={`text-xs font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Team Leaderboard</p>
-                                        <div className="space-y-2">
-                                          {teamStats.map((p, idx) => (
-                                            <div key={p.name} className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                                              p.name === myParticipant 
-                                                ? darkMode ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
-                                                : ''
-                                            }`}>
-                                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                                idx === 0 ? 'bg-amber-500 text-white' : 
-                                                idx === 1 ? 'bg-gray-400 text-white' : 
-                                                idx === 2 ? 'bg-orange-600 text-white' : 
-                                                (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
-                                              }`}>
-                                                {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
-                                              </span>
-                                              <span className={`flex-1 text-sm font-medium ${p.name === myParticipant ? (darkMode ? 'text-blue-300' : 'text-blue-700') : (darkMode ? 'text-gray-200' : 'text-gray-700')}`}>
-                                                {p.name} {p.name === myParticipant && '(You)'}
-                                              </span>
-                                              <div className="flex items-center gap-2">
-                                                <div className={`w-20 h-2 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                                  <div className={`h-full rounded-full ${p.rate >= 80 ? 'bg-green-500' : p.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${p.rate}%` }} />
-                                                </div>
-                                                <span className={`text-sm font-bold w-10 text-right ${p.rate >= 80 ? 'text-green-500' : p.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{p.rate}%</span>
-                                              </div>
-                                            </div>
-                                          ))}
-                                          {teamStats.length === 0 && (
-                                            <p className={`text-xs text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No team data yet</p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Your Position */}
-                                      {myRank > 0 && (
-                                        <div className={`p-3 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
-                                          <div className="flex items-center justify-between">
-                                            <div>
-                                              <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Your Performance</p>
-                                              <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myPeriodRate}%</p>
-                                            </div>
-                                            <div className="text-right">
-                                              <p className={`text-xs ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}% vs average
-                                              </p>
-                                              <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{myPeriodCompleted}/{myPeriodTarget} days logged</p>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Habit Tracker (Comprehensive) */}
-                        {widget.id === 'habitTracker' && (
-                          <div className="p-4 h-full flex flex-col">
-                            {(() => {
-                              const currentWeekHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                              const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
-                              const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                              
-                              // Calculate stats
-                              const totalTarget = currentWeekHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                              const totalCompleted = currentWeekHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                              const weekPct = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
-                              const todayCompleted = currentWeekHabits.filter(h => (h.daysCompleted || []).includes(todayIdx)).length;
-                              
-                              return (
-                                <>
-                                  {/* Header */}
-                                  <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-2">
-                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-green-500 to-emerald-600'}`}>
-                                        <CheckSquare className="w-4 h-4 text-white" />
-                                      </div>
-                                      <div>
-                                        <span className={`font-bold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Habit Tracker</span>
-                                        <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{currentWeekHabits.length} habits this week</p>
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className={`text-lg font-bold ${weekPct >= 80 ? 'text-green-500' : weekPct >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{weekPct}%</p>
-                                      <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{todayCompleted}/{currentWeekHabits.length} today</p>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Day Progress Bar */}
-                                  <div className="flex gap-1 mb-3">
-                                    {dayNames.map((day, idx) => {
-                                      const dayCompleted = currentWeekHabits.filter(h => (h.daysCompleted || []).includes(idx)).length;
-                                      const dayPct = currentWeekHabits.length > 0 ? (dayCompleted / currentWeekHabits.length) * 100 : 0;
-                                      const isToday = idx === todayIdx;
-                                      return (
-                                        <div key={day} className="flex-1 text-center">
-                                          <p className={`text-[9px] mb-1 ${isToday ? (darkMode ? 'text-blue-400 font-bold' : 'text-blue-600 font-bold') : (darkMode ? 'text-gray-500' : 'text-gray-400')}`}>{day}</p>
-                                          <div className={`h-1.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${isToday ? 'ring-1 ring-blue-500' : ''}`}>
-                                            <div className={`h-full rounded-full transition-all ${dayPct >= 80 ? 'bg-green-500' : dayPct >= 50 ? 'bg-amber-500' : dayPct > 0 ? 'bg-red-500' : ''}`} style={{ width: `${dayPct}%` }} />
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                  
-                                  {/* Habits List */}
-                                  <div className="flex-1 overflow-y-auto space-y-1.5 min-h-0">
-                                    {currentWeekHabits.length === 0 ? (
-                                      <div className={`text-center py-6 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        <Target className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                        <p className="text-xs">No habits this week</p>
-                                        <button onClick={() => setShowAddHabitModal(true)} className="text-xs text-blue-500 hover:underline mt-1">+ Add habit</button>
-                                      </div>
-                                    ) : (
-                                      currentWeekHabits.slice(0, widget.size === 'large' || widget.size === 'xl' ? 10 : 5).map(habit => {
-                                        const completed = (habit.daysCompleted || []).length;
-                                        const pct = habit.target > 0 ? Math.round((completed / habit.target) * 100) : 0;
-                                        const isTodayDone = (habit.daysCompleted || []).includes(todayIdx);
-                                        const cat = HABIT_CATEGORIES.find(c => c.id === habit.category);
-                                        
-                                        return (
-                                          <div key={habit.id} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}>
-                                            <button
-                                              onClick={() => toggleDay(habit, todayIdx)}
-                                              className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                                                isTodayDone 
-                                                  ? 'bg-green-500 text-white' 
-                                                  : darkMode ? 'border-2 border-gray-600 hover:border-green-500' : 'border-2 border-gray-300 hover:border-green-500'
-                                              }`}
-                                            >
-                                              {isTodayDone && <Check className="w-3.5 h-3.5" />}
-                                            </button>
-                                            <div className="flex-1 min-w-0">
-                                              <div className="flex items-center gap-1">
-                                                {cat && <span className="text-xs">{cat.icon}</span>}
-                                                <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{habit.habit}</p>
-                                              </div>
-                                              <div className="flex items-center gap-2 mt-0.5">
-                                                <div className={`flex-1 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                                  <div className={`h-full rounded-full ${pct >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-                                                </div>
-                                                <span className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{completed}/{habit.target}</span>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        );
-                                      })
-                                    )}
-                                    {currentWeekHabits.length > (widget.size === 'large' || widget.size === 'xl' ? 10 : 5) && (
-                                      <button 
-                                        onClick={() => setActiveView('tracker')}
-                                        className={`w-full text-center py-1 text-xs ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
-                                      >
-                                        +{currentWeekHabits.length - (widget.size === 'large' || widget.size === 'xl' ? 10 : 5)} more habits →
-                                      </button>
-                                    )}
-                                  </div>
-                                  
-                                  {/* Quick Add */}
-                                  <button 
-                                    onClick={() => setShowAddHabitModal(true)}
-                                    className={`w-full mt-2 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 ${
-                                      darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-                                    }`}
-                                  >
-                                    <Plus className="w-3.5 h-3.5" /> Add Habit
-                                  </button>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Task Manager (Comprehensive) */}
-                        {widget.id === 'taskManager' && (
-                          <div className="p-4 h-full flex flex-col">
-                            {(() => {
-                              const today = new Date().toISOString().split('T')[0];
-                              const myTasks = tasks.filter(t => t.participant === myParticipant);
-                              const todayTasks = myTasks.filter(t => t.dueDate === today);
-                              const overdueTasks = myTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== 'Completed');
-                              const upcomingTasks = myTasks.filter(t => t.dueDate && t.dueDate > today && t.status !== 'Completed').slice(0, 3);
-                              const completedToday = todayTasks.filter(t => t.status === 'Completed').length;
-                              const pct = todayTasks.length > 0 ? Math.round((completedToday / todayTasks.length) * 100) : 0;
-                              
-                              const handleQuickAdd = () => {
-                                if (quickTaskInput.trim()) {
-                                  const newTask = {
-                                    id: `task_${Date.now()}`,
-                                    title: quickTaskInput.trim(),
-                                    description: '',
-                                    dueDate: today,
-                                    priority: 'Medium',
-                                    status: 'In Progress',
-                                    participant: myParticipant,
-                                    category: 'business',
-                                    linkedHabitId: null,
-                                    created_at: new Date().toISOString()
-                                  };
-                                  setTasks(prev => [...prev, newTask]);
-                                  setQuickTaskInput('');
-                                }
-                              };
-                              
-                              const toggleTaskComplete = (task) => {
-                                setTasks(prev => prev.map(t => 
-                                  t.id === task.id 
-                                    ? { ...t, status: t.status === 'Completed' ? 'In Progress' : 'Completed' }
-                                    : t
-                                ));
-                              };
-                              
-                              return (
-                                <>
-                                  {/* Header */}
-                                  <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-2">
-                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${darkMode ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}>
-                                        <ListTodo className="w-4 h-4 text-white" />
-                                      </div>
-                                      <div>
-                                        <span className={`font-bold text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>Task Manager</span>
-                                        <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{todayTasks.length} tasks today</p>
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className={`text-lg font-bold ${pct >= 80 ? 'text-green-500' : pct >= 50 ? 'text-amber-500' : pct > 0 ? 'text-blue-500' : (darkMode ? 'text-gray-500' : 'text-gray-400')}`}>{pct}%</p>
-                                      <p className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{completedToday}/{todayTasks.length} done</p>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Quick Add */}
-                                  <div className={`flex gap-2 mb-3 p-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                    <input
-                                      type="text"
-                                      value={quickTaskInput}
-                                      onChange={(e) => setQuickTaskInput(e.target.value)}
-                                      onKeyPress={(e) => e.key === 'Enter' && handleQuickAdd()}
-                                      placeholder="Quick add task..."
-                                      className={`flex-1 text-xs bg-transparent outline-none ${darkMode ? 'text-white placeholder-gray-500' : 'text-gray-800 placeholder-gray-400'}`}
-                                    />
-                                    <button
-                                      onClick={handleQuickAdd}
-                                      disabled={!quickTaskInput.trim()}
-                                      className={`px-2 py-1 rounded text-xs font-medium ${
-                                        quickTaskInput.trim()
-                                          ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                                          : darkMode ? 'bg-gray-600 text-gray-500' : 'bg-gray-200 text-gray-400'
-                                      }`}
-                                    >
-                                      Add
-                                    </button>
-                                  </div>
-                                  
-                                  {/* Overdue Warning */}
-                                  {overdueTasks.length > 0 && (
-                                    <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg mb-2 ${darkMode ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600'}`}>
-                                      <AlertCircle className="w-3.5 h-3.5" />
-                                      <span className="text-xs font-medium">{overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}</span>
-                                    </div>
-                                  )}
-                                  
-                                  {/* Tasks List */}
-                                  <div className="flex-1 overflow-y-auto space-y-1.5 min-h-0">
-                                    {todayTasks.length === 0 && overdueTasks.length === 0 ? (
-                                      <div className={`text-center py-6 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                        <p className="text-xs">No tasks for today</p>
-                                        <p className="text-[10px] mt-1">Use quick add above</p>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        {/* Overdue tasks first */}
-                                        {overdueTasks.slice(0, 2).map(task => (
-                                          <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-100'}`}>
-                                            <button
-                                              onClick={() => toggleTaskComplete(task)}
-                                              className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 ${darkMode ? 'border-red-500/50 hover:bg-red-500/20' : 'border-red-300 hover:bg-red-100'}`}
-                                            >
-                                            </button>
-                                            <div className="flex-1 min-w-0">
-                                              <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{task.title}</p>
-                                              <p className="text-[10px] text-red-500">Overdue: {task.dueDate}</p>
-                                            </div>
-                                          </div>
-                                        ))}
-                                        
-                                        {/* Today's tasks */}
-                                        {todayTasks.filter(t => t.status !== 'Completed').slice(0, widget.size === 'large' || widget.size === 'xl' ? 8 : 4).map(task => {
-                                          const priority = task.priority || 'Medium';
-                                          const priorityColor = priority === 'High' ? 'text-red-500' : priority === 'Medium' ? 'text-amber-500' : 'text-green-500';
-                                          
-                                          return (
-                                            <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}>
-                                              <button
-                                                onClick={() => toggleTaskComplete(task)}
-                                                className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 ${darkMode ? 'border-gray-600 hover:border-green-500' : 'border-gray-300 hover:border-green-500'}`}
-                                              >
-                                              </button>
-                                              <div className="flex-1 min-w-0">
-                                                <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{task.title}</p>
-                                                <div className="flex items-center gap-2">
-                                                  <span className={`text-[10px] ${priorityColor}`}>●</span>
-                                                  <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{priority}</span>
-                                                  {task.time_slot && <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>@ {task.time_slot}</span>}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                        
-                                        {/* Completed tasks */}
-                                        {todayTasks.filter(t => t.status === 'Completed').slice(0, 2).map(task => (
-                                          <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg opacity-60 ${darkMode ? 'bg-gray-700/30' : 'bg-gray-50'}`}>
-                                            <button
-                                              onClick={() => toggleTaskComplete(task)}
-                                              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 bg-green-500 text-white"
-                                            >
-                                              <Check className="w-3 h-3" />
-                                            </button>
-                                            <p className={`text-xs line-through truncate ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{task.title}</p>
-                                          </div>
-                                        ))}
-                                      </>
-                                    )}
-                                  </div>
-                                  
-                                  {/* View All Link */}
-                                  <button 
-                                    onClick={() => setActiveView('tasks')}
-                                    className={`w-full mt-2 py-2 rounded-lg text-xs font-medium ${
-                                      darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-                                    }`}
-                                  >
-                                    View All Tasks →
-                                  </button>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Quote */}
-                        {widget.id === 'quote' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Quote className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                              <span className={`text-xs font-medium ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>{currentQuote?.theme || 'Weekly Wisdom'}</span>
-                            </div>
-                            {currentQuote ? (
-                              <>
-                                <blockquote className={`text-sm italic ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>"{currentQuote.quote}"</blockquote>
-                                <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>— {currentQuote.author}</p>
-                              </>
-                            ) : (
-                              <p className={`text-sm italic ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>"The only way to do great work is to love what you do."</p>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Progress */}
-                        {widget.id === 'progress' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Target className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Progress</span>
-                            </div>
-                            {(() => {
-                              const today = new Date().toISOString().split('T')[0];
-                              // Use tasks for daily completion rate
-                              const todayTasks = tasks.filter(t => t.dueDate === today && t.participant === myParticipant);
-                              const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
-                              const todayTotal = todayTasks.length;
-                              const pct = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
-                              
-                              return (
-                                <div className="flex items-center gap-4">
-                                  <div className="relative w-20 h-20">
-                                    <svg className="w-full h-full transform -rotate-90">
-                                      <circle cx="40" cy="40" r="35" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="6" fill="none" />
-                                      <circle cx="40" cy="40" r="35" stroke={pct >= 100 ? '#22c55e' : '#8b5cf6'} strokeWidth="6" fill="none" strokeLinecap="round"
-                                        strokeDasharray={`${pct * 2.2} 220`} />
-                                    </svg>
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                      <span className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{pct}%</span>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}/{todayTotal}</p>
-                                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>tasks today</p>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Key Metrics */}
-                        {widget.id === 'stats' && (
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <BarChart3 className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Key Metrics</span>
-                              </div>
-                              <select 
-                                value={scorecardRange} 
-                                onChange={(e) => setScorecardRange(e.target.value)}
-                                className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
-                              >
-                                <option value="week">This Week</option>
-                                <option value="4weeks">Last 4 Weeks</option>
-                                <option value="quarter">Quarter</option>
-                                <option value="year">Year</option>
-                              </select>
-                            </div>
-                            <div className="grid grid-cols-5 gap-2">
-                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                                <Target className="w-4 h-4 mx-auto text-purple-500 mb-1" />
-                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.rate}%</p>
-                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Complete</p>
-                              </div>
-                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                                <CheckCircle2 className="w-4 h-4 mx-auto text-blue-500 mb-1" />
-                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.total}</p>
-                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total</p>
-                              </div>
-                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                                <Award className="w-4 h-4 mx-auto text-green-500 mb-1" />
-                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.exceeded}</p>
-                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Exceeded</p>
-                              </div>
-                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                                <XCircle className="w-4 h-4 mx-auto text-red-500 mb-1" />
-                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.missed}</p>
-                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Missed</p>
-                              </div>
-                              <div className={`rounded-xl p-2 text-center ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                                <Clock className="w-4 h-4 mx-auto text-amber-500 mb-1" />
-                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{overallStats.inProgress}</p>
-                                <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>In Progress</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Daily Habits */}
-                        {widget.id === 'dailyHabits' && (
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <CheckSquare className={`w-4 h-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Habits</span>
-                              </div>
-                              <button onClick={() => setActiveView('tracker')} className={`text-xs ${darkMode ? 'text-green-400' : 'text-green-600'}`}>View all →</button>
-                            </div>
-                            {(() => {
-                              const today = new Date();
-                              const dayOfWeek = today.getDay();
-                              const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                              const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                              
-                              if (myHabits.length === 0) return <p className={`text-xs text-center py-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No habits this week</p>;
-                              
-                              return (
-                                <div className="space-y-2 max-h-48 overflow-y-auto">
-                                  {myHabits.map(habit => {
-                                    const isCompleted = (habit.daysCompleted || []).includes(todayIndex);
-                                    return (
-                                      <div key={habit.id} className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                                        isCompleted 
-                                          ? darkMode ? 'bg-green-500/20' : 'bg-green-50' 
-                                          : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                                      }`}>
-                                        <button 
-                                          onClick={() => toggleDay(habit.id, todayIndex)}
-                                          className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-all ${
-                                            isCompleted 
-                                              ? 'bg-green-500 text-white' 
-                                              : darkMode ? 'bg-gray-600 hover:bg-green-500/50' : 'bg-gray-200 hover:bg-green-200'
-                                          }`}
-                                        >
-                                          {isCompleted && <Check className="w-3 h-3" />}
-                                        </button>
-                                        <span className={`text-xs flex-1 ${isCompleted ? 'line-through opacity-60' : ''} ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                          {habit.habit}
-                                        </span>
-                                        <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                          {(habit.daysCompleted || []).length}/{habit.target || 5}
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Daily Tasks */}
-                        {widget.id === 'dailyTasks' && (
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <ListTodo className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Tasks</span>
-                              </div>
-                              <button onClick={() => setActiveView('tasks')} className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>View all →</button>
-                            </div>
-                            {(() => {
-                              const today = new Date().toISOString().split('T')[0];
-                              const todayTasks = tasks.filter(t => t.participant === myParticipant && t.dueDate === today);
-                              const completed = todayTasks.filter(t => t.status === 'Completed').length;
-                              
-                              if (todayTasks.length === 0) return (
-                                <div className="text-center py-4">
-                                  <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No tasks for today</p>
-                                  <button onClick={() => setActiveView('tasks')} className={`text-xs mt-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                                    + Add task
-                                  </button>
-                                </div>
-                              );
-                              
-                              return (
-                                <>
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <div className={`flex-1 h-1.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                      <div 
-                                        className={`h-1.5 rounded-full ${completed === todayTasks.length ? 'bg-green-500' : 'bg-blue-500'}`}
-                                        style={{ width: `${(completed / todayTasks.length) * 100}%` }}
-                                      />
-                                    </div>
-                                    <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{completed}/{todayTasks.length}</span>
-                                  </div>
-                                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                                    {todayTasks.map(task => (
-                                      <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg ${
-                                        task.status === 'Completed' 
-                                          ? darkMode ? 'bg-green-500/20' : 'bg-green-50'
-                                          : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                                      }`}>
-                                        <button 
-                                          onClick={() => updateTaskStatus(task.id, task.status === 'Completed' ? 'Not Started' : 'Completed')}
-                                          className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                                            task.status === 'Completed' 
-                                              ? 'bg-green-500 border-green-500 text-white' 
-                                              : darkMode ? 'border-gray-500 hover:border-green-400' : 'border-gray-300 hover:border-green-400'
-                                          }`}
-                                        >
-                                          {task.status === 'Completed' && <Check className="w-2.5 h-2.5" />}
-                                        </button>
-                                        <span className={`text-xs flex-1 truncate ${task.status === 'Completed' ? 'line-through opacity-60' : ''} ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                          {task.task}
-                                        </span>
-                                        {task.time_slot && <span className={`text-[10px] ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{task.time_slot}</span>}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Life Balance */}
-                        {widget.id === 'lifeBalance' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <BarChart3 className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Life Balance</span>
-                            </div>
-                            {(() => {
-                              // Calculate life balance data
-                              const myHabits = habits.filter(h => h.participant === myParticipant);
-                              const categoryData = HABIT_CATEGORIES.map(cat => {
-                                const catHabits = myHabits.filter(h => h.category === cat.id);
-                                const totalDaysCompleted = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const completedHabits = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                                const completionRate = catHabits.length > 0 ? (completedHabits / catHabits.length) * 100 : 0;
-                                return { ...cat, volume: totalDaysCompleted, completionRate, habitCount: catHabits.length };
-                              });
-                              
-                              const maxVolume = Math.max(...categoryData.map(c => c.volume), 1);
-                              const scores = categoryData.map(cat => {
-                                const volumeScore = (cat.volume / maxVolume) * 100;
-                                const score = cat.habitCount > 0 
-                                  ? Math.round((volumeScore * 0.4) + (cat.completionRate * 0.6))
-                                  : 0;
-                                return { ...cat, score };
-                              });
-                              
-                              return (
-                                <>
-                                  {/* Simple Radar Chart */}
-                                  <div className="relative w-full max-w-[180px] mx-auto aspect-square">
-                                    <svg viewBox="0 0 200 200" className="w-full h-full">
-                                      {/* Background rings */}
-                                      {[20, 40, 60, 80, 100].map((r, i) => (
-                                        <circle key={i} cx="100" cy="100" r={r * 0.7} fill="none" 
-                                          stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="1" opacity={0.5} />
-                                      ))}
-                                      
-                                      {/* Axis lines */}
-                                      {scores.map((_, i) => {
-                                        const angle = (i * 360 / scores.length - 90) * (Math.PI / 180);
-                                        const x2 = 100 + Math.cos(angle) * 70;
-                                        const y2 = 100 + Math.sin(angle) * 70;
-                                        return (
-                                          <line key={i} x1="100" y1="100" x2={x2} y2={y2} 
-                                            stroke={darkMode ? '#4B5563' : '#d1d5db'} strokeWidth="1" />
-                                        );
-                                      })}
-                                      
-                                      {/* Data polygon */}
-                                      <polygon
-                                        points={scores.map((cat, i) => {
-                                          const angle = (i * 360 / scores.length - 90) * (Math.PI / 180);
-                                          const r = (cat.score / 100) * 70;
-                                          return `${100 + Math.cos(angle) * r},${100 + Math.sin(angle) * r}`;
-                                        }).join(' ')}
-                                        fill="rgba(59, 130, 246, 0.2)"
-                                        stroke="#3b82f6"
-                                        strokeWidth="2"
-                                      />
-                                      
-                                      {/* Labels */}
-                                      {scores.map((cat, i) => {
-                                        const angle = (i * 360 / scores.length - 90) * (Math.PI / 180);
-                                        const x = 100 + Math.cos(angle) * 90;
-                                        const y = 100 + Math.sin(angle) * 90;
-                                        return (
-                                          <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle"
-                                            className={`text-[10px] font-medium ${darkMode ? 'fill-gray-400' : 'fill-gray-600'}`}>
-                                            {cat.icon}
-                                          </text>
-                                        );
-                                      })}
-                                    </svg>
-                                  </div>
-                                  {/* Category Legend */}
-                                  <div className="grid grid-cols-4 gap-1 mt-2">
-                                    {scores.slice(0, 8).map(cat => (
-                                      <div key={cat.id} className="text-center">
-                                        <span className="text-sm">{cat.icon}</span>
-                                        <p className={`text-[9px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{cat.score}%</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Tasks */}
-                        {widget.id === 'tasks' && (
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <CheckSquare className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Tasks</span>
-                              </div>
-                              <button onClick={() => setActiveView('tasks')} className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>View all →</button>
-                            </div>
-                            <div className="space-y-2 max-h-40 overflow-y-auto">
-                              {(() => {
-                                const myTasks = tasks.filter(t => t.participant === myParticipant && t.status !== 'Completed').slice(0, 5);
-                                if (myTasks.length === 0) return <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No tasks for today 🎉</p>;
-                                return myTasks.map(task => (
-                                  <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                    <button onClick={() => updateTaskStatus(task.id, 'Completed')} className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${darkMode ? 'border-gray-500 hover:border-green-400' : 'border-gray-300 hover:border-green-500'}`} />
-                                    <span className={`text-xs flex-1 truncate ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{task.task}</span>
-                                    {task.time_slot && <span className={`text-[10px] ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{task.time_slot}</span>}
-                                  </div>
-                                ));
-                              })()}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Habits/Streaks */}
-                        {widget.id === 'habits' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Flame className={`w-4 h-4 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Streaks</span>
-                            </div>
-                            <div className="space-y-2">
-                              {allParticipants.map(p => (
-                                <div key={p} className="flex items-center justify-between">
-                                  <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{p}</span>
-                                  <span className="text-sm font-bold text-orange-500">🔥 {calculateStreaks[p] || 0}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Calendar */}
-                        {widget.id === 'calendar' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Calendar className={`w-4 h-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Mini Calendar</span>
-                            </div>
-                            <div className="grid grid-cols-7 gap-1 text-center">
-                              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-                                <span key={i} className={`text-[10px] font-medium ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{d}</span>
-                              ))}
-                              {Array.from({ length: 35 }, (_, i) => {
-                                const today = new Date();
-                                const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-                                const startOffset = (firstDay.getDay() + 6) % 7;
-                                const dayNum = i - startOffset + 1;
-                                const isValidDay = dayNum > 0 && dayNum <= new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-                                const isToday = dayNum === today.getDate();
-                                
-                                return (
-                                  <div key={i} className={`text-[10px] w-6 h-6 flex items-center justify-center rounded-full ${
-                                    !isValidDay ? '' : isToday ? 'bg-blue-600 text-white font-bold' : (darkMode ? 'text-gray-300' : 'text-gray-600')
-                                  }`}>
-                                    {isValidDay ? dayNum : ''}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: AI Coach */}
-                        {widget.id === 'coach' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Brain className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>AI Coach</span>
-                            </div>
-                            <button onClick={() => setShowCoach(true)} className={`w-full py-3 rounded-xl text-sm font-medium transition-colors ${
-                              darkMode ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300' : 'bg-purple-50 hover:bg-purple-100 text-purple-700'
-                            }`}>
-                              <MessageCircle className="w-4 h-4 inline mr-2" />
-                              Start Coaching Session
-                            </button>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Challenges */}
-                        {widget.id === 'challenges' && (
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <Trophy className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Challenges</span>
-                              </div>
-                              <button onClick={() => setActiveView('compete')} className={`text-xs ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>View all →</button>
-                            </div>
-                            {(() => {
-                              const activeBets = bets.filter(b => b.status === 'active').slice(0, 2);
-                              if (activeBets.length === 0) return <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No active challenges</p>;
-                              return activeBets.map(bet => (
-                                <div key={bet.id} className={`p-2 rounded-lg mb-2 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                  <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{bet.goal}</p>
-                                  <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}</p>
-                                </div>
-                              ));
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Feed */}
-                        {widget.id === 'feed' && (
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <MessageSquare className={`w-4 h-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Recent Activity</span>
-                              </div>
-                              <button onClick={() => setActiveView('feed')} className={`text-xs ${darkMode ? 'text-green-400' : 'text-green-600'}`}>View all →</button>
-                            </div>
-                            {(() => {
-                              const recent = posts.slice(0, 3);
-                              if (recent.length === 0) return <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No recent posts</p>;
-                              return recent.map(post => (
-                                <div key={post.id} className={`p-2 rounded-lg mb-2 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                  <p className={`text-xs font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{post.author}</p>
-                                  <p className={`text-[10px] truncate ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{post.text?.slice(0, 50)}...</p>
-                                </div>
-                              ));
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Goals */}
-                        {widget.id === 'goals' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Target className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>2026 Goals</span>
-                            </div>
-                            {visionData ? (
-                              <div>
-                                <p className={`text-xs mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Word of the Year:</p>
-                                <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{visionData.wordOfYear || 'Not set'}</p>
-                              </div>
-                            ) : (
-                              <button onClick={() => setActiveView('vision')} className={`w-full py-2 text-xs rounded-lg ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
-                                Set Your Vision →
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Mood */}
-                        {widget.id === 'mood' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Heart className={`w-4 h-4 ${darkMode ? 'text-pink-400' : 'text-pink-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Mood Tracker</span>
-                            </div>
-                            {(() => {
-                              const todayMoodEntry = moodData.find(m => m.date === new Date().toISOString().split('T')[0]);
-                              if (todayMoodEntry) {
-                                return (
-                                  <div className="text-center">
-                                    <span className="text-3xl">{['😢', '😕', '😐', '🙂', '😊', '😄', '🤩', '🥳', '🌟', '💫'][todayMoodEntry.mood - 1]}</span>
-                                    <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today's mood: {todayMoodEntry.mood}/10</p>
-                                  </div>
-                                );
-                              }
-                              return (
-                                <button onClick={() => setShowMoodModal(true)} className={`w-full py-2 text-xs rounded-lg ${darkMode ? 'bg-pink-500/20 text-pink-300' : 'bg-pink-50 text-pink-700'}`}>
-                                  Log Today's Mood
-                                </button>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Weekly Trend Chart */}
-                        {widget.id === 'weeklyTrend' && (
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <TrendingUp className={`w-4 h-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Weekly Trend</span>
-                              </div>
-                            </div>
-                            <div className="h-32">
-                              {(() => {
-                                // Get weeks that actually have data for this user
-                                const weeksWithData = [...new Set(habits.filter(h => h.participant === myParticipant).map(h => h.weekStart))].sort();
-                                const last7Weeks = weeksWithData.slice(-7);
-                                
-                                const chartData = last7Weeks.map(week => {
-                                  const weekHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
-                                  const totalCompleted = weekHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                  const totalTarget = weekHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                  const rate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
-                                  return { week: week.slice(5), rate, completed: totalCompleted, target: totalTarget };
-                                });
-                                
-                                if (chartData.length === 0) {
-                                  return (
-                                    <div className={`h-full flex items-center justify-center ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                      <p className="text-xs">No data yet</p>
-                                    </div>
-                                  );
-                                }
-                                
-                                return (
-                                  <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={chartData}>
-                                      <defs>
-                                        <linearGradient id="colorRateTrend" x1="0" y1="0" x2="0" y2="1">
-                                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                        </linearGradient>
-                                      </defs>
-                                      <XAxis dataKey="week" tick={{ fontSize: 10, fill: darkMode ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} />
-                                      <YAxis hide domain={[0, 100]} />
-                                      <Tooltip content={({ payload, label }) => {
-                                        if (payload && payload.length > 0) {
-                                          return (
-                                            <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white shadow text-gray-800'}`}>
-                                              <p className="font-medium">{label}</p>
-                                              <p>{payload[0].payload.completed}/{payload[0].payload.target} ({payload[0].value}%)</p>
-                                            </div>
-                                          );
-                                        }
-                                        return null;
-                                      }} />
-                                      <Area type="monotone" dataKey="rate" stroke="#3b82f6" strokeWidth={2} fill="url(#colorRateTrend)" />
-                                    </AreaChart>
-                                  </ResponsiveContainer>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Team Leaderboard */}
-                        {widget.id === 'teamLeaderboard' && (
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <Trophy className={`w-4 h-4 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-                                <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Team Leaderboard</span>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              {(() => {
-                                const leaderboard = allParticipants.map(p => {
-                                  const pHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === p);
-                                  const completed = pHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                                  const rate = pHabits.length > 0 ? Math.round((completed / pHabits.length) * 100) : 0;
-                                  return { name: p, rate, completed, total: pHabits.length };
-                                }).filter(p => p.rate > 0 || p.name === myParticipant) // Exclude 0% scores except current user
-                                  .sort((a, b) => b.rate - a.rate);
-                                
-                                if (leaderboard.length === 0) {
-                                  return (
-                                    <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                      No scores yet this week
-                                    </p>
-                                  );
-                                }
-                                
-                                return leaderboard.map((entry, idx) => (
-                                  <div key={entry.name} className={`flex items-center gap-2 p-2 rounded-lg ${
-                                    entry.name === myParticipant 
-                                      ? darkMode ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
-                                      : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                                  }`}>
-                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-                                      idx === 0 ? 'bg-amber-500 text-white' : idx === 1 ? 'bg-gray-400 text-white' : idx === 2 ? 'bg-orange-600 text-white' : (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
-                                    }`}>
-                                      {idx + 1}
-                                    </span>
-                                    <span className={`flex-1 text-xs font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{entry.name}</span>
-                                    <span className={`text-xs font-bold ${entry.rate >= 80 ? 'text-green-500' : entry.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{entry.rate}%</span>
-                                  </div>
-                                ));
-                              })()}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Pomodoro/Focus Timer */}
-                        {widget.id === 'pomodoro' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Timer className={`w-4 h-4 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Focus Timer</span>
-                            </div>
-                            <div className="text-center">
-                              <p className={`text-[10px] uppercase tracking-wider mb-1 ${pomodoroMode === 'work' ? 'text-red-500' : 'text-green-500'}`}>
-                                {pomodoroMode === 'work' ? '🔥 Focus Time' : '☕ Break Time'}
-                              </p>
-                              <p className={`text-3xl font-mono font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {String(Math.floor(pomodoroTime / 60)).padStart(2, '0')}:{String(pomodoroTime % 60).padStart(2, '0')}
-                              </p>
-                              <div className="flex justify-center gap-2 mt-2">
-                                <button onClick={() => setPomodoroRunning(!pomodoroRunning)}
-                                  className={`p-2 rounded-lg ${pomodoroRunning 
-                                    ? 'bg-amber-500 hover:bg-amber-600 text-white' 
-                                    : 'bg-green-500 hover:bg-green-600 text-white'}`}>
-                                  {pomodoroRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                                </button>
-                                <button onClick={() => { setPomodoroRunning(false); setPomodoroTime(pomodoroMode === 'work' ? 25 * 60 : 5 * 60); }}
-                                  className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
-                                  <RotateCcw className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Quick Win */}
-                        {widget.id === 'quickWin' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Zap className={`w-4 h-4 ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Quick Win</span>
-                            </div>
-                            {(() => {
-                              const today = new Date();
-                              const dayOfWeek = today.getDay();
-                              const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                              const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                              const incompleteHabit = myHabits.find(h => !(h.daysCompleted || []).includes(todayIndex));
-                              
-                              if (!incompleteHabit) {
-                                return (
-                                  <div className="text-center py-2">
-                                    <span className="text-2xl">🎉</span>
-                                    <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>All done today!</p>
-                                  </div>
-                                );
-                              }
-                              
-                              return (
-                                <div className={`p-3 rounded-lg ${darkMode ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-yellow-50 border border-yellow-200'}`}>
-                                  <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
-                                    Complete this now:
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    <button onClick={() => toggleDay(incompleteHabit.id, todayIndex)}
-                                      className={`w-6 h-6 rounded flex items-center justify-center ${darkMode ? 'bg-gray-700 hover:bg-green-500' : 'bg-gray-200 hover:bg-green-500 hover:text-white'}`}>
-                                      <Check className="w-4 h-4" />
-                                    </button>
-                                    <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{incompleteHabit.habit}</span>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Week at a Glance */}
-                        {widget.id === 'weekAtGlance' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Calendar className={`w-4 h-4 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Week at a Glance</span>
-                            </div>
-                            <div className="grid grid-cols-7 gap-1">
-                              {DAYS.map((day, i) => {
-                                const today = new Date();
-                                const dayOfWeek = today.getDay();
-                                const todayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                                const isToday = i === todayIndex;
-                                const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                                const dayCompleted = myHabits.filter(h => (h.daysCompleted || []).includes(i)).length;
-                                const dayTotal = myHabits.length;
-                                const pct = dayTotal > 0 ? Math.round((dayCompleted / dayTotal) * 100) : 0;
-                                
-                                return (
-                                  <div key={day} className={`text-center p-2 rounded-lg ${
-                                    isToday 
-                                      ? darkMode ? 'bg-blue-500/20 border border-blue-500/50' : 'bg-blue-50 border border-blue-200'
-                                      : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                                  }`}>
-                                    <p className={`text-[10px] font-medium ${isToday ? 'text-blue-500' : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>{day.slice(0, 3)}</p>
-                                    <p className={`text-lg font-bold ${pct >= 80 ? 'text-green-500' : pct >= 50 ? 'text-amber-500' : pct > 0 ? 'text-red-500' : (darkMode ? 'text-gray-500' : 'text-gray-300')}`}>{pct}%</p>
-                                    <p className={`text-[9px] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{dayCompleted}/{dayTotal}</p>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Category Breakdown */}
-                        {widget.id === 'categoryBreakdown' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <BarChart3 className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>By Category</span>
-                            </div>
-                            <div className="space-y-2">
-                              {HABIT_CATEGORIES.map(cat => {
-                                const catHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant && h.category === cat.id);
-                                const completed = catHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                                const pct = catHabits.length > 0 ? Math.round((completed / catHabits.length) * 100) : 0;
-                                if (catHabits.length === 0) return null;
-                                
-                                return (
-                                  <div key={cat.id} className="flex items-center gap-2">
-                                    <span className="text-sm">{cat.icon}</span>
-                                    <div className="flex-1">
-                                      <div className={`h-2 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                        <div className={`h-full rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
-                                      </div>
-                                    </div>
-                                    <span className={`text-xs font-medium w-8 text-right ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{pct}%</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Widget: Motivational Quote */}
-                        {widget.id === 'motivationalQuote' && (
-                          <div className="p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Sparkles className={`w-4 h-4 ${darkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                              <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Motivation</span>
-                            </div>
-                            {(() => {
-                              const quotes = [
-                                "The only way to do great work is to love what you do.",
-                                "Success is not final, failure is not fatal.",
-                                "The future depends on what you do today.",
-                                "Small daily improvements lead to stunning results.",
-                                "Discipline is choosing what you want most over what you want now."
-                              ];
-                              const dayIndex = new Date().getDate() % quotes.length;
-                              return (
-                                <p className={`text-xs italic ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>"{quotes[dayIndex]}"</p>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        
-                        {/* Widget: Analytics Center (XL) */}
-                        {widget.id === 'analyticsCenter' && (
-                          <div className="p-5">
-                            {(() => {
-                              // Comprehensive analytics data
-                              const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
-                              const last12Weeks = weeksWithData.slice(-12);
-                              const today = new Date().toISOString().split('T')[0];
-                              
-                              // Task stats
-                              const myTasks = tasks.filter(t => t.participant === myParticipant);
-                              const todayTasks = myTasks.filter(t => t.dueDate === today);
-                              const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
-                              const weekTasks = myTasks.filter(t => {
-                                if (!t.dueDate) return false;
-                                const taskDate = new Date(t.dueDate);
-                                const weekAgo = new Date();
-                                weekAgo.setDate(weekAgo.getDate() - 7);
-                                return taskDate >= weekAgo;
-                              });
-                              const weekCompleted = weekTasks.filter(t => t.status === 'Completed').length;
-                              
-                              // Habit stats
-                              const myHabits = habits.filter(h => h.participant === myParticipant);
-                              const currentWeekHabits = myHabits.filter(h => h.weekStart === currentWeek);
-                              const totalDaysLogged = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                              const totalTarget = myHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                              const overallRate = totalTarget > 0 ? Math.round((totalDaysLogged / totalTarget) * 100) : 0;
-                              
-                              // Weekly trend
-                              const weeklyData = last12Weeks.map(week => {
-                                const wHabits = myHabits.filter(h => h.weekStart === week);
-                                const completed = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const target = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                return { week: week.slice(5), rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
-                              });
-                              
-                              // Category stats
-                              const categoryStats = HABIT_CATEGORIES.map(cat => {
-                                const catHabits = myHabits.filter(h => h.category === cat.id);
-                                const completed = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const target = catHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                return { ...cat, completed, target, rate: target > 0 ? Math.round((completed / target) * 100) : 0, count: catHabits.length };
-                              }).filter(c => c.count > 0).sort((a, b) => b.rate - a.rate);
-                              
-                              // Team comparison (excluding 0% scores)
-                              const teamStats = allParticipants.map(p => {
-                                const pHabits = habits.filter(h => h.participant === p);
-                                const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                                const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                                return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
-                              }).filter(p => p.rate > 0).sort((a, b) => b.rate - a.rate);
-                              
-                              const myRank = teamStats.findIndex(p => p.name === myParticipant) + 1;
-                              const teamAvg = teamStats.length > 0 ? Math.round(teamStats.reduce((sum, p) => sum + p.rate, 0) / teamStats.length) : 0;
-                              
-                              // Streak calculation
-                              const streak = calculateStreaks[myParticipant] || 0;
-                              
-                              return (
-                                <div className="space-y-5">
-                                  {/* Header */}
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <BarChart3 className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                                      <span className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Analytics Center</span>
-                                    </div>
-                                    <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                      Last updated: {new Date().toLocaleTimeString()}
-                                    </span>
-                                  </div>
-                                  
-                                  {/* Top Stats Row */}
-                                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
-                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Today's Tasks</p>
-                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{todayCompleted}/{todayTasks.length}</p>
-                                    </div>
-                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-100'}`}>
-                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-green-400' : 'text-green-600'}`}>Week Tasks</p>
-                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{weekCompleted}/{weekTasks.length}</p>
-                                    </div>
-                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-100'}`}>
-                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Overall Rate</p>
-                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{overallRate}%</p>
-                                    </div>
-                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-100'}`}>
-                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Current Streak</p>
-                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>🔥 {streak}</p>
-                                    </div>
-                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-pink-500/10 border border-pink-500/20' : 'bg-pink-50 border border-pink-100'}`}>
-                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-pink-400' : 'text-pink-600'}`}>Team Rank</p>
-                                      <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>#{myRank || '-'}</p>
-                                    </div>
-                                    <div className={`p-3 rounded-xl ${darkMode ? 'bg-cyan-500/10 border border-cyan-500/20' : 'bg-cyan-50 border border-cyan-100'}`}>
-                                      <p className={`text-[10px] uppercase tracking-wider ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>vs Team Avg</p>
-                                      <p className={`text-2xl font-bold ${overallRate >= teamAvg ? 'text-green-500' : 'text-red-500'}`}>
-                                        {overallRate >= teamAvg ? '+' : ''}{overallRate - teamAvg}%
-                                      </p>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Charts Row */}
-                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {/* 12-Week Trend */}
-                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                      <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>12-Week Trend</p>
-                                      <div className="h-36">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                          <AreaChart data={weeklyData}>
-                                            <defs>
-                                              <linearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                                              </linearGradient>
-                                            </defs>
-                                            <XAxis dataKey="week" tick={{ fontSize: 9, fill: darkMode ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} />
-                                            <YAxis hide domain={[0, 100]} />
-                                            <Tooltip content={({ payload, label }) => payload?.length ? (
-                                              <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-800 text-white' : 'bg-white shadow text-gray-800'}`}>
-                                                <p>{label}: {payload[0].value}%</p>
-                                              </div>
-                                            ) : null} />
-                                            <Area type="monotone" dataKey="rate" stroke="#8b5cf6" strokeWidth={2} fill="url(#analyticsGradient)" />
-                                          </AreaChart>
-                                        </ResponsiveContainer>
-                                      </div>
-                                    </div>
-                                    
-                                    {/* Category Breakdown */}
-                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                      <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Category Performance</p>
-                                      <div className="space-y-2">
-                                        {categoryStats.slice(0, 5).map(cat => (
-                                          <div key={cat.id} className="flex items-center gap-2">
-                                            <span className="w-6 text-center">{cat.icon}</span>
-                                            <span className={`text-xs w-20 truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cat.name}</span>
-                                            <div className={`flex-1 h-2 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                                              <div className={`h-full rounded-full ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${cat.rate}%` }} />
-                                            </div>
-                                            <span className={`text-xs font-bold w-10 text-right ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{cat.rate}%</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Bottom Row: Team & Habits */}
-                                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                    {/* Team Leaderboard */}
-                                    <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                      <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Team Rankings (All Time)</p>
-                                      <div className="space-y-1.5">
-                                        {teamStats.slice(0, 5).map((p, idx) => (
-                                          <div key={p.name} className={`flex items-center gap-2 p-1.5 rounded ${p.name === myParticipant ? (darkMode ? 'bg-blue-500/20' : 'bg-blue-50') : ''}`}>
-                                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                              idx === 0 ? 'bg-amber-500 text-white' : idx === 1 ? 'bg-gray-400 text-white' : idx === 2 ? 'bg-orange-600 text-white' : (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
-                                            }`}>{idx + 1}</span>
-                                            <span className={`flex-1 text-xs truncate ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{p.name}</span>
-                                            <span className={`text-xs font-bold ${p.rate >= 80 ? 'text-green-500' : p.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{p.rate}%</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                    
-                                    {/* This Week's Habits */}
-                                    <div className={`p-4 rounded-xl lg:col-span-2 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                                      <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>This Week's Habits ({currentWeekHabits.length})</p>
-                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                        {currentWeekHabits.slice(0, 6).map(habit => {
-                                          const status = getStatus(habit);
-                                          const pct = habit.target > 0 ? Math.round(((habit.daysCompleted?.length || 0) / habit.target) * 100) : 0;
-                                          return (
-                                            <div key={habit.id} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-600/50' : 'bg-white'}`}>
-                                              <p className={`text-xs font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{habit.habit}</p>
-                                              <div className="flex items-center gap-2 mt-1">
-                                                <div className={`flex-1 h-1.5 rounded-full ${darkMode ? 'bg-gray-500' : 'bg-gray-200'}`}>
-                                                  <div className={`h-full rounded-full ${status === 'Done' || status === 'Exceeded' ? 'bg-green-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-                                                </div>
-                                                <span className={`text-[10px] font-bold ${status === 'Done' || status === 'Exceeded' ? 'text-green-500' : 'text-gray-500'}`}>{pct}%</span>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              
-              {/* Empty State */}
-              {dashboardWidgets.filter(w => w.enabled).length === 0 && (
-                <div className="col-span-full text-center py-12">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                    <Plus className={`w-8 h-8 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} />
-                  </div>
-                  <p className={`text-lg font-medium mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Your dashboard is empty</p>
-                  <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Click "Customize" to add widgets</p>
-                  <button onClick={() => { setIsEditingDashboard(true); setShowWidgetPicker(true); }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
-                    Add Your First Widget
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-
-        {/* FEED VIEW */}
-        {activeView === 'feed' && (
-          <div className="max-w-2xl mx-auto space-y-4">
-            {/* Create Post */}
-            <div className={`rounded-2xl p-4 backdrop-blur-xl transition-colors duration-300 ${
-              darkMode 
-                ? 'bg-gray-800 border border-gray-700 shadow-xl shadow-black/20' 
-                : 'bg-white/70 border border-white/50'
-            }`}>
-              <div className="flex gap-3">
-                {(userProfile?.photoURL || user?.photoURL) ? (
-                  <img src={userProfile?.photoURL || user?.photoURL} className="w-10 h-10 rounded-full object-cover ring-2 ring-white/20" alt="" />
-                ) : (
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${darkMode ? 'bg-gray-700 text-white' : 'bg-[#1E3A5F] text-white'}`}>
-                    {user?.displayName?.[0] || '?'}
-                  </div>
-                )}
-                <div className="flex-1">
-                  {/* Formatting Toolbar */}
-                  <div className="flex gap-1 mb-2">
-                    <button 
-                      onClick={() => applyFormat('bold')}
-                      className={`px-2 py-1 rounded text-xs font-bold transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}
-                      title="Bold"
-                    >
-                      B
-                    </button>
-                    <button 
-                      onClick={() => applyFormat('italic')}
-                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs italic text-gray-600"
-                      title="Italic"
-                    >
-                      I
-                    </button>
-                    <button 
-                      onClick={() => applyFormat('bullet')}
-                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs text-gray-600"
-                      title="Bullet Point"
-                    >
-                      • List
-                    </button>
-                    <span className="text-xs text-gray-400 ml-2 self-center">Select text then click to format</span>
-                  </div>
-                  <textarea
-                    ref={postTextRef}
-                    value={newPostText}
-                    onChange={(e) => setNewPostText(e.target.value)}
-                    placeholder="Share an update, win, or challenge... Use **bold** or _italic_"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F5B800] resize-none"
-                    rows={3}
-                  />
-                  {postImagePreview && (
-                    <div className="relative mt-2">
-                      <img src={postImagePreview} alt="Preview" className="max-h-48 rounded-lg" />
-                      <button 
-                        onClick={() => { setNewPostImage(null); setPostImagePreview(null); }}
-                        className="absolute top-2 right-2 w-6 h-6 bg-black/50 rounded-full text-white flex items-center justify-center"
-                      >
-                        <XCircle className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleImageSelect}
-                        accept="image/*"
-                        className="hidden"
-                      />
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-600 transition-colors"
-                      >
-                        <Image className="w-4 h-4" />
-                        Photo
-                      </button>
-                    </div>
-                    <button 
-                      onClick={createPost}
-                      disabled={!newPostText.trim() && !newPostImage}
-                      className="px-4 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#162D4D] transition-colors disabled:opacity-50"
-                    >
-                      Post
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Posts Feed */}
-            {posts.map(post => {
-              const authorProfile = getProfileByParticipant(post.author);
-              const displayPhoto = authorProfile?.photoURL || post.authorPhoto;
-              return (
-              <div key={post.id} className={`rounded-xl border overflow-hidden ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                {/* Post Header */}
-                <div className="p-4 pb-0">
-                  <div className="flex items-start gap-3">
-                    <button onClick={() => openProfileView(post.author)} className="flex-shrink-0">
-                      {displayPhoto ? (
-                        <img src={displayPhoto} className="w-10 h-10 rounded-full object-cover hover:ring-2 hover:ring-[#F5B800] transition-all" alt="" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-[#1E3A5F] text-white flex items-center justify-center font-medium hover:ring-2 hover:ring-[#F5B800] transition-all">
-                          {post.author?.[0] || '?'}
-                        </div>
-                      )}
-                    </button>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => openProfileView(post.author)} className={`font-semibold hover:underline ${darkMode ? 'text-white hover:text-[#F5B800]' : 'text-gray-800 hover:text-[#1E3A5F]'}`}>{post.author}</button>
-                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{new Date(post.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      <div className={`mt-1 whitespace-pre-wrap ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{renderFormattedText(post.content)}</div>
-                    </div>
-                    {post.authorId === user?.uid && (
-                      <button onClick={() => deletePost(post.id)} className={`${darkMode ? 'text-gray-500 hover:text-red-400' : 'text-gray-300 hover:text-red-400'}`}>
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Post Image */}
-                {post.image && (
-                  <div className="mt-3">
-                    <img src={post.image} alt="" className="w-full max-h-96 object-cover" />
-                  </div>
-                )}
-                
-                {/* Reactions */}
-                <div className={`px-4 py-3 border-t mt-3 ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {REACTIONS.map(emoji => {
-                      const count = post.reactions?.[emoji]?.length || 0;
-                      const hasReacted = post.reactions?.[emoji]?.includes(user?.uid);
-                      return (
-                        <button
-                          key={emoji}
-                          onClick={() => addReaction(post.id, emoji)}
-                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm transition-colors ${hasReacted ? 'bg-[#F5B800]/20 border border-[#F5B800]' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
-                        >
-                          <span>{emoji}</span>
-                          {count > 0 && <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{count}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                
-                {/* Comments Section */}
-                <div className="px-4 pb-4">
-                  <button 
-                    onClick={() => setShowComments({ ...showComments, [post.id]: !showComments[post.id] })}
-                    className="text-xs text-gray-500 hover:text-gray-700 mb-2"
-                  >
-                    {post.comments?.length || 0} comments
-                  </button>
-                  
-                  {showComments[post.id] && (
-                    <div className="space-y-2">
-                      {post.comments?.map(comment => (
-                        <div key={comment.id} className="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                          {comment.authorPhoto ? (
-                            <img src={comment.authorPhoto} className="w-6 h-6 rounded-full" alt="" />
-                          ) : (
-                            <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 text-xs flex items-center justify-center">
-                              {comment.author?.[0]}
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-xs font-medium text-gray-800">{comment.author}</p>
-                            <p className="text-xs text-gray-600">{comment.text}</p>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {/* Add Comment */}
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          type="text"
-                          value={commentTexts[post.id] || ''}
-                          onChange={(e) => setCommentTexts({ ...commentTexts, [post.id]: e.target.value })}
-                          placeholder="Write a comment..."
-                          className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#F5B800]"
-                          onKeyPress={(e) => e.key === 'Enter' && addComment(post.id)}
-                        />
-                        <button 
-                          onClick={() => addComment(post.id)}
-                          className="px-3 py-1.5 bg-[#1E3A5F] text-white rounded-lg text-xs hover:bg-[#162D4D]"
-                        >
-                          <Send className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );})}
-            
-            {posts.length === 0 && (
-              <div className={`rounded-xl p-8 border text-center ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No posts yet. Be the first to share!</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* COMPETE VIEW */}
-        {activeView === 'compete' && (
-          <div className="space-y-4">
-            {/* Header with Create Challenge */}
+          <div className="space-y-6">
+            {/* Simple Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Compete & Challenge</h2>
-                <p className="text-sm text-gray-500">Challenge your teammates to reach their goals!</p>
+                <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Hey {myParticipant.split(' ')[0]} 👋
+                </h2>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Week of {currentWeek}
+                </p>
               </div>
-              <button 
-                onClick={() => setShowNewBet(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
-              >
-                <Swords className="w-4 h-4" />
-                New Challenge
-              </button>
+              <div className={`text-right`}>
+                <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {(() => {
+                    const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+                    const completed = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                    const target = myHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                    return target > 0 ? Math.round((completed / target) * 100) : 0;
+                  })()}%
+                </p>
+                <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>this week</p>
+              </div>
             </div>
-            
-            {/* Leaderboard - Full */}
-            <div className="bg-gradient-to-br from-[#1E3A5F] via-[#1E3A5F] to-purple-900 rounded-2xl p-6 text-white">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-[#F5B800] rounded-xl flex items-center justify-center">
-                  <Trophy className="w-6 h-6 text-[#1E3A5F]" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">Season Leaderboard</h3>
-                  <p className="text-white/60 text-sm">Compete for the top spot!</p>
-                </div>
-              </div>
+
+            {/* Two Column Layout: Habits + Team */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {leaderboard.map((p, i) => {
-                  const profile = getProfileByParticipant(p.name);
-                  return (
-                  <div key={p.name} className={`relative rounded-xl p-4 cursor-pointer hover:scale-[1.02] transition-transform ${i === 0 ? 'bg-gradient-to-br from-[#F5B800] to-amber-600 text-[#1E3A5F]' : 'bg-gray-700'}`} onClick={() => openProfileView(p.name)}>
-                    {i === 0 && (
-                      <div className="absolute -top-3 -right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg">
-                        <Crown className="w-5 h-5 text-[#F5B800]" />
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3">
-                      {profile?.photoURL ? (
-                        <img src={profile.photoURL} alt="" className={`w-12 h-12 rounded-full object-cover border-2 ${i === 0 ? 'border-white' : 'border-white/30'}`} />
-                      ) : (
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${i === 0 ? 'bg-white text-[#1E3A5F]' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-amber-600 text-white' : 'bg-white/20'}`}>
-                          {i === 0 ? '🏆' : i === 1 ? '🥈' : i === 2 ? '🥉' : p.name[0]}
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <p className="font-bold text-lg hover:underline">{p.name}</p>
-                        <p className={`text-sm ${i === 0 ? 'text-[#1E3A5F]/70' : 'text-white/60'}`}>{p.rate}% completion</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-3xl font-bold">{p.score}</p>
-                        <p className={`text-xs ${i === 0 ? 'text-[#1E3A5F]/70' : 'text-white/60'}`}>points</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <Flame className={`w-4 h-4 ${i === 0 ? 'text-[#1E3A5F]' : 'text-orange-400'}`} />
-                      <span className={`text-sm ${i === 0 ? 'text-[#1E3A5F]/70' : 'text-white/60'}`}>{p.streak} week streak</span>
-                    </div>
-                  </div>
-                );})}
-              </div>
-            </div>
-            
-            {/* Active Challenges */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Pending Challenges */}
-              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Gift className="w-5 h-5 text-purple-500" />
-                  Pending Challenges
-                </h3>
-                {bets.filter(b => b.status === 'pending').length === 0 ? (
-                  <p className="text-gray-400 text-sm text-center py-4">No pending challenges</p>
-                ) : (
-                  <div className="space-y-3">
-                    {bets.filter(b => b.status === 'pending').map(bet => {
-                      const challengedList = Array.isArray(bet.challenged) ? bet.challenged : [bet.challenged];
-                      const myName = userProfile?.linkedParticipant || user?.displayName;
-                      const isChallengee = challengedList.includes(myName);
-                      const hasAccepted = bet.acceptedBy?.includes(myName);
-                      const hasDeclined = bet.declinedBy?.includes(myName);
-                      const isChallenger = bet.challengerId === user?.uid;
-                      
-                      return (
-                        <div key={bet.id} className={`p-4 rounded-xl border-2 transition-all ${
-                          isChallengee && !hasAccepted && !hasDeclined && !isChallenger
-                            ? 'bg-gradient-to-r from-purple-100 via-pink-50 to-orange-50 border-purple-300 shadow-lg shadow-purple-200/50 animate-pulse'
-                            : 'bg-purple-50 border-purple-100'
-                        }`}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {bet.isGroup && <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-bold rounded-full">GROUP</span>}
-                              {bet.allowMultipleWinners && <span className="px-2 py-0.5 bg-green-200 text-green-800 text-xs font-bold rounded-full">MULTI-WIN</span>}
-                              <Swords className="w-4 h-4 text-purple-600" />
-                              <span className="font-bold text-purple-800">{bet.challenger}</span>
-                              <span className="text-purple-400">⚔️</span>
-                              <span className="font-bold text-purple-800">
-                                {challengedList.length > 2 
-                                  ? `${challengedList.slice(0, 2).join(', ')} +${challengedList.length - 2}`
-                                  : challengedList.join(', ')}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {isChallenger && (
-                                <>
-                                  <button onClick={() => setEditingBet(bet)} className="p-1 text-purple-400 hover:text-purple-600">
-                                    <Wand2 className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => deleteBet(bet.id)} className="p-1 text-purple-400 hover:text-red-500">
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <p className="text-sm text-purple-700 mb-1 font-medium">{bet.goal}</p>
-                          {bet.reward && <p className="text-xs text-purple-500 mb-1">🏆 Stakes: {bet.reward}</p>}
-                          <p className="text-xs text-purple-500 mb-2">⏰ Deadline: {new Date(bet.deadline).toLocaleDateString()}</p>
-                          
-                          {/* Group challenge status */}
-                          {bet.isGroup && bet.acceptedBy?.length > 0 && (
-                            <p className="text-xs text-green-600 mb-2 bg-green-50 px-2 py-1 rounded-lg inline-block">
-                              ✓ Accepted: {bet.acceptedBy.join(', ')}
-                            </p>
-                          )}
-                          
-                          {/* Dramatic View Challenge button for challangees */}
-                          {isChallengee && !isChallenger && !hasAccepted && !hasDeclined && (
-                            <button 
-                              onClick={() => setShowIncomingChallenge(bet)}
-                              className="w-full mt-2 py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 text-white rounded-xl font-black text-sm hover:from-purple-500 hover:via-pink-500 hover:to-orange-400 transition-all shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 animate-pulse"
-                            >
-                              <Flame className="w-4 h-4" />
-                              VIEW CHALLENGE
-                              <Flame className="w-4 h-4" />
-                            </button>
-                          )}
-                          
-                          {/* Quick accept/decline for returning users */}
-                          {isChallengee && !isChallenger && !hasAccepted && !hasDeclined && (
-                            <div className="flex gap-2 mt-2">
-                              <button 
-                                onClick={() => acceptBet(bet.id)}
-                                className="flex-1 py-2 bg-green-500 text-white rounded-lg text-sm font-bold hover:bg-green-600 flex items-center justify-center gap-1"
-                              >
-                                <Check className="w-4 h-4" />
-                                Quick Accept
-                              </button>
-                              <button 
-                                onClick={() => declineBet(bet.id)}
-                                className="flex-1 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-bold hover:bg-red-200 flex items-center justify-center gap-1"
-                              >
-                                <X className="w-4 h-4" />
-                                Decline
-                              </button>
-                            </div>
-                          )}
-                          
-                          {hasAccepted && (
-                            <p className="text-xs text-green-600 font-bold mt-2 bg-green-50 px-3 py-2 rounded-lg">✓ You accepted - waiting for others</p>
-                          )}
-                          
-                          {isChallenger && (
-                            <p className="text-xs text-purple-500 font-medium mt-2">⏳ Waiting for response...</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              
-              {/* Active Challenges */}
-              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-yellow-500" />
-                  Active Challenges
-                </h3>
-                {bets.filter(b => b.status === 'accepted').length === 0 ? (
-                  <p className="text-gray-400 text-sm text-center py-4">No active challenges</p>
-                ) : (
-                  <div className="space-y-3">
-                    {bets.filter(b => b.status === 'accepted').map(bet => {
-                      const challengedList = Array.isArray(bet.challenged) ? bet.challenged : [bet.challenged];
-                      const allParticipantsInChallenge = [bet.challenger, ...challengedList];
-                      const myName = userProfile?.linkedParticipant || user?.displayName;
-                      const isParticipant = allParticipantsInChallenge.includes(myName) || bet.challengerId === user?.uid;
-                      const currentWinners = bet.winners || [];
-                      
-                      return (
-                        <div key={bet.id} className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-200">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {bet.isGroup && <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs font-bold rounded-full">GROUP</span>}
-                              {bet.allowMultipleWinners && <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-bold rounded-full">MULTI-WIN</span>}
-                              <span className="text-lg">⚔️</span>
-                              <span className="font-bold text-gray-800">{bet.challenger}</span>
-                              <span className="text-gray-400 text-sm">vs</span>
-                              <span className="font-bold text-gray-800">
-                                {challengedList.length > 2 
-                                  ? `${challengedList.slice(0, 2).join(', ')} +${challengedList.length - 2}`
-                                  : challengedList.join(', ')}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {bet.challengerId === user?.uid && (
-                                <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-400 hover:text-red-500">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-700 mb-2 font-medium">{bet.goal}</p>
-                          {bet.reward && <p className="text-xs text-orange-600 mb-3 bg-orange-100 px-2 py-1 rounded-lg inline-block">🏆 Stakes: {bet.reward}</p>}
-                          
-                          {/* Winner Selection */}
-                          {isParticipant && (
-                            <div className="mt-3 pt-3 border-t border-yellow-200">
-                              <p className="text-xs text-gray-500 mb-2 font-medium">
-                                {bet.allowMultipleWinners ? '🎖️ Select all winners:' : '🏆 Who won?'}
-                              </p>
-                              <div className="flex gap-2 flex-wrap">
-                                {allParticipantsInChallenge.map(p => {
-                                  const isSelectedWinner = currentWinners.includes(p);
-                                  return (
-                                    <button 
-                                      key={p}
-                                      onClick={() => completeBet(bet.id, p, bet.allowMultipleWinners)}
-                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                                        isSelectedWinner 
-                                          ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md' 
-                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                      }`}
-                                    >
-                                      {isSelectedWinner && <Crown className="w-3 h-3" />}
-                                      {p}
-                                      {!bet.allowMultipleWinners && ' won'}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              
-                              {/* Finalize button for multi-winner challenges */}
-                              {bet.allowMultipleWinners && currentWinners.length > 0 && (
-                                <button
-                                  onClick={() => finalizeBetWithWinners(bet.id)}
-                                  className="mt-3 w-full py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-sm font-bold hover:from-green-400 hover:to-emerald-400 transition-all flex items-center justify-center gap-2"
-                                >
-                                  <Trophy className="w-4 h-4" />
-                                  Finalize Challenge ({currentWinners.length} winner{currentWinners.length > 1 ? 's' : ''})
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          
-                          <div className="flex items-center justify-between mt-3 pt-2 border-t border-yellow-200/50">
-                            <p className="text-xs text-gray-500">⏰ Ends: {new Date(bet.deadline).toLocaleDateString()}</p>
-                            {currentWinners.length > 0 && bet.allowMultipleWinners && (
-                              <p className="text-xs text-amber-600 font-medium">
-                                Selected: {currentWinners.join(', ')}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Completed Challenges */}
-            {bets.filter(b => b.status === 'completed').length > 0 && (
-              <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <PartyPopper className="w-5 h-5 text-pink-500" />
-                  Completed Challenges
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {bets.filter(b => b.status === 'completed').map(bet => {
-                    const winnersList = bet.winners && bet.winners.length > 0 ? bet.winners : (bet.winner ? [bet.winner] : []);
-                    const isMultipleWinners = winnersList.length > 1;
-                    
+              {/* MY HABITS */}
+              <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>My Habits</h3>
+                  <button 
+                    onClick={() => setShowAddHabitModal(true)}
+                    className={`text-xs px-2 py-1 rounded-lg ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  >
+                    + Add
+                  </button>
+                </div>
+                
+                {(() => {
+                  const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+                  const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                  const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+                  
+                  if (myHabits.length === 0) {
                     return (
-                      <div key={bet.id} className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {bet.isGroup && <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-bold rounded-full">GROUP</span>}
-                            {isMultipleWinners && <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs font-bold rounded-full">CO-CHAMPS</span>}
-                            <span className="text-sm text-gray-600">
-                              {bet.challenger} vs {Array.isArray(bet.challenged) ? bet.challenged.join(', ') : bet.challenged}
-                            </span>
-                          </div>
-                          <button onClick={() => deleteBet(bet.id)} className="p-1 text-gray-300 hover:text-red-400">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-2">{bet.goal}</p>
-                        {bet.reward && <p className="text-xs text-purple-500 mb-2">🎁 {bet.reward}</p>}
-                        
-                        {/* Winner Display */}
-                        <div className={`mt-3 p-3 rounded-xl ${isMultipleWinners ? 'bg-gradient-to-r from-amber-100 to-orange-100' : 'bg-gradient-to-r from-purple-100 to-pink-100'}`}>
-                          <div className="flex items-center gap-2">
-                            <div className="flex -space-x-2">
-                              {winnersList.map((w, idx) => (
-                                <div key={w} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white ${
-                                  idx === 0 ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white' : 'bg-gradient-to-br from-purple-400 to-pink-500 text-white'
-                                }`}>
-                                  {getParticipantPhoto(w) ? (
-                                    <img src={getParticipantPhoto(w)} alt={w} className="w-full h-full rounded-full object-cover" />
-                                  ) : (
-                                    w.charAt(0)
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500">{isMultipleWinners ? 'Champions' : 'Champion'}</p>
-                              <p className="font-bold text-purple-700 flex items-center gap-1">
-                                <Crown className="w-4 h-4 text-amber-500" />
-                                {winnersList.join(' & ')}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {bet.completedAt && (
-                          <p className="text-xs text-gray-400 mt-2">
-                            Completed {new Date(bet.completedAt).toLocaleDateString()}
-                          </p>
-                        )}
+                      <div className={`text-center py-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <Target className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No habits this week</p>
+                        <button 
+                          onClick={() => setShowAddHabitModal(true)}
+                          className="text-blue-500 text-sm mt-2 hover:underline"
+                        >
+                          Add your first habit
+                        </button>
                       </div>
                     );
-                  })}
-                </div>
-              </div>
-            )}
-            
-            {/* New Challenge Modal - Game-like Experience */}
-            {showNewBet && (
-              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                <div className="bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-800 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto relative">
-                  {/* Animated Background Effects */}
-                  <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
-                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-purple-500/30 rounded-full blur-3xl animate-pulse" />
-                    <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-500/30 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-                  </div>
+                  }
                   
-                  {/* Header */}
-                  <div className="relative p-6 pb-4 border-b border-gray-600">
-                    <button 
-                      onClick={() => { setShowNewBet(false); setNewBet({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false, allowMultipleWinners: false }); setChallengeSuggestions([]); setPrizeSuggestions([]); }}
-                      className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors"
-                    >
-                      <X className="w-4 h-4 text-white" />
-                    </button>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
-                        <Swords className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-black text-white">Throw Down the Gauntlet</h3>
-                        <p className="text-purple-300 text-sm">Create an epic challenge</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="relative p-6 space-y-5">
-                    {/* Challenge Type Toggle */}
-                    <div>
-                      <label className="text-purple-300 text-sm font-medium block mb-2">Battle Type</label>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setNewBet({ ...newBet, isGroup: false, challenged: '', allowMultipleWinners: false })}
-                          className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${!newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-gray-700 text-white/70 hover:bg-gray-600'}`}
-                        >
-                          <Swords className="w-4 h-4" />
-                          1 vs 1 Duel
-                        </button>
-                        <button
-                          onClick={() => setNewBet({ ...newBet, isGroup: true, challenged: [], allowMultipleWinners: true })}
-                          className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.isGroup ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30' : 'bg-gray-700 text-white/70 hover:bg-gray-600'}`}
-                        >
-                          <Users className="w-4 h-4" />
-                          Group Battle
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Participant Selection */}
-                    <div>
-                      <label className="text-purple-300 text-sm font-medium block mb-2">
-                        {newBet.isGroup ? '⚔️ Challenge Who?' : '⚔️ Your Opponent'}
-                      </label>
-                      
-                      <div className="grid grid-cols-3 gap-2">
-                        {allParticipants.filter(p => p !== userProfile?.linkedParticipant && p !== user?.displayName).map(p => {
-                          const isSelected = newBet.isGroup 
-                            ? (Array.isArray(newBet.challenged) && newBet.challenged.includes(p))
-                            : newBet.challenged === p;
-                          const photo = getParticipantPhoto(p);
-                          return (
-                            <button
-                              key={p}
-                              onClick={() => {
-                                if (newBet.isGroup) {
-                                  const current = Array.isArray(newBet.challenged) ? newBet.challenged : [];
-                                  if (isSelected) {
-                                    setNewBet({ ...newBet, challenged: current.filter(x => x !== p) });
-                                  } else {
-                                    setNewBet({ ...newBet, challenged: [...current, p] });
-                                  }
-                                } else {
-                                  setNewBet({ ...newBet, challenged: p });
-                                }
-                              }}
-                              className={`p-3 rounded-xl transition-all flex flex-col items-center gap-2 ${isSelected ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/30 scale-105' : 'bg-gray-700 hover:bg-gray-600'}`}
-                            >
-                              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${isSelected ? 'bg-white/30' : 'bg-white/20'}`}>
-                                {photo ? (
-                                  <img src={photo} alt={p} className="w-full h-full rounded-full object-cover" />
-                                ) : (
-                                  p.charAt(0)
-                                )}
-                              </div>
-                              <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-white/80'}`}>{p}</span>
-                              {isSelected && <Crown className="w-4 h-4 text-white absolute -top-1 -right-1" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    
-                    {/* The Challenge - with AI suggestions */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-purple-300 text-sm font-medium">🎯 The Challenge</label>
-                        <button
-                          onClick={generateChallengeSuggestions}
-                          disabled={loadingChallengeSuggestions}
-                          className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-50"
-                        >
-                          {loadingChallengeSuggestions ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                          AI Ideas
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        value={newBet.goal}
-                        onChange={(e) => setNewBet({ ...newBet, goal: e.target.value })}
-                        placeholder="e.g., First to 7 days of 100% completion wins"
-                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-purple-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
-                      />
-                      
-                      {/* AI Challenge Suggestions */}
-                      {challengeSuggestions.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {challengeSuggestions.map((suggestion, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => setNewBet({ ...newBet, goal: suggestion })}
-                              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${newBet.goal === suggestion ? 'bg-purple-500/40 text-white border border-purple-400' : 'bg-gray-800 text-white/70 hover:bg-gray-700'}`}
-                            >
-                              {suggestion}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Prize/Stakes - with AI suggestions */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-purple-300 text-sm font-medium">🏆 The Stakes</label>
-                        <button
-                          onClick={generatePrizeSuggestions}
-                          disabled={loadingPrizeSuggestions}
-                          className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-50"
-                        >
-                          {loadingPrizeSuggestions ? <Loader2 className="w-3 h-3 animate-spin" /> : <Gift className="w-3 h-3" />}
-                          Prize Ideas
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        value={newBet.reward}
-                        onChange={(e) => setNewBet({ ...newBet, reward: e.target.value })}
-                        placeholder="Bragging rights, coffee, $10..."
-                        className="w-full bg-gray-700 border-2 border-gray-600 focus:border-amber-400 rounded-xl px-4 py-3 text-white placeholder:text-white/30 outline-none transition-colors"
-                      />
-                      
-                      {/* AI Prize Suggestions */}
-                      {prizeSuggestions.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {prizeSuggestions.map((suggestion, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => setNewBet({ ...newBet, reward: suggestion })}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${newBet.reward === suggestion ? 'bg-amber-500/40 text-white border border-amber-400' : 'bg-gray-800 text-white/70 hover:bg-gray-700'}`}
-                            >
-                              {suggestion}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Deadline */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-purple-300 text-sm font-medium block mb-2">⏰ Deadline</label>
-                        <input
-                          type="date"
-                          value={newBet.deadline}
-                          onChange={(e) => setNewBet({ ...newBet, deadline: e.target.value })}
-                          className="w-full bg-gray-700 border-2 border-gray-600 focus:border-purple-400 rounded-xl px-4 py-3 text-white outline-none transition-colors"
-                        />
-                      </div>
-                      
-                      {/* Multiple Winners Option (for group challenges) */}
-                      {newBet.isGroup && (
-                        <div>
-                          <label className="text-purple-300 text-sm font-medium block mb-2">🎖️ Winner Mode</label>
-                          <button
-                            onClick={() => setNewBet({ ...newBet, allowMultipleWinners: !newBet.allowMultipleWinners })}
-                            className={`w-full py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${newBet.allowMultipleWinners ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gray-700 text-white/70 hover:bg-gray-600'}`}
-                          >
-                            <Users className="w-4 h-4" />
-                            {newBet.allowMultipleWinners ? '✅ Multiple Winners Allowed' : 'Single Winner Only'}
-                          </button>
-                          <p className="text-xs text-gray-400 mt-1 text-center">
-                            {newBet.allowMultipleWinners ? 'Everyone who completes the goal wins!' : 'Only one person can win'}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Quick Deadline Buttons */}
-                    <div className="flex gap-2">
-                      {[
-                        { label: '1 Week', days: 7 },
-                        { label: '2 Weeks', days: 14 },
-                        { label: '1 Month', days: 30 }
-                      ].map(opt => {
-                        const date = new Date(Date.now() + opt.days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                  return (
+                    <div className="space-y-3">
+                      {myHabits.map(habit => {
+                        const completed = (habit.daysCompleted || []).length;
+                        const pct = habit.target > 0 ? Math.round((completed / habit.target) * 100) : 0;
+                        const isTodayDone = (habit.daysCompleted || []).includes(todayIdx);
+                        const cat = HABIT_CATEGORIES.find(c => c.id === habit.category);
+                        
                         return (
-                          <button
-                            key={opt.label}
-                            onClick={() => setNewBet({ ...newBet, deadline: date })}
-                            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${newBet.deadline === date ? 'bg-purple-500 text-white' : 'bg-gray-700 text-white/60 hover:bg-gray-600'}`}
-                          >
-                            {opt.label}
-                          </button>
+                          <div key={habit.id} className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                            <div className="flex items-center gap-3 mb-2">
+                              <button
+                                onClick={() => toggleDay(habit, todayIdx)}
+                                className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+                                  isTodayDone 
+                                    ? 'bg-green-500 text-white' 
+                                    : darkMode ? 'border-2 border-gray-500 hover:border-green-500' : 'border-2 border-gray-300 hover:border-green-500'
+                                }`}
+                              >
+                                {isTodayDone && <Check className="w-4 h-4" />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  {cat && <span className="text-sm">{cat.icon}</span>}
+                                  <span className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{habit.habit}</span>
+                                </div>
+                              </div>
+                              <span className={`text-sm font-semibold ${pct >= 100 ? 'text-green-500' : pct >= 70 ? 'text-blue-500' : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                                {completed}/{habit.target}
+                              </span>
+                            </div>
+                            
+                            {/* Week dots */}
+                            <div className="flex gap-1 ml-10">
+                              {dayNames.map((day, idx) => {
+                                const isDone = (habit.daysCompleted || []).includes(idx);
+                                const isToday = idx === todayIdx;
+                                return (
+                                  <button
+                                    key={idx}
+                                    onClick={() => toggleDay(habit, idx)}
+                                    className={`w-6 h-6 rounded text-[10px] font-medium transition-all ${
+                                      isDone 
+                                        ? 'bg-green-500 text-white' 
+                                        : isToday 
+                                          ? darkMode ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500' : 'bg-blue-50 text-blue-600 ring-1 ring-blue-300'
+                                          : darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-500'
+                                    }`}
+                                  >
+                                    {day}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
-                  </div>
-                  
-                  {/* Send Challenge Button */}
-                  <div className="relative p-6 pt-4 border-t border-gray-600">
-                    <button 
-                      onClick={createBet}
-                      disabled={!(newBet.isGroup ? (Array.isArray(newBet.challenged) && newBet.challenged.length > 0) : newBet.challenged) || !newBet.goal}
-                      className="w-full py-4 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 hover:from-amber-300 hover:via-orange-400 hover:to-red-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-lg transition-all shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2"
-                    >
-                      <Swords className="w-5 h-5" />
-                      {newBet.isGroup ? 'SEND GROUP CHALLENGE' : 'SEND CHALLENGE'}
-                      <Flame className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
-            )}
 
-            {/* Incoming Challenge Modal - Dramatic Reveal */}
-            {showIncomingChallenge && (
-              <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 backdrop-blur-md">
-                <div className="text-center max-w-lg animate-fade-in">
-                  {/* Animated Background */}
-                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                    <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-red-500/20 rounded-full blur-3xl animate-pulse" />
-                    <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-orange-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '0.5s' }} />
-                  </div>
+              {/* TEAM STANDINGS */}
+              <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}>
+                <h3 className={`font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Team Standings</h3>
+                
+                {(() => {
+                  const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
+                  const last4Weeks = weeksWithData.slice(-4);
                   
-                  {/* VS Animation */}
-                  <div className="relative mb-8">
-                    <div className="flex items-center justify-center gap-4">
-                      {/* Challenger */}
-                      <div className="text-center">
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-red-500/50 border-4 border-red-400">
-                          {getParticipantPhoto(showIncomingChallenge.challenger) ? (
-                            <img src={getParticipantPhoto(showIncomingChallenge.challenger)} alt={showIncomingChallenge.challenger} className="w-full h-full rounded-full object-cover" />
-                          ) : (
-                            showIncomingChallenge.challenger?.charAt(0)
-                          )}
+                  const teamStats = allParticipants.map(p => {
+                    const pHabits = habits.filter(h => last4Weeks.includes(h.weekStart) && h.participant === p);
+                    const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                    const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                    return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0, completed, target };
+                  }).filter(p => p.rate > 0 || p.name === myParticipant).sort((a, b) => b.rate - a.rate);
+                  
+                  const myRank = teamStats.findIndex(p => p.name === myParticipant) + 1;
+                  
+                  return (
+                    <div className="space-y-3">
+                      {teamStats.map((p, idx) => (
+                        <div 
+                          key={p.name} 
+                          className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                            p.name === myParticipant 
+                              ? darkMode ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
+                              : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                          }`}
+                        >
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            idx === 0 ? 'bg-amber-500 text-white' : 
+                            idx === 1 ? 'bg-gray-400 text-white' : 
+                            idx === 2 ? 'bg-orange-600 text-white' : 
+                            (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
+                          }`}>
+                            {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-medium ${p.name === myParticipant ? (darkMode ? 'text-blue-300' : 'text-blue-700') : (darkMode ? 'text-white' : 'text-gray-900')}`}>
+                              {p.name} {p.name === myParticipant && <span className="text-xs opacity-60">(you)</span>}
+                            </p>
+                            <div className={`w-full h-1.5 rounded-full mt-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                              <div 
+                                className={`h-full rounded-full ${p.rate >= 80 ? 'bg-green-500' : p.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} 
+                                style={{ width: `${p.rate}%` }} 
+                              />
+                            </div>
+                          </div>
+                          <span className={`text-lg font-bold ${p.rate >= 80 ? 'text-green-500' : p.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                            {p.rate}%
+                          </span>
                         </div>
-                        <p className="text-red-400 font-bold mt-2">{showIncomingChallenge.challenger}</p>
-                      </div>
-                      
-                      {/* VS Badge */}
-                      <div className="relative">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-2xl shadow-amber-500/50 animate-pulse">
-                          <span className="text-xl font-black text-white">VS</span>
-                        </div>
-                        <Swords className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-8 text-amber-400" />
-                      </div>
-                      
-                      {/* You */}
-                      <div className="text-center">
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-blue-500/50 border-4 border-blue-400">
-                          {userProfile?.photoURL ? (
-                            <img src={userProfile.photoURL} alt="You" className="w-full h-full rounded-full object-cover" />
-                          ) : (
-                            (userProfile?.linkedParticipant || 'Y').charAt(0)
-                          )}
-                        </div>
-                        <p className="text-blue-400 font-bold mt-2">You</p>
-                      </div>
+                      ))}
+                      {teamStats.length === 0 && (
+                        <p className={`text-center py-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No team data yet</p>
+                      )}
                     </div>
-                  </div>
-                  
-                  {/* Challenge Alert */}
-                  <div className="mb-6">
-                    <h1 className="text-4xl md:text-5xl font-black text-white mb-2 animate-pulse">
-                      ⚔️ CHALLENGE! ⚔️
-                    </h1>
-                    <p className="text-amber-400 text-lg font-bold">
-                      {showIncomingChallenge.challenger} has challenged you!
-                    </p>
-                  </div>
-                  
-                  {/* Challenge Details */}
-                  <div className="bg-gray-700 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-gray-600 text-left">
-                    <div className="mb-4">
-                      <p className="text-white/50 text-xs uppercase tracking-wider mb-1">The Challenge</p>
-                      <p className="text-white text-xl font-bold">{showIncomingChallenge.goal}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Stakes</p>
-                        <p className="text-amber-400 font-bold">{showIncomingChallenge.reward}</p>
-                      </div>
-                      <div>
-                        <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Deadline</p>
-                        <p className="text-white font-bold">{new Date(showIncomingChallenge.deadline).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => declineBet(showIncomingChallenge.id)}
-                      className="flex-1 py-4 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                    >
-                      <X className="w-5 h-5" />
-                      Decline
-                    </button>
-                    <button
-                      onClick={() => acceptBet(showIncomingChallenge.id)}
-                      className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white rounded-xl font-black transition-all shadow-lg shadow-green-500/30 flex items-center justify-center gap-2"
-                    >
-                      <Flame className="w-5 h-5" />
-                      ACCEPT CHALLENGE
-                    </button>
-                  </div>
-                  
-                  <button
-                    onClick={() => setShowIncomingChallenge(null)}
-                    className="mt-4 text-white/50 hover:text-white/80 text-sm transition-colors"
-                  >
-                    Decide later
-                  </button>
-                </div>
+                  );
+                })()}
               </div>
-            )}
-            
-            {/* Edit Challenge Modal */}
-            {editingBet && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className={`rounded-2xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800 text-white" : "bg-white"}`}>
-                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <Wand2 className="w-5 h-5 text-purple-600" />
-                    Edit Challenge
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm text-gray-600 block mb-1">Challenge Who?</label>
-                      <select 
-                        value={editingBet.challenged}
-                        onChange={(e) => setEditingBet({ ...editingBet, challenged: e.target.value })}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                      >
-                        {allParticipants.map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
+            </div>
+
+            {/* MY STATS - Full Width */}
+            <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}>
+              <h3 className={`font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>My Stats</h3>
+              
+              {(() => {
+                const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
+                const last4Weeks = weeksWithData.slice(-4);
+                const last8Weeks = weeksWithData.slice(-8);
+                
+                // My period stats
+                const myPeriodHabits = habits.filter(h => last4Weeks.includes(h.weekStart) && h.participant === myParticipant);
+                const myCompleted = myPeriodHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                const myTarget = myPeriodHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                const myRate = myTarget > 0 ? Math.round((myCompleted / myTarget) * 100) : 0;
+                
+                // Team stats for comparison
+                const teamStats = allParticipants.map(p => {
+                  const pHabits = habits.filter(h => last4Weeks.includes(h.weekStart) && h.participant === p);
+                  const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                  const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                  return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
+                }).filter(p => p.rate > 0);
+                
+                const teamAvg = teamStats.length > 0 ? Math.round(teamStats.reduce((sum, p) => sum + p.rate, 0) / teamStats.length) : 0;
+                const myRank = teamStats.sort((a, b) => b.rate - a.rate).findIndex(p => p.name === myParticipant) + 1;
+                
+                // Trend data
+                const trendData = last8Weeks.map(week => {
+                  const wHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
+                  const completed = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                  const target = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                  return { week: week.slice(5), rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
+                });
+                
+                // Category breakdown
+                const categoryData = HABIT_CATEGORIES.map(cat => {
+                  const catHabits = myPeriodHabits.filter(h => h.category === cat.id);
+                  const completed = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                  const target = catHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                  return { ...cat, rate: target > 0 ? Math.round((completed / target) * 100) : 0, count: catHabits.length };
+                }).filter(c => c.count > 0).sort((a, b) => b.rate - a.rate);
+                
+                return (
+                  <div className="space-y-6">
+                    {/* Key Numbers */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
+                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myRate}%</p>
+                        <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Last 4 Weeks</p>
+                      </div>
+                      <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
+                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>#{myRank || '-'}</p>
+                        <p className={`text-xs ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Team Rank</p>
+                      </div>
+                      <div className={`p-4 rounded-xl text-center ${myRate >= teamAvg ? (darkMode ? 'bg-green-500/10' : 'bg-green-50') : (darkMode ? 'bg-red-500/10' : 'bg-red-50')}`}>
+                        <p className={`text-3xl font-bold ${myRate >= teamAvg ? 'text-green-500' : 'text-red-500'}`}>
+                          {myRate >= teamAvg ? '+' : ''}{myRate - teamAvg}%
+                        </p>
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>vs Team Avg</p>
+                      </div>
+                      <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-purple-500/10' : 'bg-purple-50'}`}>
+                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myCompleted}</p>
+                        <p className={`text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Days Logged</p>
+                      </div>
                     </div>
                     
-                    <div>
-                      <label className="text-sm text-gray-600 block mb-1">The Challenge</label>
-                      <input
-                        type="text"
-                        value={editingBet.goal}
-                        onChange={(e) => setEditingBet({ ...editingBet, goal: e.target.value })}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Chart + Categories */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Trend Chart */}
                       <div>
-                        <label className="text-sm text-gray-600 block mb-1">Reward (optional)</label>
-                        <input
-                          type="text"
-                          value={editingBet.reward || ''}
-                          onChange={(e) => setEditingBet({ ...editingBet, reward: e.target.value })}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                        />
+                        <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>8-Week Trend</p>
+                        <div className="h-40">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={trendData}>
+                              <defs>
+                                <linearGradient id="statsTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <XAxis dataKey="week" tick={{ fontSize: 10, fill: darkMode ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
+                              <YAxis hide domain={[0, 100]} />
+                              <Tooltip content={({ payload, label }) => payload?.length ? (
+                                <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white shadow text-gray-800'}`}>
+                                  Week {label}: {payload[0].value}%
+                                </div>
+                              ) : null} />
+                              <Area type="monotone" dataKey="rate" stroke="#3b82f6" strokeWidth={2} fill="url(#statsTrendGrad)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
+                      
+                      {/* Category Breakdown */}
                       <div>
-                        <label className="text-sm text-gray-600 block mb-1">Deadline</label>
-                        <input
-                          type="date"
-                          value={editingBet.deadline}
-                          onChange={(e) => setEditingBet({ ...editingBet, deadline: e.target.value })}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                        />
+                        <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>By Category</p>
+                        {categoryData.length > 0 ? (
+                          <div className="space-y-2">
+                            {categoryData.map(cat => (
+                              <div key={cat.id} className="flex items-center gap-3">
+                                <span className="w-6 text-center">{cat.icon}</span>
+                                <span className={`w-20 text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cat.name}</span>
+                                <div className={`flex-1 h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                  <div 
+                                    className={`h-full rounded-full ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} 
+                                    style={{ width: `${cat.rate}%` }} 
+                                  />
+                                </div>
+                                <span className={`text-sm font-semibold w-10 text-right ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                                  {cat.rate}%
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No category data yet</p>
+                        )}
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="flex gap-3 mt-6">
-                    <button 
-                      onClick={() => setEditingBet(null)}
-                      className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      onClick={updateBet}
-                      disabled={!editingBet.challenged || !editingBet.goal}
-                      className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
-                    >
-                      Save Changes
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+                );
+              })()}
+            </div>
           </div>
         )}
 
