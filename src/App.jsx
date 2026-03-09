@@ -986,6 +986,7 @@ export default function AccountabilityTracker() {
       { id: 'myStats', name: 'My Stats', enabled: true, size: 'large', order: 2 }
     ];
   });
+  const [statsPeriod, setStatsPeriod] = useState('week'); // 'week' or 'month'
   
   // Enhanced task features
   const [quickTaskInput, setQuickTaskInput] = useState('');
@@ -6143,311 +6144,340 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
 
         {activeView === 'dashboard' && (
-          <div className="space-y-6">
-            {/* Simple Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Hey {myParticipant.split(' ')[0]} 👋
-                </h2>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Week of {currentWeek}
-                </p>
-              </div>
-              <div className={`text-right`}>
-                <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {(() => {
-                    const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                    const completed = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                    const target = myHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                    return target > 0 ? Math.round((completed / target) * 100) : 0;
-                  })()}%
-                </p>
-                <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>this week</p>
-              </div>
-            </div>
-
-            {/* Two Column Layout: Habits + Team */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-8">
+            {(() => {
+              const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+              const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+              const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
+              const periodWeeks = statsPeriod === 'week' ? [currentWeek] : weeksWithData.slice(-4);
+              const last8Weeks = weeksWithData.slice(-8);
               
-              {/* MY HABITS */}
-              <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>My Habits</h3>
-                  <button 
-                    onClick={() => setShowAddHabitModal(true)}
-                    className={`text-xs px-2 py-1 rounded-lg ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                  >
-                    + Add
-                  </button>
-                </div>
+              // Current week habits
+              const myWeekHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+              const weekCompleted = myWeekHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+              const weekTarget = myWeekHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+              const weekRate = weekTarget > 0 ? Math.round((weekCompleted / weekTarget) * 100) : 0;
+              
+              // Period stats
+              const myPeriodHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === myParticipant);
+              const periodCompleted = myPeriodHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+              const periodTarget = myPeriodHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+              const periodRate = periodTarget > 0 ? Math.round((periodCompleted / periodTarget) * 100) : 0;
+              
+              // Team stats
+              const teamStats = allParticipants.map(p => {
+                const pHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === p);
+                const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0, completed, target };
+              }).filter(p => p.rate > 0 || p.name === myParticipant).sort((a, b) => b.rate - a.rate);
+              
+              const activeTeam = teamStats.filter(p => p.rate > 0);
+              const teamAvg = activeTeam.length > 0 ? Math.round(activeTeam.reduce((sum, p) => sum + p.rate, 0) / activeTeam.length) : 0;
+              const myRank = teamStats.findIndex(p => p.name === myParticipant) + 1;
+              const diff = periodRate - teamAvg;
+              
+              // Trend data
+              const trendData = last8Weeks.map(week => {
+                const wHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
+                const completed = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                const target = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                return { week: week.slice(5), rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
+              });
+              
+              // Category breakdown
+              const categoryData = HABIT_CATEGORIES.map(cat => {
+                const catHabits = myPeriodHabits.filter(h => h.category === cat.id);
+                const completed = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+                const target = catHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                return { ...cat, rate: target > 0 ? Math.round((completed / target) * 100) : 0, count: catHabits.length };
+              }).filter(c => c.count > 0).sort((a, b) => b.rate - a.rate);
+              
+              // Weekly Insights
+              const generateInsights = () => {
+                const insights = [];
                 
-                {(() => {
-                  const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
-                  const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-                  const myHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-                  
-                  if (myHabits.length === 0) {
-                    return (
-                      <div className={`text-center py-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                        <Target className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">No habits this week</p>
-                        <button 
-                          onClick={() => setShowAddHabitModal(true)}
-                          className="text-blue-500 text-sm mt-2 hover:underline"
-                        >
-                          Add your first habit
-                        </button>
-                      </div>
-                    );
+                // Best performing category
+                if (categoryData.length > 0 && categoryData[0].rate > 0) {
+                  insights.push({ type: 'success', icon: '🏆', text: `${categoryData[0].name} is your strongest area at ${categoryData[0].rate}%` });
+                }
+                
+                // Needs attention
+                if (categoryData.length > 1 && categoryData[categoryData.length - 1].rate < 50) {
+                  insights.push({ type: 'warning', icon: '💪', text: `${categoryData[categoryData.length - 1].name} needs focus - only ${categoryData[categoryData.length - 1].rate}%` });
+                }
+                
+                // Streak or improvement
+                if (trendData.length >= 2) {
+                  const recent = trendData.slice(-2);
+                  if (recent[1].rate > recent[0].rate) {
+                    insights.push({ type: 'success', icon: '📈', text: `You improved ${recent[1].rate - recent[0].rate}% from last week!` });
+                  } else if (recent[1].rate < recent[0].rate && recent[0].rate > 0) {
+                    insights.push({ type: 'warning', icon: '📉', text: `Down ${recent[0].rate - recent[1].rate}% from last week - time to rally!` });
                   }
-                  
-                  return (
-                    <div className="space-y-3">
-                      {myHabits.map(habit => {
-                        const completed = (habit.daysCompleted || []).length;
-                        const pct = habit.target > 0 ? Math.round((completed / habit.target) * 100) : 0;
-                        const isTodayDone = (habit.daysCompleted || []).includes(todayIdx);
-                        const cat = HABIT_CATEGORIES.find(c => c.id === habit.category);
-                        
-                        return (
-                          <div key={habit.id} className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-                            <div className="flex items-center gap-3 mb-2">
-                              <button
-                                onClick={() => toggleDay(habit, todayIdx)}
-                                className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                                  isTodayDone 
-                                    ? 'bg-green-500 text-white' 
-                                    : darkMode ? 'border-2 border-gray-500 hover:border-green-500' : 'border-2 border-gray-300 hover:border-green-500'
-                                }`}
-                              >
-                                {isTodayDone && <Check className="w-4 h-4" />}
-                              </button>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  {cat && <span className="text-sm">{cat.icon}</span>}
-                                  <span className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>{habit.habit}</span>
-                                </div>
-                              </div>
-                              <span className={`text-sm font-semibold ${pct >= 100 ? 'text-green-500' : pct >= 70 ? 'text-blue-500' : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
-                                {completed}/{habit.target}
-                              </span>
-                            </div>
-                            
-                            {/* Week dots */}
-                            <div className="flex gap-1 ml-10">
-                              {dayNames.map((day, idx) => {
-                                const isDone = (habit.daysCompleted || []).includes(idx);
-                                const isToday = idx === todayIdx;
-                                return (
-                                  <button
-                                    key={idx}
-                                    onClick={() => toggleDay(habit, idx)}
-                                    className={`w-6 h-6 rounded text-[10px] font-medium transition-all ${
-                                      isDone 
-                                        ? 'bg-green-500 text-white' 
-                                        : isToday 
-                                          ? darkMode ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500' : 'bg-blue-50 text-blue-600 ring-1 ring-blue-300'
-                                          : darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-500'
-                                    }`}
-                                  >
-                                    {day}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* TEAM STANDINGS */}
-              <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}>
-                <h3 className={`font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Team Standings</h3>
+                }
                 
-                {(() => {
-                  const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
-                  const last4Weeks = weeksWithData.slice(-4);
+                // Team comparison
+                if (diff > 10) {
+                  insights.push({ type: 'success', icon: '🔥', text: `You're ${diff}% above the team average!` });
+                } else if (diff < -10) {
+                  insights.push({ type: 'warning', icon: '⚡', text: `${Math.abs(diff)}% below team avg - you've got this!` });
+                }
+                
+                // Rank celebration
+                if (myRank === 1) {
+                  insights.push({ type: 'success', icon: '👑', text: `You're leading the team!` });
+                }
+                
+                return insights.slice(0, 3); // Max 3 insights
+              };
+              
+              const insights = generateInsights();
+              
+              return (
+                <>
+                  {/* HEADER */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
+                      </h1>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <div className={`flex items-center rounded-full p-1 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <button
+                        onClick={() => setStatsPeriod('week')}
+                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                          statsPeriod === 'week'
+                            ? 'bg-blue-500 text-white'
+                            : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        Week
+                      </button>
+                      <button
+                        onClick={() => setStatsPeriod('month')}
+                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                          statsPeriod === 'month'
+                            ? 'bg-blue-500 text-white'
+                            : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        Month
+                      </button>
+                    </div>
+                  </div>
                   
-                  const teamStats = allParticipants.map(p => {
-                    const pHabits = habits.filter(h => last4Weeks.includes(h.weekStart) && h.participant === p);
-                    const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                    const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                    return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0, completed, target };
-                  }).filter(p => p.rate > 0 || p.name === myParticipant).sort((a, b) => b.rate - a.rate);
+                  {/* STATS ROW */}
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="text-center">
+                      <p className={`text-4xl font-bold ${periodRate >= 80 ? 'text-green-500' : periodRate >= 50 ? 'text-amber-500' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
+                        {periodRate}%
+                      </p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>completion</p>
+                    </div>
+                    <div className="text-center">
+                      <p className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        #{myRank || '-'}
+                      </p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>team rank</p>
+                    </div>
+                    <div className="text-center">
+                      <p className={`text-4xl font-bold ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {diff >= 0 ? '+' : ''}{diff}%
+                      </p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>vs team</p>
+                    </div>
+                    <div className="text-center">
+                      <p className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {periodCompleted}
+                      </p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>days done</p>
+                    </div>
+                  </div>
                   
-                  const myRank = teamStats.findIndex(p => p.name === myParticipant) + 1;
-                  
-                  return (
-                    <div className="space-y-3">
-                      {teamStats.map((p, idx) => (
+                  {/* INSIGHTS */}
+                  {insights.length > 0 && (
+                    <div className={`flex flex-wrap gap-2`}>
+                      {insights.map((insight, idx) => (
                         <div 
-                          key={p.name} 
-                          className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
-                            p.name === myParticipant 
-                              ? darkMode ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
-                              : darkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                          key={idx}
+                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
+                            insight.type === 'success'
+                              ? darkMode ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-700'
+                              : darkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-700'
                           }`}
                         >
-                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                            idx === 0 ? 'bg-amber-500 text-white' : 
-                            idx === 1 ? 'bg-gray-400 text-white' : 
-                            idx === 2 ? 'bg-orange-600 text-white' : 
-                            (darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600')
-                          }`}>
-                            {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className={`font-medium ${p.name === myParticipant ? (darkMode ? 'text-blue-300' : 'text-blue-700') : (darkMode ? 'text-white' : 'text-gray-900')}`}>
-                              {p.name} {p.name === myParticipant && <span className="text-xs opacity-60">(you)</span>}
-                            </p>
-                            <div className={`w-full h-1.5 rounded-full mt-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                              <div 
-                                className={`h-full rounded-full ${p.rate >= 80 ? 'bg-green-500' : p.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} 
-                                style={{ width: `${p.rate}%` }} 
-                              />
-                            </div>
-                          </div>
-                          <span className={`text-lg font-bold ${p.rate >= 80 ? 'text-green-500' : p.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
-                            {p.rate}%
-                          </span>
+                          <span>{insight.icon}</span>
+                          <span>{insight.text}</span>
                         </div>
                       ))}
-                      {teamStats.length === 0 && (
-                        <p className={`text-center py-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No team data yet</p>
-                      )}
                     </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* MY STATS - Full Width */}
-            <div className={`rounded-2xl p-5 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'}`}>
-              <h3 className={`font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>My Stats</h3>
-              
-              {(() => {
-                const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
-                const last4Weeks = weeksWithData.slice(-4);
-                const last8Weeks = weeksWithData.slice(-8);
-                
-                // My period stats
-                const myPeriodHabits = habits.filter(h => last4Weeks.includes(h.weekStart) && h.participant === myParticipant);
-                const myCompleted = myPeriodHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                const myTarget = myPeriodHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                const myRate = myTarget > 0 ? Math.round((myCompleted / myTarget) * 100) : 0;
-                
-                // Team stats for comparison
-                const teamStats = allParticipants.map(p => {
-                  const pHabits = habits.filter(h => last4Weeks.includes(h.weekStart) && h.participant === p);
-                  const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                  const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                  return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
-                }).filter(p => p.rate > 0);
-                
-                const teamAvg = teamStats.length > 0 ? Math.round(teamStats.reduce((sum, p) => sum + p.rate, 0) / teamStats.length) : 0;
-                const myRank = teamStats.sort((a, b) => b.rate - a.rate).findIndex(p => p.name === myParticipant) + 1;
-                
-                // Trend data
-                const trendData = last8Weeks.map(week => {
-                  const wHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
-                  const completed = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                  const target = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                  return { week: week.slice(5), rate: target > 0 ? Math.round((completed / target) * 100) : 0 };
-                });
-                
-                // Category breakdown
-                const categoryData = HABIT_CATEGORIES.map(cat => {
-                  const catHabits = myPeriodHabits.filter(h => h.category === cat.id);
-                  const completed = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                  const target = catHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                  return { ...cat, rate: target > 0 ? Math.round((completed / target) * 100) : 0, count: catHabits.length };
-                }).filter(c => c.count > 0).sort((a, b) => b.rate - a.rate);
-                
-                return (
-                  <div className="space-y-6">
-                    {/* Key Numbers */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'}`}>
-                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myRate}%</p>
-                        <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Last 4 Weeks</p>
-                      </div>
-                      <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
-                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>#{myRank || '-'}</p>
-                        <p className={`text-xs ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>Team Rank</p>
-                      </div>
-                      <div className={`p-4 rounded-xl text-center ${myRate >= teamAvg ? (darkMode ? 'bg-green-500/10' : 'bg-green-50') : (darkMode ? 'bg-red-500/10' : 'bg-red-50')}`}>
-                        <p className={`text-3xl font-bold ${myRate >= teamAvg ? 'text-green-500' : 'text-red-500'}`}>
-                          {myRate >= teamAvg ? '+' : ''}{myRate - teamAvg}%
-                        </p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>vs Team Avg</p>
-                      </div>
-                      <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-purple-500/10' : 'bg-purple-50'}`}>
-                        <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{myCompleted}</p>
-                        <p className={`text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Days Logged</p>
+                  )}
+                  
+                  {/* TREND + CATEGORIES */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Trend Chart */}
+                    <div>
+                      <h3 className={`text-sm font-medium mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>8-Week Trend</h3>
+                      <div className="h-36">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={trendData}>
+                            <defs>
+                              <linearGradient id="dashTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <XAxis dataKey="week" tick={{ fontSize: 10, fill: darkMode ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
+                            <YAxis hide domain={[0, 100]} />
+                            <Tooltip content={({ payload, label }) => payload?.length ? (
+                              <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white shadow text-gray-800'}`}>
+                                {label}: {payload[0].value}%
+                              </div>
+                            ) : null} />
+                            <Area type="monotone" dataKey="rate" stroke="#3b82f6" strokeWidth={2} fill="url(#dashTrendGrad)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
                     
-                    {/* Chart + Categories */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Trend Chart */}
-                      <div>
-                        <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>8-Week Trend</p>
-                        <div className="h-40">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={trendData}>
-                              <defs>
-                                <linearGradient id="statsTrendGrad" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                </linearGradient>
-                              </defs>
-                              <XAxis dataKey="week" tick={{ fontSize: 10, fill: darkMode ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
-                              <YAxis hide domain={[0, 100]} />
-                              <Tooltip content={({ payload, label }) => payload?.length ? (
-                                <div className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white shadow text-gray-800'}`}>
-                                  Week {label}: {payload[0].value}%
+                    {/* Categories */}
+                    <div>
+                      <h3 className={`text-sm font-medium mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>By Category</h3>
+                      {categoryData.length > 0 ? (
+                        <div className="space-y-3">
+                          {categoryData.map(cat => (
+                            <div key={cat.id} className="flex items-center gap-3">
+                              <span className="text-lg">{cat.icon}</span>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{cat.name}</span>
+                                  <span className={`text-sm font-semibold ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                                    {cat.rate}%
+                                  </span>
                                 </div>
-                              ) : null} />
-                              <Area type="monotone" dataKey="rate" stroke="#3b82f6" strokeWidth={2} fill="url(#statsTrendGrad)" />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-                      
-                      {/* Category Breakdown */}
-                      <div>
-                        <p className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>By Category</p>
-                        {categoryData.length > 0 ? (
-                          <div className="space-y-2">
-                            {categoryData.map(cat => (
-                              <div key={cat.id} className="flex items-center gap-3">
-                                <span className="w-6 text-center">{cat.icon}</span>
-                                <span className={`w-20 text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cat.name}</span>
-                                <div className={`flex-1 h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                <div className={`h-1.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
                                   <div 
-                                    className={`h-full rounded-full ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} 
+                                    className={`h-full rounded-full transition-all ${cat.rate >= 80 ? 'bg-green-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} 
                                     style={{ width: `${cat.rate}%` }} 
                                   />
                                 </div>
-                                <span className={`text-sm font-semibold w-10 text-right ${cat.rate >= 80 ? 'text-green-500' : cat.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
-                                  {cat.rate}%
-                                </span>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No category data yet</p>
-                        )}
-                      </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No category data yet</p>
+                      )}
                     </div>
                   </div>
-                );
-              })()}
-            </div>
+                  
+                  {/* DIVIDER */}
+                  <div className={`border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`} />
+                  
+                  {/* HABITS + TEAM SIDE BY SIDE */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* MY HABITS */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today's Habits</h3>
+                        <span className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {myWeekHabits.filter(h => (h.daysCompleted || []).includes(todayIdx)).length}/{myWeekHabits.length} done
+                        </span>
+                      </div>
+                      
+                      {myWeekHabits.length === 0 ? (
+                        <div className={`text-center py-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <p className="text-sm mb-2">No habits this week</p>
+                          <button onClick={() => setShowAddHabitModal(true)} className="text-blue-500 text-sm hover:underline">
+                            + Add habit
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {myWeekHabits.map(habit => {
+                            const isTodayDone = (habit.daysCompleted || []).includes(todayIdx);
+                            const completed = (habit.daysCompleted || []).length;
+                            const cat = HABIT_CATEGORIES.find(c => c.id === habit.category);
+                            
+                            return (
+                              <div 
+                                key={habit.id} 
+                                className={`flex items-center gap-3 py-2 border-b last:border-0 ${darkMode ? 'border-gray-800' : 'border-gray-100'}`}
+                              >
+                                <button
+                                  onClick={() => toggleDay(habit, todayIdx)}
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+                                    isTodayDone 
+                                      ? 'bg-green-500 text-white' 
+                                      : darkMode ? 'border-2 border-gray-600 hover:border-green-500' : 'border-2 border-gray-300 hover:border-green-500'
+                                  }`}
+                                >
+                                  {isTodayDone && <Check className="w-3.5 h-3.5" />}
+                                </button>
+                                <span className="text-sm">{cat?.icon}</span>
+                                <span className={`flex-1 text-sm ${isTodayDone ? 'line-through opacity-50' : ''} ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {habit.habit}
+                                </span>
+                                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  {completed}/{habit.target}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* TEAM STANDINGS */}
+                    <div>
+                      <h3 className={`text-sm font-medium mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Team Standings</h3>
+                      
+                      {teamStats.length === 0 ? (
+                        <p className={`text-center py-8 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No team data yet</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {teamStats.map((p, idx) => (
+                            <div 
+                              key={p.name} 
+                              className={`flex items-center gap-3 ${p.name === myParticipant ? 'opacity-100' : 'opacity-70'}`}
+                            >
+                              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${
+                                idx === 0 ? 'bg-amber-500 text-white' : 
+                                idx === 1 ? 'bg-gray-400 text-white' : 
+                                idx === 2 ? 'bg-orange-600 text-white' : 
+                                (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500')
+                              }`}>
+                                {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                              </span>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className={`text-sm ${p.name === myParticipant ? 'font-semibold' : ''} ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {p.name} {p.name === myParticipant && <span className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-500'}`}>you</span>}
+                                  </span>
+                                  <span className={`text-sm font-bold ${p.rate >= 80 ? 'text-green-500' : p.rate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                                    {p.rate}%
+                                  </span>
+                                </div>
+                                <div className={`h-1 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                  <div 
+                                    className={`h-full rounded-full ${p.rate >= 80 ? 'bg-green-500' : p.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} 
+                                    style={{ width: `${p.rate}%` }} 
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
