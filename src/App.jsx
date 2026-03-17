@@ -418,7 +418,6 @@ const getWeekStartFromDate = (date) => {
 // Components
 const NAV_ITEMS = [
   { id: 'dashboard', icon: Home, label: 'Home' },
-  { id: 'feed', icon: Users, label: 'Feed' },
   { id: 'compete', icon: Trophy, label: 'Compete' },
   { id: 'tracker', icon: Calendar, label: 'Track' },
   { id: 'insights', icon: BarChart3, label: 'Insights' },
@@ -460,10 +459,121 @@ const PRIORITY_CONFIG = {
 // Emoji reactions
 const REACTIONS = ['👍', '🔥', '💪', '🎉', '❤️', '👏'];
 
+// Accountability-focused quotes - large pool for daily rotation
+const ACCOUNTABILITY_QUOTES = [
+  { quote: "We are what we repeatedly do. Excellence, then, is not an act, but a habit.", author: "Aristotle", theme: "Build the Routine" },
+  { quote: "The only way to do great work is to love what you do.", author: "Steve Jobs", theme: "Find Your Fire" },
+  { quote: "Discipline is the bridge between goals and accomplishment.", author: "Jim Rohn", theme: "Bridge the Gap" },
+  { quote: "You do not rise to the level of your goals. You fall to the level of your systems.", author: "James Clear", theme: "Systems Over Goals" },
+  { quote: "The secret of getting ahead is getting started.", author: "Mark Twain", theme: "Start Now" },
+  { quote: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius", theme: "Keep Moving" },
+  { quote: "Success is the sum of small efforts repeated day in and day out.", author: "Robert Collier", theme: "Daily Deposits" },
+  { quote: "The man who moves a mountain begins by carrying away small stones.", author: "Confucius", theme: "Small Steps Matter" },
+  { quote: "Accountability breeds response-ability.", author: "Stephen Covey", theme: "Own Your Response" },
+  { quote: "What gets measured gets managed.", author: "Peter Drucker", theme: "Track Everything" },
+  { quote: "Champions keep playing until they get it right.", author: "Billie Jean King", theme: "Never Settle" },
+  { quote: "The pain of discipline is nothing like the pain of disappointment.", author: "Justin Langer", theme: "Choose Your Hard" },
+  { quote: "Your net worth to the world is usually determined by what remains after your bad habits are subtracted from your good ones.", author: "Benjamin Franklin", theme: "Subtract the Bad" },
+  { quote: "Motivation is what gets you started. Habit is what keeps you going.", author: "Jim Ryun", theme: "Beyond Motivation" },
+  { quote: "People do not decide their futures. They decide their habits and their habits decide their futures.", author: "F.M. Alexander", theme: "Habits Decide" },
+  { quote: "Success is nothing more than a few simple disciplines practiced every day.", author: "Jim Rohn", theme: "Simple Disciplines" },
+  { quote: "The chains of habit are too light to be felt until they are too heavy to be broken.", author: "Warren Buffett", theme: "Build Before You Need" },
+  { quote: "You will never change your life until you change something you do daily.", author: "John C. Maxwell", theme: "Change Your Day" },
+  { quote: "Hold yourself responsible for a higher standard than anybody else expects of you.", author: "Henry Ward Beecher", theme: "Raise Your Standard" },
+  { quote: "The price of greatness is responsibility.", author: "Winston Churchill", theme: "Pay the Price" },
+  { quote: "An accountability partner is someone who helps you keep your commitments.", author: "Dennis Waitley", theme: "Lean on Your Team" },
+  { quote: "A goal without a plan is just a wish.", author: "Antoine de Saint-Exupéry", theme: "Plan the Work" },
+  { quote: "Perseverance is not a long race; it is many short races one after the other.", author: "Walter Elliot", theme: "Race by Race" },
+  { quote: "Don't count the days, make the days count.", author: "Muhammad Ali", theme: "Make It Count" },
+  { quote: "The difference between ordinary and extraordinary is that little extra.", author: "Jimmy Johnson", theme: "Go the Extra Mile" },
+  { quote: "Hard choices, easy life. Easy choices, hard life.", author: "Jerzy Gregorek", theme: "Hard Choices Win" },
+  { quote: "If you want to go fast, go alone. If you want to go far, go together.", author: "African Proverb", theme: "Together We Go Far" },
+  { quote: "Showing up is 80 percent of life.", author: "Woody Allen", theme: "Just Show Up" },
+  { quote: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb", theme: "Start Today" },
+  { quote: "It is not the strongest of the species that survives, nor the most intelligent that survives. It is the one that is most adaptable to change.", author: "Charles Darwin", theme: "Adapt and Thrive" },
+  { quote: "Your future is created by what you do today, not tomorrow.", author: "Robert Kiyosaki", theme: "Today Creates Tomorrow" },
+  { quote: "The only person you are destined to become is the person you decide to be.", author: "Ralph Waldo Emerson", theme: "Decide Who You Are" },
+  { quote: "Be the change that you wish to see in the world.", author: "Mahatma Gandhi", theme: "Lead by Example" },
+  { quote: "Iron sharpens iron, and one man sharpens another.", author: "Proverbs 27:17", theme: "Sharpen Each Other" },
+  { quote: "As iron sharpens iron, so one person sharpens another.", author: "King Solomon", theme: "Accountability Brothers" },
+  { quote: "Surround yourself with people who push you to be better.", author: "Unknown", theme: "Elevate Your Circle" },
+  { quote: "A smooth sea never made a skilled sailor.", author: "Franklin D. Roosevelt", theme: "Embrace the Storm" },
+  { quote: "Fall seven times, stand up eight.", author: "Japanese Proverb", theme: "Get Back Up" },
+  { quote: "The impediment to action advances action. What stands in the way becomes the way.", author: "Marcus Aurelius", theme: "Obstacle Is the Way" },
+  { quote: "He who has a why to live can bear almost any how.", author: "Friedrich Nietzsche", theme: "Know Your Why" },
+  { quote: "No man is free who is not master of himself.", author: "Epictetus", theme: "Master Yourself" },
+  { quote: "How long are you going to wait before you demand the best for yourself?", author: "Epictetus", theme: "Demand Your Best" },
+  { quote: "Waste no more time arguing about what a good man should be. Be one.", author: "Marcus Aurelius", theme: "Be About It" },
+  { quote: "For God gave us a spirit not of fear but of power and love and self-control.", author: "2 Timothy 1:7", theme: "Spirit of Power" },
+  { quote: "I can do all things through Christ who strengthens me.", author: "Philippians 4:13", theme: "Strength Through Faith" },
+  { quote: "Commit to the Lord whatever you do, and he will establish your plans.", author: "Proverbs 16:3", theme: "Commit Your Plans" },
+  { quote: "Do not be conformed to this world, but be transformed by the renewal of your mind.", author: "Romans 12:2", theme: "Renew Your Mind" },
+  { quote: "Whatever you do, work at it with all your heart.", author: "Colossians 3:23", theme: "Work Wholeheartedly" },
+  { quote: "The only limit to our realization of tomorrow will be our doubts of today.", author: "Franklin D. Roosevelt", theme: "Kill the Doubt" },
+  { quote: "What you do speaks so loudly that I cannot hear what you say.", author: "Ralph Waldo Emerson", theme: "Actions Over Words" },
+  { quote: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky", theme: "Take the Shot" },
+  { quote: "Done is better than perfect.", author: "Sheryl Sandberg", theme: "Ship It" },
+  { quote: "The way to get started is to quit talking and begin doing.", author: "Walt Disney", theme: "Stop Talking Start Doing" },
+  { quote: "Don't let yesterday take up too much of today.", author: "Will Rogers", theme: "Move Forward" },
+  { quote: "Small daily improvements over time lead to stunning results.", author: "Robin Sharma", theme: "1% Better Daily" },
+  { quote: "The harder you work, the luckier you get.", author: "Gary Player", theme: "Create Your Luck" },
+  { quote: "Your body hears everything your mind says. Stay positive.", author: "Naomi Judd", theme: "Mind-Body Connection" },
+  { quote: "Take care of your body. It's the only place you have to live.", author: "Jim Rohn", theme: "Temple Maintenance" },
+  { quote: "Money is only a tool. It will take you wherever you wish, but it will not replace you as the driver.", author: "Ayn Rand", theme: "Drive Your Finances" },
+  { quote: "Do not save what is left after spending; instead spend what is left after saving.", author: "Warren Buffett", theme: "Pay Yourself First" },
+  { quote: "An investment in knowledge pays the best interest.", author: "Benjamin Franklin", theme: "Invest in Learning" },
+  { quote: "The more that you read, the more things you will know. The more that you learn, the more places you'll go.", author: "Dr. Seuss", theme: "Read to Lead" },
+  { quote: "The greatest wealth is to live content with little.", author: "Plato", theme: "Contentment Is Wealth" },
+  { quote: "The quality of your life is the quality of your relationships.", author: "Tony Robbins", theme: "Relationships First" },
+  { quote: "Alone we can do so little; together we can do so much.", author: "Helen Keller", theme: "Power of Together" },
+  { quote: "Trust is built in drops and lost in buckets.", author: "Kevin Plank", theme: "Build Trust Daily" },
+  { quote: "Be faithful in small things because it is in them that your strength lies.", author: "Mother Teresa", theme: "Faithful in Small Things" },
+  { quote: "The successful warrior is the average man with laser-like focus.", author: "Bruce Lee", theme: "Laser Focus" },
+  { quote: "Execution eats strategy for breakfast.", author: "Peter Drucker", theme: "Execute Relentlessly" },
+  { quote: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar", theme: "Start to Be Great" },
+  { quote: "Consistency is the hallmark of the unimaginative.", author: "Oscar Wilde", theme: "Consistently Creative" },
+  { quote: "Winners embrace hard work. They love the discipline of it, the trade-off they're making to win.", author: "Lou Holtz", theme: "Love the Grind" },
+  { quote: "Vision without execution is hallucination.", author: "Thomas Edison", theme: "Vision + Execution" },
+  { quote: "The only way to prove you are a good sport is to lose.", author: "Ernie Banks", theme: "Lose Gracefully Win Greatly" },
+  { quote: "When you want to succeed as bad as you want to breathe, then you'll be successful.", author: "Eric Thomas", theme: "Hungry for Success" },
+  { quote: "Your habits will determine your future.", author: "Jack Canfield", theme: "Habits Shape Destiny" },
+  { quote: "First we make our habits, then our habits make us.", author: "Charles C. Noble", theme: "Made By Habits" },
+  { quote: "The only thing standing between you and your goal is the story you keep telling yourself.", author: "Jordan Belfort", theme: "Change Your Story" },
+  { quote: "Entrepreneurship is living a few years of your life like most people won't, so that you can spend the rest of your life like most people can't.", author: "Unknown", theme: "Sacrifice Now Win Later" },
+  { quote: "Stay hungry. Stay foolish.", author: "Steve Jobs", theme: "Stay Hungry" },
+  { quote: "If you are not willing to risk the usual, you will have to settle for the ordinary.", author: "Jim Rohn", theme: "Risk the Usual" },
+  { quote: "What we fear doing most is usually what we most need to do.", author: "Tim Ferriss", theme: "Fear Points the Way" },
+];
+
+// Get daily quote using date-based seeding (changes every day, never repeats within the pool)
+const getDailyQuote = (quotesFromDB) => {
+  // If we have DB quotes, use the most recent one
+  if (quotesFromDB && quotesFromDB.length > 0) return quotesFromDB[0];
+  
+  // Fallback: seed from today's date for deterministic daily rotation
+  const today = new Date();
+  const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
+  const yearSeed = today.getFullYear() * 1000;
+  const seed = yearSeed + dayOfYear;
+  
+  // Simple hash to pick a quote
+  const index = ((seed * 2654435761) >>> 0) % ACCOUNTABILITY_QUOTES.length;
+  const q = ACCOUNTABILITY_QUOTES[index];
+  return {
+    quote: q.quote,
+    author: q.author,
+    theme: q.theme,
+    id: 'daily_fallback',
+    createdAt: today.toISOString(),
+    isFallback: true
+  };
+};
+
+
+
 const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, darkMode, setDarkMode, onAddHabit, isCollapsed, setIsCollapsed }) => {
   const desktopLabels = { 
     'dashboard': 'Dashboard', 
-    'feed': 'Community Feed',
     'compete': 'Compete',
     'tracker': 'Habit Tracker', 
     'monthly': 'Monthly View',
@@ -478,7 +588,6 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
   };
   const allNavItems = [
     { id: 'dashboard', icon: Home, label: 'Home' },
-    { id: 'feed', icon: Users, label: 'Feed' },
     { id: 'compete', icon: Trophy, label: 'Compete' },
     { id: 'tracker', icon: Calendar, label: 'Track' },
     { id: 'monthly', icon: CalendarDays, label: 'Monthly' },
@@ -619,14 +728,13 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
     { id: 'dashboard', icon: Home, label: 'Home' },
     { id: 'tracker', icon: Calendar, label: 'Track' },
     { id: 'insights', icon: BarChart3, label: 'Insights' },
-    { id: 'feed', icon: Users, label: 'Feed' },
+    { id: 'compete', icon: Trophy, label: 'Compete' },
     { id: 'more', icon: Plus, label: 'More' }
   ];
   
   const [showMoreMenu, setShowMoreMenu] = React.useState(false);
   
   const moreItems = [
-    { id: 'compete', icon: Trophy, label: 'Compete' },
     { id: 'monthly', icon: CalendarDays, label: 'Monthly' },
     { id: 'tasks', icon: Target, label: 'Tasks' },
     { id: 'scorecard', icon: Award, label: 'Scorecard' },
@@ -914,6 +1022,14 @@ export default function AccountabilityTracker() {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
   }, [sidebarCollapsed]);
   
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatOpen && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, chatOpen]);
+
   // AI Coach state
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
@@ -939,6 +1055,16 @@ export default function AccountabilityTracker() {
   const [showComments, setShowComments] = useState({});
   const [commentTexts, setCommentTexts] = useState({});
   
+
+  // Floating Chat state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatActiveConvo, setChatActiveConvo] = useState('group'); // 'group' | participant name
+  const [chatUnread, setChatUnread] = useState(0);
+  const chatEndRef = useRef(null);
+  const chatInputRef = useRef(null);
+
   // Bets/Challenges state
   const [bets, setBets] = useState([]);
   const [newBet, setNewBet] = useState({ challenger: '', challenged: [], goal: '', reward: '', deadline: '', isGroup: false, allowMultipleWinners: false });
@@ -1336,6 +1462,22 @@ export default function AccountabilityTracker() {
       console.error('Bets error:', error);
     });
 
+    return () => unsubscribe();
+  }, [user]);
+
+  // Chat messages Firestore listener
+  useEffect(() => {
+    if (!user) {
+      setChatMessages([]);
+      return;
+    }
+    const chatQ = query(collection(db, 'chatMessages'), orderBy('createdAt', 'asc'));
+    const unsubscribe = onSnapshot(chatQ, (snapshot) => {
+      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setChatMessages(msgs);
+    }, (error) => {
+      console.error('Chat messages error:', error);
+    });
     return () => unsubscribe();
   }, [user]);
 
@@ -2283,6 +2425,39 @@ export default function AccountabilityTracker() {
     if (window.confirm('Delete this post?')) {
       await deleteDoc(doc(db, 'posts', postId));
     }
+  };
+
+  // Send chat message
+  const sendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+    const msg = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      text: chatInput.trim(),
+      sender: userProfile?.linkedParticipant || user?.displayName || 'Anonymous',
+      senderPhoto: userProfile?.photoURL || user?.photoURL || null,
+      senderId: user?.uid,
+      channel: chatActiveConvo, // 'group' or specific person name
+      createdAt: new Date().toISOString()
+    };
+    setChatInput('');
+    try {
+      await setDoc(doc(db, 'chatMessages', msg.id), msg);
+    } catch (err) {
+      console.error('Chat send error:', err);
+    }
+  };
+
+  // Get filtered chat messages for active conversation
+  const getFilteredChatMessages = () => {
+    const myName = userProfile?.linkedParticipant || user?.displayName || '';
+    if (chatActiveConvo === 'group') {
+      return chatMessages.filter(m => m.channel === 'group');
+    }
+    // DM: show messages between me and the other person
+    return chatMessages.filter(m => 
+      (m.channel === chatActiveConvo && m.sender === myName) ||
+      (m.channel === myName && m.sender === chatActiveConvo)
+    );
   };
 
   // Create new challenge
@@ -5859,7 +6034,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
   };
 
   // Get current week's quote
-  const currentQuote = quotes.length > 0 ? quotes[0] : null;
+  const currentQuote = getDailyQuote(quotes);
 
   const prevWeek = () => {
     if (safeWeekIndex > 0) {
@@ -10200,6 +10375,339 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           </div>
         )}
 
+
+        {/* COMPETE PAGE */}
+        {activeView === 'compete' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Compete</h2>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Challenge your team & climb the ranks</p>
+              </div>
+              <button
+                onClick={() => setShowNewBet(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A6F] transition-colors"
+              >
+                <Swords className="w-4 h-4" />
+                New Challenge
+              </button>
+            </div>
+
+            {/* Leaderboard */}
+            <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-gradient-to-br from-[#1E3A5F] to-[#0F2940]'} p-5 text-white`}>
+              <div className="flex items-center gap-2 mb-4">
+                <Trophy className="w-5 h-5 text-[#F5B800]" />
+                <h3 className="font-bold text-lg">Leaderboard</h3>
+              </div>
+              
+              {/* Podium for top 3 */}
+              {leaderboard.length >= 3 && (
+                <div className="flex items-end justify-center gap-3 mb-6">
+                  {[1, 0, 2].map((rank) => {
+                    const p = leaderboard[rank];
+                    if (!p) return null;
+                    const profile = profiles.find(pr => pr.linkedParticipant === p.name);
+                    const heights = ['h-28', 'h-20', 'h-16'];
+                    const medals = ['🥇', '🥈', '🥉'];
+                    const sizes = ['w-16 h-16', 'w-12 h-12', 'w-12 h-12'];
+                    const actualRank = rank;
+                    return (
+                      <div key={p.name} className="flex flex-col items-center">
+                        <div className="text-2xl mb-1">{medals[actualRank]}</div>
+                        {profile?.photoURL ? (
+                          <img src={profile.photoURL} alt="" className={`${sizes[actualRank]} rounded-full border-2 border-white/30 object-cover mb-2`} />
+                        ) : (
+                          <div className={`${sizes[actualRank]} rounded-full bg-white/20 flex items-center justify-center mb-2 text-lg font-bold`}>
+                            {p.name[0]}
+                          </div>
+                        )}
+                        <p className="text-sm font-semibold">{p.name}</p>
+                        <p className="text-[#F5B800] font-bold text-lg">{p.score}</p>
+                        <div className={`${heights[actualRank]} w-20 rounded-t-lg mt-1 ${actualRank === 0 ? 'bg-[#F5B800]/30' : actualRank === 1 ? 'bg-gray-300/20' : 'bg-amber-600/20'}`} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Full list */}
+              <div className="space-y-2">
+                {leaderboard.map((p, i) => {
+                  const isMe = p.name === (userProfile?.linkedParticipant || user?.displayName);
+                  const profile = profiles.find(pr => pr.linkedParticipant === p.name);
+                  return (
+                    <div key={p.name} className={`flex items-center gap-3 p-3 rounded-xl ${isMe ? 'bg-[#F5B800]/20 ring-1 ring-[#F5B800]/50' : 'bg-white/5'}`}>
+                      <span className="text-sm font-bold w-6 text-center">{i + 1}</span>
+                      {profile?.photoURL ? (
+                        <img src={profile.photoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold">{p.name[0]}</div>
+                      )}
+                      <div className="flex-1">
+                        <p className={`text-sm font-medium ${isMe ? 'text-[#F5B800]' : ''}`}>{p.name} {isMe ? '(You)' : ''}</p>
+                        <div className="flex gap-3 text-xs text-white/50">
+                          <span>{p.rate}% rate</span>
+                          <span>{p.streak}🔥 streak</span>
+                        </div>
+                      </div>
+                      <p className="text-lg font-bold text-[#F5B800]">{p.score}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Active Challenges */}
+            {(() => {
+              const myName = userProfile?.linkedParticipant || user?.displayName;
+              const pending = bets.filter(b => b.status === 'pending' && (b.challenged?.includes(myName) || b.challenger === myName));
+              const active = bets.filter(b => b.status === 'accepted');
+              const completed = bets.filter(b => b.status === 'completed').slice(0, 5);
+
+              return (
+                <>
+                  {/* Pending */}
+                  {pending.length > 0 && (
+                    <div>
+                      <h3 className={`font-semibold mb-3 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        <AlertCircle className="w-4 h-4 text-amber-500" /> Pending ({pending.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {pending.map(bet => {
+                          const iAmChallenged = bet.challenged?.includes(myName);
+                          const profile = profiles.find(pr => pr.linkedParticipant === bet.challenger);
+                          return (
+                            <div key={bet.id} className={`p-4 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {profile?.photoURL ? (
+                                    <img src={profile.photoURL} alt="" className="w-8 h-8 rounded-full object-cover" />
+                                  ) : (
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>{bet.challenger?.[0]}</div>
+                                  )}
+                                  <div>
+                                    <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{bet.challenger}</p>
+                                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>challenged {bet.isGroup ? bet.challenged?.join(', ') : bet.challenged?.[0]}</p>
+                                  </div>
+                                </div>
+                                {bet.deadline && <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Due {new Date(bet.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                              </div>
+                              <p className={`text-sm mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>🎯 {bet.goal}</p>
+                              {bet.reward && <p className={`text-xs mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>🏆 {bet.reward}</p>}
+                              <div className="flex gap-2">
+                                {iAmChallenged && !bet.acceptedBy?.includes(myName) && (
+                                  <>
+                                    <button onClick={() => acceptBet(bet.id)} className="flex-1 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600">Accept</button>
+                                    <button onClick={() => declineBet(bet.id)} className="flex-1 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600">Decline</button>
+                                  </>
+                                )}
+                                {bet.challenger === myName && (
+                                  <div className="flex gap-2 w-full">
+                                    <button onClick={() => setEditingBet({...bet})} className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 flex items-center justify-center gap-1"><Edit3 className="w-3 h-3" /> Edit</button>
+                                    <button onClick={() => { if(window.confirm('Delete this challenge?')) deleteDoc(doc(db, 'bets', bet.id)); }} className="py-2 px-3 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600"><Trash2 className="w-3 h-3" /></button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active */}
+                  {active.length > 0 && (
+                    <div>
+                      <h3 className={`font-semibold mb-3 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        <Flame className="w-4 h-4 text-orange-500" /> Active ({active.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {active.map(bet => {
+                          const allParticipantsBet = [bet.challenger, ...(bet.challenged || [])];
+                          const daysLeft = bet.deadline ? Math.max(0, Math.ceil((new Date(bet.deadline) - new Date()) / 86400000)) : null;
+                          return (
+                            <div key={bet.id} className={`p-4 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                              <div className="flex items-start justify-between mb-2">
+                                <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>🎯 {bet.goal}</p>
+                                {daysLeft !== null && (
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${daysLeft <= 2 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    {daysLeft}d left
+                                  </span>
+                                )}
+                              </div>
+                              <p className={`text-xs mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {bet.challenger} vs {bet.challenged?.join(', ')} • 🏆 {bet.reward || 'Bragging rights'}
+                              </p>
+                              <div className="flex gap-2 flex-wrap">
+                                {allParticipantsBet.map(pName => (
+                                  <button
+                                    key={pName}
+                                    onClick={() => {
+                                      if (bet.allowMultipleWinners) {
+                                        completeBet(bet.id, pName, true);
+                                      } else {
+                                        if (window.confirm(`Mark ${pName} as the winner?`)) completeBet(bet.id, pName);
+                                      }
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                                      bet.winners?.includes(pName) 
+                                        ? 'bg-green-100 border-green-300 text-green-700' 
+                                        : darkMode ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    {bet.winners?.includes(pName) ? '✅ ' : ''}{pName}
+                                  </button>
+                                ))}
+                              </div>
+                              {bet.allowMultipleWinners && bet.winners?.length > 0 && (
+                                <button onClick={() => finalizeBetWithWinners(bet.id)} className="mt-2 w-full py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600">
+                                  Finalize Winners ({bet.winners.length})
+                                </button>
+                              )}
+                              <div className="flex gap-2 mt-2">
+                                <button onClick={() => setEditingBet({...bet})} className={`flex-1 py-1.5 rounded-lg text-xs font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'} flex items-center justify-center gap-1`}><Edit3 className="w-3 h-3" /> Edit</button>
+                                <button onClick={() => { if(window.confirm('Delete?')) deleteDoc(doc(db, 'bets', bet.id)); }} className="py-1.5 px-3 rounded-lg text-xs bg-red-100 text-red-600 hover:bg-red-200"><Trash2 className="w-3 h-3" /></button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Completed */}
+                  {completed.length > 0 && (
+                    <div>
+                      <h3 className={`font-semibold mb-3 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        <CheckCircle2 className="w-4 h-4 text-green-500" /> Completed
+                      </h3>
+                      <div className="space-y-2">
+                        {completed.map(bet => (
+                          <div key={bet.id} className={`p-3 rounded-xl border ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className="flex items-center justify-between">
+                              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{bet.goal}</p>
+                              <span className="text-xs text-green-600 font-medium">🏆 {bet.winner}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No challenges */}
+                  {pending.length === 0 && active.length === 0 && completed.length === 0 && (
+                    <div className={`text-center py-12 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                      <Swords className={`w-12 h-12 mx-auto mb-3 ${darkMode ? 'text-gray-600' : 'text-gray-300'}`} />
+                      <p className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No challenges yet</p>
+                      <button onClick={() => setShowNewBet(true)} className="text-sm text-blue-500 hover:underline">Create your first challenge</button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* New Challenge Modal */}
+            {showNewBet && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowNewBet(false)}>
+                <div className={`w-full max-w-md rounded-2xl p-5 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
+                  <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>New Challenge</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Challenge Who?</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {allParticipants.filter(p => p !== (userProfile?.linkedParticipant || user?.displayName)).map(p => (
+                          <button
+                            key={p}
+                            onClick={() => {
+                              const challenged = [...(newBet.challenged || [])];
+                              const idx = challenged.indexOf(p);
+                              if (idx >= 0) challenged.splice(idx, 1);
+                              else challenged.push(p);
+                              setNewBet({ ...newBet, challenged, isGroup: challenged.length > 1 });
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                              newBet.challenged?.includes(p) 
+                                ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]' 
+                                : darkMode ? 'bg-gray-700 text-gray-300 border-gray-600' : 'bg-gray-100 text-gray-600 border-gray-200'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>The Challenge</label>
+                      <textarea
+                        value={newBet.goal}
+                        onChange={e => setNewBet({ ...newBet, goal: e.target.value })}
+                        placeholder="e.g., Hit 90% habit completion this week"
+                        className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`}
+                        rows={2}
+                      />
+                    </div>
+                    <div>
+                      <label className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Reward / Stakes</label>
+                      <input
+                        value={newBet.reward}
+                        onChange={e => setNewBet({ ...newBet, reward: e.target.value })}
+                        placeholder="e.g., Loser buys lunch 🍔"
+                        className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Deadline</label>
+                      <input
+                        type="date"
+                        value={newBet.deadline}
+                        onChange={e => setNewBet({ ...newBet, deadline: e.target.value })}
+                        className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`}
+                      />
+                    </div>
+                    {newBet.challenged?.length > 1 && (
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={newBet.allowMultipleWinners} onChange={e => setNewBet({ ...newBet, allowMultipleWinners: e.target.checked })} className="rounded" />
+                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Allow multiple winners</span>
+                      </label>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-5">
+                    <button onClick={() => setShowNewBet(false)} className={`flex-1 py-2.5 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>Cancel</button>
+                    <button onClick={() => { createBet(); }} className="flex-1 py-2.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A6F]">Send Challenge 🔥</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Edit Challenge Modal */}
+            {editingBet && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setEditingBet(null)}>
+                <div className={`w-full max-w-md rounded-2xl p-5 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
+                  <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Edit Challenge</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>The Challenge</label>
+                      <textarea value={editingBet.goal} onChange={e => setEditingBet({ ...editingBet, goal: e.target.value })} className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`} rows={2} />
+                    </div>
+                    <div>
+                      <label className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Reward / Stakes</label>
+                      <input value={editingBet.reward} onChange={e => setEditingBet({ ...editingBet, reward: e.target.value })} className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`} />
+                    </div>
+                    <div>
+                      <label className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Deadline</label>
+                      <input type="date" value={editingBet.deadline} onChange={e => setEditingBet({ ...editingBet, deadline: e.target.value })} className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-5">
+                    <button onClick={() => setEditingBet(null)} className={`flex-1 py-2.5 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>Cancel</button>
+                    <button onClick={() => updateBet()} className="flex-1 py-2.5 bg-[#1E3A5F] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A6F]">Save Changes</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* PROFILE VIEW */}
         {activeView === 'profile' && (
           <div className="max-w-4xl mx-auto space-y-4">
@@ -12911,6 +13419,132 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           </div>
         )}
       </div>
+
+      {/* FLOATING CHAT WINDOW */}
+      {user && (
+        <div className={`fixed z-40 ${chatOpen ? 'bottom-20 md:bottom-4 right-2 md:right-4' : 'bottom-20 md:bottom-4 right-2 md:right-4'}`}>
+          {chatOpen ? (
+            <div className={`w-[340px] md:w-[380px] rounded-2xl shadow-2xl border flex flex-col overflow-hidden ${
+              darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            }`} style={{ height: '480px' }}>
+              {/* Chat Header */}
+              <div className="bg-gradient-to-r from-[#1E3A5F] to-[#2A4A6F] text-white p-3 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  <span className="font-semibold text-sm">
+                    {chatActiveConvo === 'group' ? 'Group Chat' : chatActiveConvo}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setChatOpen(false)} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Channel Tabs */}
+              <div className={`flex gap-1 p-2 border-b overflow-x-auto flex-shrink-0 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-100 bg-gray-50'}`}>
+                <button
+                  onClick={() => setChatActiveConvo('group')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                    chatActiveConvo === 'group' 
+                      ? 'bg-[#1E3A5F] text-white' 
+                      : darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  👥 Group
+                </button>
+                {allParticipants.filter(p => p !== (userProfile?.linkedParticipant || user?.displayName)).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setChatActiveConvo(p)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                      chatActiveConvo === p 
+                        ? 'bg-[#1E3A5F] text-white' 
+                        : darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ minHeight: 0 }}>
+                {getFilteredChatMessages().length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <MessageCircle className={`w-10 h-10 mb-2 ${darkMode ? 'text-gray-600' : 'text-gray-300'}`} />
+                    <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {chatActiveConvo === 'group' ? 'Start the group conversation!' : `Message ${chatActiveConvo}`}
+                    </p>
+                  </div>
+                ) : (
+                  getFilteredChatMessages().map((msg) => {
+                    const isMe = msg.senderId === user?.uid;
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] ${isMe ? 'order-2' : ''}`}>
+                          {!isMe && chatActiveConvo === 'group' && (
+                            <p className={`text-[10px] mb-0.5 ml-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{msg.sender}</p>
+                          )}
+                          <div className={`px-3 py-2 rounded-2xl text-sm ${
+                            isMe 
+                              ? 'bg-[#1E3A5F] text-white rounded-br-md' 
+                              : darkMode ? 'bg-gray-700 text-gray-200 rounded-bl-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'
+                          }`}>
+                            {msg.text}
+                          </div>
+                          <p className={`text-[9px] mt-0.5 ${isMe ? 'text-right mr-1' : 'ml-1'} ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                            {new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              
+              {/* Input */}
+              <div className={`p-2 border-t flex-shrink-0 ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                <div className="flex gap-2">
+                  <input
+                    ref={chatInputRef}
+                    type="text"
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                    placeholder={chatActiveConvo === 'group' ? 'Message the group...' : `Message ${chatActiveConvo}...`}
+                    className={`flex-1 px-3 py-2 rounded-xl text-sm border ${
+                      darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 placeholder-gray-400'
+                    }`}
+                  />
+                  <button
+                    onClick={sendChatMessage}
+                    disabled={!chatInput.trim()}
+                    className="w-9 h-9 flex items-center justify-center bg-[#1E3A5F] text-white rounded-xl hover:bg-[#2A4A6F] transition-colors disabled:opacity-40"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setChatOpen(true); setChatUnread(0); }}
+              className="w-14 h-14 bg-gradient-to-br from-[#1E3A5F] to-[#2A4A6F] text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center relative group hover:scale-105"
+            >
+              <MessageCircle className="w-6 h-6" />
+              {chatUnread > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                  {chatUnread}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
       <MobileNav activeView={activeView} setActiveView={setActiveView} darkMode={darkMode} onAddHabit={() => setShowAddHabitModal(true)} />
     </div>
   );
