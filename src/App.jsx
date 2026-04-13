@@ -11172,7 +11172,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             {/* Completed Challenges */}
             <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
               <h3 className={`font-bold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                <CheckCircle className="w-5 h-5 text-green-500" />
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
                 Completed Challenges
               </h3>
               {(() => {
