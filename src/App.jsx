@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock, Timer, Play, Pause, RotateCcw, Brain, Repeat, FileText, Coffee, ArrowRight, CheckSquare, Settings, Focus, Inbox, ListTodo, CalendarClock, ListPlus, Rocket, CircleDot, Link2 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar } from 'recharts';
 import {
@@ -22,6 +23,14 @@ import {
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+
+const VIEWS = ['dashboard', 'feed', 'compete', 'tracker', 'monthly', 'tasks', 'insights', 'scorecard', 'quotes', 'vision', 'ai-coach', 'profile'];
+const DEFAULT_VIEW = 'dashboard';
+
+const viewFromPath = (pathname) => {
+  const seg = pathname.split('/').filter(Boolean)[0];
+  return VIEWS.includes(seg) ? seg : DEFAULT_VIEW;
+};
 
 // Supabase configuration
 const SUPABASE_URL = 'https://nqwssoupzsrovtmshlht.supabase.co';
@@ -814,7 +823,18 @@ export default function AccountabilityTracker() {
   const [categorizingHabits, setCategorizingHabits] = useState(false);
   const [normalizingHabits, setNormalizingHabits] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
-  const [activeView, setActiveView] = useState('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeView = viewFromPath(location.pathname);
+  const setActiveView = useCallback((view) => {
+    navigate(`/${view}`);
+  }, [navigate]);
+  useEffect(() => {
+    const seg = location.pathname.split('/').filter(Boolean)[0];
+    if (location.pathname === '/' || (seg && !VIEWS.includes(seg))) {
+      navigate(`/${DEFAULT_VIEW}`, { replace: true });
+    }
+  }, [location.pathname, navigate]);
   const [selectedWeek, setSelectedWeek] = useState(null); // Store week string, not index
   const [selectedParticipant, setSelectedParticipant] = useState('All');
   const [scorecardRange, setScorecardRange] = useState('4weeks');
