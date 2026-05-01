@@ -6786,108 +6786,6 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     );
                   })()}
                   
-                  {/* Gamified Habit Streaks Card */}
-                  {(myHabitPerformance.all.length > 0) && (
-                    <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-                      {/* Header with Total XP */}
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className={`font-semibold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                          <Trophy className="w-4 h-4 text-amber-500" />
-                          Habit Streaks
-                        </h3>
-                        <div className={`px-3 py-1 rounded-full text-sm font-bold ${darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
-                          ⚡ {myHabitPerformance.totalXP.toLocaleString()} XP
-                        </div>
-                      </div>
-                      
-                      {/* Achievements Row */}
-                      {myHabitPerformance.achievements.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {myHabitPerformance.achievements.map((ach, idx) => (
-                            <div key={idx} className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${darkMode ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-100 text-amber-700'}`}
-                              title={ach.desc}>
-                              <span>{ach.icon}</span>
-                              <span className="font-medium">{ach.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* Top Streaks with Levels */}
-                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gradient-to-br from-orange-900/30 to-red-900/30' : 'bg-gradient-to-br from-orange-50 to-red-50'}`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-lg">🏆</span>
-                            <span className={`text-sm font-medium ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>Top Performers</span>
-                          </div>
-                          <div className="space-y-2">
-                            {myHabitPerformance.hot.slice(0, 3).map((h, idx) => (
-                              <div key={idx} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-900/50' : 'bg-white/70'}`}>
-                                <div className="flex items-center justify-between">
-                                  <span className={`text-sm font-medium truncate ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{h.displayName}</span>
-                                  <span className="text-sm">{h.streakLevel?.icon}</span>
-                                </div>
-                                <div className="flex items-center justify-between mt-1">
-                                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {h.streakLevel?.name} • {h.current}w streak
-                                  </span>
-                                  {h.isPersonalBest && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-500">🎉 PB!</span>
-                                  )}
-                                </div>
-                                {h.nextMilestone && (
-                                  <div className="mt-1.5">
-                                    <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                      <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-red-500"
-                                        style={{ width: `${Math.min(100, (h.current / h.nextMilestone.min) * 100)}%` }} />
-                                    </div>
-                                    <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                      {h.weeksToNextLevel}w to {h.nextMilestone.name} {h.nextMilestone.icon}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            {myHabitPerformance.hot.length === 0 && (
-                              <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                Build 2+ week streaks to appear here!
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Needs Work */}
-                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gradient-to-br from-blue-900/30 to-purple-900/30' : 'bg-gradient-to-br from-blue-50 to-purple-50'}`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-lg">🎯</span>
-                            <span className={`text-sm font-medium ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>Level Up Next</span>
-                          </div>
-                          <div className="space-y-2">
-                            {myHabitPerformance.cold.slice(0, 3).map((h, idx) => (
-                              <div key={idx} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-900/50' : 'bg-white/70'}`}>
-                                <div className="flex items-center justify-between">
-                                  <span className={`text-sm font-medium truncate ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{h.displayName}</span>
-                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.mastery?.icon} {h.mastery?.name}</span>
-                                </div>
-                                <div className="flex items-center justify-between mt-1">
-                                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {h.completionRate}% • Best: {h.best}w
-                                  </span>
-                                  <span className={`text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>+{h.xp} XP</span>
-                                </div>
-                              </div>
-                            ))}
-                            {myHabitPerformance.cold.length === 0 && (
-                              <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                                All habits performing well! 🎉
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
                   {/* MAIN LAYOUT: Stats/Team LEFT, Habits RIGHT */}
                   <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                     {/* LEFT COLUMN (3/5) - Stats & Team */}
@@ -7313,6 +7211,108 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       )}
                     </div>
                   </div>
+
+                  {/* Gamified Habit Streaks Card */}
+                  {(myHabitPerformance.all.length > 0) && (
+                    <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                      {/* Header with Total XP */}
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className={`font-semibold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                          <Trophy className="w-4 h-4 text-amber-500" />
+                          Habit Streaks
+                        </h3>
+                        <div className={`px-3 py-1 rounded-full text-sm font-bold ${darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
+                          ⚡ {myHabitPerformance.totalXP.toLocaleString()} XP
+                        </div>
+                      </div>
+
+                      {/* Achievements Row */}
+                      {myHabitPerformance.achievements.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {myHabitPerformance.achievements.map((ach, idx) => (
+                            <div key={idx} className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${darkMode ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-100 text-amber-700'}`}
+                              title={ach.desc}>
+                              <span>{ach.icon}</span>
+                              <span className="font-medium">{ach.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Top Streaks with Levels */}
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gradient-to-br from-orange-900/30 to-red-900/30' : 'bg-gradient-to-br from-orange-50 to-red-50'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg">🏆</span>
+                            <span className={`text-sm font-medium ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>Top Performers</span>
+                          </div>
+                          <div className="space-y-2">
+                            {myHabitPerformance.hot.slice(0, 3).map((h, idx) => (
+                              <div key={idx} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-900/50' : 'bg-white/70'}`}>
+                                <div className="flex items-center justify-between">
+                                  <span className={`text-sm font-medium truncate ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{h.displayName}</span>
+                                  <span className="text-sm">{h.streakLevel?.icon}</span>
+                                </div>
+                                <div className="flex items-center justify-between mt-1">
+                                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {h.streakLevel?.name} • {h.current}w streak
+                                  </span>
+                                  {h.isPersonalBest && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-500">🎉 PB!</span>
+                                  )}
+                                </div>
+                                {h.nextMilestone && (
+                                  <div className="mt-1.5">
+                                    <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                      <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-red-500"
+                                        style={{ width: `${Math.min(100, (h.current / h.nextMilestone.min) * 100)}%` }} />
+                                    </div>
+                                    <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                      {h.weeksToNextLevel}w to {h.nextMilestone.name} {h.nextMilestone.icon}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {myHabitPerformance.hot.length === 0 && (
+                              <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                Build 2+ week streaks to appear here!
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Needs Work */}
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gradient-to-br from-blue-900/30 to-purple-900/30' : 'bg-gradient-to-br from-blue-50 to-purple-50'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg">🎯</span>
+                            <span className={`text-sm font-medium ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>Level Up Next</span>
+                          </div>
+                          <div className="space-y-2">
+                            {myHabitPerformance.cold.slice(0, 3).map((h, idx) => (
+                              <div key={idx} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-900/50' : 'bg-white/70'}`}>
+                                <div className="flex items-center justify-between">
+                                  <span className={`text-sm font-medium truncate ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{h.displayName}</span>
+                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{h.mastery?.icon} {h.mastery?.name}</span>
+                                </div>
+                                <div className="flex items-center justify-between mt-1">
+                                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {h.completionRate}% • Best: {h.best}w
+                                  </span>
+                                  <span className={`text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>+{h.xp} XP</span>
+                                </div>
+                              </div>
+                            ))}
+                            {myHabitPerformance.cold.length === 0 && (
+                              <p className={`text-xs text-center py-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                All habits performing well! 🎉
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               );
             })()}
