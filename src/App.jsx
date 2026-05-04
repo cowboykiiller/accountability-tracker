@@ -18,6 +18,7 @@ import {
   getNextMilestone,
   getCurrentMonday,
 } from './constants';
+import { computeRate, computeStreak, computeScore, previousISOWeek } from './lib/scoring';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
@@ -1767,40 +1768,12 @@ export default function AccountabilityTracker() {
     return monday.toISOString().split('T')[0];
   }, []);
 
-  // Calculate streaks for each participant (excluding current week)
-  // Calculate streaks for each participant (excluding current week from the streak-breaking check)
+  // Streaks per participant: strict consecutive ISO weeks (gap-bug fix).
+  // See src/lib/scoring.js — computeStreak.
   const calculateStreaks = useMemo(() => {
     const streaks = {};
     allParticipants.forEach(p => {
-      // Group habits by week for this participant (exclude current week - it's incomplete)
-      const participantHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
-      const weeklyData = {};
-      
-      participantHabits.forEach(h => {
-        if (!weeklyData[h.weekStart]) weeklyData[h.weekStart] = [];
-        weeklyData[h.weekStart].push(h);
-      });
-      
-      // Sort weeks from most recent to oldest and count consecutive weeks with >70% completion
-      const sortedWeeks = Object.keys(weeklyData).sort().reverse();
-      let currentStreak = 0;
-      
-      for (const week of sortedWeeks) {
-        const weekHabits = weeklyData[week];
-        const totalPossible = weekHabits.reduce((sum, h) => sum + (h.target || 5), 0);
-        // Use daysCompleted array length (the actual data structure)
-        const totalCompleted = weekHabits.reduce((sum, h) => {
-          return sum + (h.daysCompleted?.length || 0);
-        }, 0);
-        
-        if (totalPossible > 0 && (totalCompleted / totalPossible) >= 0.7) {
-          currentStreak++;
-        } else {
-          break;
-        }
-      }
-      
-      streaks[p] = currentStreak;
+      streaks[p] = computeStreak(habits.filter(h => h.participant === p), currentWeekStart);
     });
     return streaks;
   }, [habits, allParticipants, currentWeekStart]);
@@ -1923,22 +1896,21 @@ export default function AccountabilityTracker() {
     return streaks;
   }, [habits, allParticipants, currentWeekStart]);
 
-  // Calculate leaderboard (excluding current week for fair comparison)
+  // Leaderboard: excludes the current (incomplete) week so standings only
+  // reflect completed weeks. Rate, streak, and score all flow through the
+  // shared scoring module.
   const leaderboard = useMemo(() => {
     return allParticipants.map(p => {
       const participantHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
-      const totalPossible = participantHabits.reduce((sum, h) => sum + (h.target || 5), 0);
-      const totalCompleted = participantHabits.reduce((sum, h) => {
-        return sum + (h.daysCompleted?.length || 0);
-      }, 0);
-      const rate = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
-      
+      const rate = computeRate(participantHabits);
+      const streak = calculateStreaks[p] || 0;
+      const totalCompleted = participantHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
       return {
         name: p,
         rate,
-        streak: calculateStreaks[p] || 0,
+        streak,
         totalCompleted,
-        score: rate + (calculateStreaks[p] || 0) * 10 // Rate + streak bonus
+        score: computeScore(rate, streak),
       };
     }).sort((a, b) => b.score - a.score);
   }, [habits, calculateStreaks, allParticipants, currentWeekStart]);
@@ -8942,14 +8914,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             {/* Team Summary - Visible to everyone */}
             {(() => {
               const teamHabits = getRangeHabits;
-              const teamCompleted = teamHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-              const teamRate = teamHabits.length > 0 ? Math.round((teamCompleted / teamHabits.length) * 100) : 0;
-              
+              const teamRate = computeRate(teamHabits);
+
               // Calculate user's rank
               const participantRates = allParticipants.map(p => {
                 const pH = getRangeHabits.filter(h => h.participant === p);
-                const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                return { participant: p, rate: pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0 };
+                return { participant: p, rate: computeRate(pH) };
               }).sort((a, b) => b.rate - a.rate);
               
               const myRank = participantRates.findIndex(p => p.participant === myParticipant) + 1;
@@ -8961,6 +8931,11 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     <div>
                       <h3 className="text-white font-bold text-lg">Team Performance</h3>
                       <p className="text-white/60 text-sm">{rangeLabels[scorecardRange]}</p>
+                      <p className="text-white/50 text-xs mt-0.5">
+                        {scorecardRange === 'week'
+                          ? 'Live • includes today'
+                          : `Through week of ${new Date(previousISOWeek(currentWeekStart) + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-3xl font-bold text-white">{teamRate}%</p>
@@ -8994,8 +8969,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               if (!canView) return null;
               
               const pH = getRangeHabits.filter(h => h.participant === p);
-              const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-              const rate = pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0;
+              const rate = computeRate(pH);
               const profile = getProfileByParticipant(p);
               
               // Group by normalized habit name for metrics
@@ -9111,8 +9085,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 <div className="space-y-2">
                   {allParticipants.map((p, idx) => {
                     const pH = getRangeHabits.filter(h => h.participant === p);
-                    const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                    const rate = pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0;
+                    const rate = computeRate(pH);
                     const isMe = p === myParticipant;
                     
                     return (
@@ -11581,10 +11554,13 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
             
             {/* Leaderboard Podium */}
             <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-              <h3 className={`font-bold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <h3 className={`font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 <Crown className="w-5 h-5 text-amber-500" />
                 Leaderboard
               </h3>
+              <p className={`text-xs mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Standings through week of {new Date(previousISOWeek(currentWeekStart) + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+              </p>
               
               {/* Podium Display */}
               <div className="flex items-end justify-center gap-2 mb-6 h-40">
