@@ -976,6 +976,7 @@ export default function AccountabilityTracker() {
   // Onboarding state
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingSlide, setOnboardingSlide] = useState(0);
+  const [onboardingError, setOnboardingError] = useState('');
   const [onboardingData, setOnboardingData] = useState({
     displayName: '',
     nickname: '',
@@ -1560,16 +1561,25 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
-  // Listen for vision data
+  // Listen for vision data.
+  //
+  // The reset on user change AND the explicit `else` branch below are both
+  // load-bearing. Without them, switching Google accounts in the same tab
+  // leaked the previous user's visionData into the new user's session, and
+  // autoAddNonNegotiables wrote the previous user's non-negotiables under
+  // the new user's participant name. See git history for the original
+  // incident (Brandon → Brandon Brown, 2026-04-06).
   useEffect(() => {
+    setVisionData(null);
     if (!user) return;
-    
+
     const visionRef = doc(db, 'visions', `vision_2026_${user.uid}`);
     const unsubscribe = onSnapshot(visionRef, (snapshot) => {
       if (snapshot.exists()) {
         setVisionData(snapshot.data());
-        // Also populate visionAnswers for editing
         setVisionAnswers(prev => ({ ...prev, ...snapshot.data() }));
+      } else {
+        setVisionData(null);
       }
     }, (error) => {
       console.error('Vision error:', error);
@@ -1578,15 +1588,19 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
-  // Listen for 2025 reflection data
+  // Listen for 2025 reflection data. Same stale-state hazard as visions —
+  // reset on user change and clear on missing doc.
   useEffect(() => {
+    setReflectionData(null);
     if (!user) return;
-    
+
     const reflectionRef = doc(db, 'reflections', `reflection_2025_${user.uid}`);
     const unsubscribe = onSnapshot(reflectionRef, (snapshot) => {
       if (snapshot.exists()) {
         setReflectionData(snapshot.data());
         setReflectionAnswers(prev => ({ ...prev, ...snapshot.data() }));
+      } else {
+        setReflectionData(null);
       }
     }, (error) => {
       console.error('Reflection error:', error);
@@ -1595,15 +1609,19 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
-  // Listen for time capsule data
+  // Listen for time capsule data. Same stale-state hazard as visions —
+  // reset on user change and clear on missing doc.
   useEffect(() => {
+    setTimeCapsuleData(null);
     if (!user) return;
-    
+
     const capsuleRef = doc(db, 'timeCapsules', `capsule_2026_${user.uid}`);
     const unsubscribe = onSnapshot(capsuleRef, (snapshot) => {
       if (snapshot.exists()) {
         setTimeCapsuleData(snapshot.data());
         setTimeCapsuleAnswers(prev => ({ ...prev, ...snapshot.data() }));
+      } else {
+        setTimeCapsuleData(null);
       }
     }, (error) => {
       console.error('Time capsule error:', error);
@@ -1668,13 +1686,25 @@ export default function AccountabilityTracker() {
   // Complete onboarding and create profile
   const completeOnboarding = async () => {
     if (!user) return;
-    
+
     try {
       // Determine participant name
-      const participantName = onboardingData.participantType === 'new' 
-        ? onboardingData.newParticipantName 
-        : onboardingData.linkedParticipant;
-      
+      const participantName = onboardingData.participantType === 'new'
+        ? onboardingData.newParticipantName?.trim()
+        : onboardingData.linkedParticipant?.trim();
+
+      // Guard: never save a profile with an empty linkedParticipant. The
+      // Skip-Setup button bypasses slide 2 validation, so the slide-7 submit
+      // must catch this too. Show inline error, jump back to slide 2.
+      if (!participantName) {
+        setOnboardingError('Please pick or create a participant first.');
+        setTimeout(() => {
+          setOnboardingError('');
+          setOnboardingSlide(2);
+        }, 1500);
+        return;
+      }
+
       // Create user profile
       const profileDoc = {
         odingUserId: user.uid,
@@ -13478,16 +13508,6 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               ))}
             </div>
 
-            {/* Skip Button (only on first few slides) */}
-            {onboardingSlide < 6 && (
-              <button
-                onClick={() => setOnboardingSlide(7)}
-                className="fixed top-6 right-6 z-20 text-white/50 hover:text-white/80 text-sm transition-colors"
-              >
-                Skip Setup →
-              </button>
-            )}
-
             {/* Slide Container */}
             <div className="min-h-screen flex flex-col items-center justify-center p-6 md:p-12 relative z-10">
               
@@ -13894,6 +13914,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   </div>
 
                   <div className="flex flex-col items-center gap-4">
+                    {onboardingError && (
+                      <p className="text-red-400 text-sm">{onboardingError}</p>
+                    )}
                     <button
                       onClick={completeOnboarding}
                       className="px-10 py-4 bg-gradient-to-r from-[#F5B800] to-amber-500 hover:from-[#e5a800] hover:to-amber-400 text-[#1E3A5F] rounded-xl font-black text-lg transition-all shadow-lg shadow-amber-500/25 flex items-center gap-2"
