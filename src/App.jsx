@@ -3543,19 +3543,13 @@ JSON array only:`
       console.log('Auto-adding non-negotiables for week:', currentWeek);
       for (let i = 0; i < nonNegotiables.length; i++) {
         const nn = nonNegotiables[i];
-        const nnLower = nn.toLowerCase().trim();
-        
-        // Check if this habit existed in previous weeks and get its category/description
-        const previousVersion = habits.find(h => 
-          h.participant === myParticipant && 
-          h.weekStart < currentWeek && 
-          (h.habit || '').toLowerCase().trim() === nnLower
-        );
+
+        const previousVersion = findInheritableHabit(nn, myParticipant, currentWeek);
         const inheritedCategory = previousVersion?.category || '';
         const inheritedDescription = previousVersion?.description || '';
-        
+
         const id = `habit_${Date.now()}_nn_${i}_${Math.random().toString(36).substr(2, 5)}`;
-        await setDoc(doc(db, 'habits', id), {
+        const habitData = {
           id,
           habit: nn,
           description: inheritedDescription,
@@ -3567,7 +3561,11 @@ JSON array only:`
           category: inheritedCategory,
           isNonNegotiable: true,
           order: i
-        });
+        };
+
+        if (habitData.category === '') warnEmptyCategory('autoAddNonNegotiables', habitData, previousVersion);
+
+        await setDoc(doc(db, 'habits', id), habitData);
       }
     };
     
@@ -3620,19 +3618,41 @@ JSON array only:`
     }
   };
 
+  // Look up a previous version of a habit by name (same participant, earlier
+  // week). Prefers the most recent previous version that has a non-empty
+  // category. This means if a user once intentionally changed a habit's
+  // category, the older non-empty value will be preferred. Accepted tradeoff:
+  // silently inheriting empty categories caused historical data corruption —
+  // see known-issues.md / commit history.
+  const findInheritableHabit = (habitName, participant, weekStart) => {
+    const nameLower = (habitName || '').toLowerCase().trim();
+    const candidates = habits.filter(h =>
+      h.participant === participant &&
+      h.weekStart < weekStart &&
+      (h.habit || '').toLowerCase().trim() === nameLower
+    );
+    return candidates.find(h => h.category) || candidates[0] || null;
+  };
+
+  const warnEmptyCategory = (source, habitData, previousVersion) => {
+    console.warn('[habit-write] empty category at save', {
+      source,
+      participant: myParticipant,
+      uid: user?.uid,
+      habit: habitData.habit,
+      weekStart: habitData.weekStart,
+      hadPreviousVersion: !!previousVersion,
+      previousVersionDate: previousVersion?.weekStart || null,
+    });
+  };
+
   const addHabit = async () => {
     if (!newHabit.habit || !myParticipant) return;
-    
-    // Check if this habit existed in previous weeks and get its category/description
-    const habitNameLower = newHabit.habit.toLowerCase().trim();
-    const previousVersion = habits.find(h => 
-      h.participant === myParticipant && 
-      h.weekStart < currentWeek && 
-      (h.habit || '').toLowerCase().trim() === habitNameLower
-    );
+
+    const previousVersion = findInheritableHabit(newHabit.habit, myParticipant, currentWeek);
     const inheritedCategory = previousVersion?.category || '';
     const inheritedDescription = previousVersion?.description || '';
-    
+
     const id = `habit_${Date.now()}`;
     const habitData = {
       id,
@@ -3644,14 +3664,15 @@ JSON array only:`
       target: parseInt(newHabit.target),
       category: newHabit.category || inheritedCategory || ''
     };
-    
-    // Add type-specific fields
+
     if (newHabit.habitType === 'percentage') {
       habitData.instances = [];
     } else {
       habitData.daysCompleted = [];
     }
-    
+
+    if (habitData.category === '') warnEmptyCategory('addHabit', habitData, previousVersion);
+
     await setDoc(doc(db, 'habits', id), habitData);
     setNewHabit({ habit: '', participant: myParticipant, target: 5, habitType: 'daily', category: '', description: '' });
     setActiveView('tracker');
@@ -3661,22 +3682,16 @@ JSON array only:`
     if (!myParticipant) return;
     const lines = bulkHabits.split('\n').filter(l => l.trim());
     if (!lines.length) return;
-    
+
     for (const line of lines) {
       const habitName = line.trim();
-      const habitNameLower = habitName.toLowerCase();
-      
-      // Check if this habit existed in previous weeks and get its category/description
-      const previousVersion = habits.find(h => 
-        h.participant === myParticipant && 
-        h.weekStart < currentWeek && 
-        (h.habit || '').toLowerCase().trim() === habitNameLower
-      );
+
+      const previousVersion = findInheritableHabit(habitName, myParticipant, currentWeek);
       const inheritedCategory = previousVersion?.category || '';
       const inheritedDescription = previousVersion?.description || '';
-      
+
       const id = `habit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await setDoc(doc(db, 'habits', id), {
+      const habitData = {
         id,
         habit: habitName,
         description: inheritedDescription,
@@ -3686,7 +3701,11 @@ JSON array only:`
         daysCompleted: [],
         target: parseInt(bulkTarget),
         category: inheritedCategory
-      });
+      };
+
+      if (habitData.category === '') warnEmptyCategory('addBulkHabits', habitData, previousVersion);
+
+      await setDoc(doc(db, 'habits', id), habitData);
     }
     setBulkHabits('');
     setActiveView('tracker');
