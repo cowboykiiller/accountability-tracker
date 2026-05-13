@@ -1848,9 +1848,11 @@ export default function AccountabilityTracker() {
           totalCompleted += completed;
           totalTarget += target;
           
-          // Skip current week for streak calculation (incomplete)
-          if (h.weekStart === currentWeekStart) continue;
-          
+          // Skip current week (incomplete) AND any future weeks (e.g. next-week
+          // NN docs auto-created with empty daysCompleted — they would otherwise
+          // break the streak on the very first iteration).
+          if (h.weekStart >= currentWeekStart) continue;
+
           if (metTarget) {
             tempStreak++;
             if (i === 0 || (i === 1 && sorted[0].weekStart === currentWeekStart)) {
@@ -1872,20 +1874,20 @@ export default function AccountabilityTracker() {
         currentStreak = 0;
         for (let i = 0; i < sorted.length; i++) {
           const h = sorted[i];
-          if (h.weekStart === currentWeekStart) continue;
-          
+          if (h.weekStart >= currentWeekStart) continue;
+
           const completed = h.daysCompleted?.length || 0;
           const target = h.target || 5;
-          
+
           if (completed >= target) {
             currentStreak++;
           } else {
             break;
           }
         }
-        
+
         const completionRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
-        const totalWeeks = weeks.filter(w => w !== currentWeekStart).length;
+        const totalWeeks = weeks.filter(w => w < currentWeekStart).length;
         
         // Gamification: Calculate XP and levels
         const streakXP = currentStreak * 50; // 50 XP per week of streak
@@ -2716,7 +2718,7 @@ JSON array only:`
   // Weekly Personal Goal functions
   const saveWeeklyGoal = async () => {
     if (!newWeeklyGoal.goal.trim()) return;
-    
+
     const isEditing = editingWeeklyGoal !== null;
     const goalId = isEditing ? editingWeeklyGoal.id : `goal_${currentWeek}_${user.uid}`;
     const linkedHabitId = `habit_focus_${currentWeek}_${user.uid}`;
