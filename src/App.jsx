@@ -25,7 +25,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
-const VIEWS = ['dashboard', 'feed', 'compete', 'tracker', 'monthly', 'tasks', 'insights', 'scorecard', 'quotes', 'vision', 'ai-coach', 'profile'];
+const VIEWS = ['dashboard', 'compete', 'tracker', 'monthly', 'tasks', 'insights', 'scorecard', 'quotes', 'vision', 'ai-coach', 'profile'];
 const DEFAULT_VIEW = 'dashboard';
 
 const viewFromPath = (pathname) => {
@@ -433,7 +433,6 @@ const getWeekStartFromDate = (date) => {
 // Components
 const NAV_ITEMS = [
   { id: 'dashboard', icon: Home, label: 'Home' },
-  { id: 'feed', icon: Users, label: 'Feed' },
   { id: 'compete', icon: Trophy, label: 'Compete' },
   { id: 'tracker', icon: Calendar, label: 'Track' },
   { id: 'insights', icon: BarChart3, label: 'Insights' },
@@ -454,8 +453,7 @@ const TASK_CATEGORIES = [
 // Habit categories (matching the 7 life domains)
 const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, darkMode, setDarkMode, onAddHabit, isCollapsed, setIsCollapsed }) => {
   const desktopLabels = { 
-    'dashboard': 'Dashboard', 
-    'feed': 'Community Feed',
+    'dashboard': 'Dashboard',
     'compete': 'Compete',
     'tracker': 'Habit Tracker', 
     'monthly': 'Monthly View',
@@ -470,7 +468,6 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
   };
   const allNavItems = [
     { id: 'dashboard', icon: Home, label: 'Home' },
-    { id: 'feed', icon: Users, label: 'Feed' },
     { id: 'compete', icon: Trophy, label: 'Compete' },
     { id: 'tracker', icon: Calendar, label: 'Track' },
     { id: 'monthly', icon: CalendarDays, label: 'Monthly' },
@@ -611,7 +608,6 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
     { id: 'dashboard', icon: Home, label: 'Home' },
     { id: 'tracker', icon: Calendar, label: 'Track' },
     { id: 'insights', icon: BarChart3, label: 'Insights' },
-    { id: 'feed', icon: Users, label: 'Feed' },
     { id: 'more', icon: Plus, label: 'More' }
   ];
   
@@ -934,14 +930,6 @@ export default function AccountabilityTracker() {
   const [selectedQuoteIndex, setSelectedQuoteIndex] = useState(0);
   const [quotesExpanded, setQuotesExpanded] = useState(true);
   
-  // Feed/Posts state
-  const [posts, setPosts] = useState([]);
-  const [newPostText, setNewPostText] = useState('');
-  const [newPostImage, setNewPostImage] = useState(null);
-  const [postImagePreview, setPostImagePreview] = useState(null);
-  const [showComments, setShowComments] = useState({});
-  const [commentTexts, setCommentTexts] = useState({});
-  
   // Bets/Challenges state
   const [bets, setBets] = useState([]);
   const [weeklyGoals, setWeeklyGoals] = useState([]); // Personal weekly challenge goals
@@ -1195,7 +1183,6 @@ export default function AccountabilityTracker() {
   
   const calendarRef = useRef(null);
   const fileInputRef = useRef(null);
-  const postTextRef = useRef(null);
   const profilePhotoRef = useRef(null);
 
   // Set favicon on mount
@@ -1300,27 +1287,6 @@ export default function AccountabilityTracker() {
       setCheckIns(checkInsData);
     }, (error) => {
       console.error('Check-ins error:', error);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // Posts Firestore listener
-  useEffect(() => {
-    if (!user) {
-      setPosts([]);
-      return;
-    }
-
-    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const postsData = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      }));
-      setPosts(postsData);
-    }, (error) => {
-      console.error('Posts error:', error);
     });
 
     return () => unsubscribe();
@@ -2274,185 +2240,6 @@ export default function AccountabilityTracker() {
       };
       reader.readAsDataURL(file);
     });
-  };
-
-  // Handle image selection for post
-  const handleImageSelect = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    console.log('Selected file:', file.name, file.type, file.size);
-    
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Image must be less than 10MB');
-      return;
-    }
-    
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-    
-    try {
-      // Compress the image aggressively for posts
-      const compressedImage = await compressImage(file, 500, 0.6);
-      console.log('Final compressed image size:', compressedImage.length, 'characters');
-      
-      if (compressedImage.length > 900000) {
-        alert('Image is still too large after compression. Please try a smaller image.');
-        return;
-      }
-      
-      setNewPostImage(compressedImage);
-      setPostImagePreview(compressedImage);
-    } catch (error) {
-      console.error('Error compressing image:', error);
-      alert('Failed to process image: ' + error.message);
-    }
-    
-    // Reset the input so the same file can be selected again
-    e.target.value = '';
-  };
-
-  // Apply text formatting
-  const applyFormat = (format) => {
-    const textarea = postTextRef.current;
-    if (!textarea) return;
-    
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = newPostText;
-    const selectedText = text.substring(start, end);
-    
-    let formattedText = '';
-    let cursorOffset = 0;
-    
-    switch (format) {
-      case 'bold':
-        formattedText = `**${selectedText}**`;
-        cursorOffset = 2;
-        break;
-      case 'italic':
-        formattedText = `_${selectedText}_`;
-        cursorOffset = 1;
-        break;
-      case 'bullet':
-        formattedText = `\n• ${selectedText}`;
-        cursorOffset = 3;
-        break;
-      default:
-        return;
-    }
-    
-    const newText = text.substring(0, start) + formattedText + text.substring(end);
-    setNewPostText(newText);
-    
-    // Reset cursor position
-    setTimeout(() => {
-      textarea.focus();
-      const newPos = start + cursorOffset + (selectedText ? selectedText.length + cursorOffset : 0);
-      textarea.setSelectionRange(newPos, newPos);
-    }, 0);
-  };
-
-  // Render formatted text
-  const renderFormattedText = (text) => {
-    if (!text) return null;
-    
-    // Convert markdown-style formatting to HTML
-    let formatted = text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/_(.*?)_/g, '<em>$1</em>')
-      .replace(/\n/g, '<br/>');
-    
-    return <span dangerouslySetInnerHTML={{ __html: formatted }} />;
-  };
-
-  // Create new post
-  const createPost = async () => {
-    if (!newPostText.trim() && !newPostImage) return;
-    
-    try {
-      // Use profile photo if available, otherwise Google photo
-      const authorPhoto = userProfile?.photoURL || user.photoURL || null;
-      
-      const post = {
-        id: `post_${Date.now()}`,
-        author: userProfile?.linkedParticipant || user.displayName || 'Anonymous',
-        authorPhoto: authorPhoto,
-        authorId: user.uid,
-        content: newPostText,
-        image: newPostImage || null,
-        reactions: {},
-        comments: [],
-        createdAt: new Date().toISOString()
-      };
-      
-      console.log('Creating post, image size:', newPostImage ? newPostImage.length : 0);
-      
-      await setDoc(doc(db, 'posts', post.id), post);
-      setNewPostText('');
-      setNewPostImage(null);
-      setPostImagePreview(null);
-    } catch (error) {
-      console.error('Error creating post:', error);
-      if (error.message?.includes('bytes') || error.code === 'invalid-argument') {
-        alert('Image is too large for the database. Please try a smaller image or post without an image.');
-      } else {
-        alert('Failed to create post: ' + error.message);
-      }
-    }
-  };
-
-  // Add reaction to post
-  const addReaction = async (postId, emoji) => {
-    const post = posts.find(p => p.id === postId);
-    if (!post) return;
-    
-    const reactions = { ...post.reactions };
-    const userKey = user.uid;
-    
-    if (reactions[emoji]?.includes(userKey)) {
-      // Remove reaction
-      reactions[emoji] = reactions[emoji].filter(id => id !== userKey);
-      if (reactions[emoji].length === 0) delete reactions[emoji];
-    } else {
-      // Add reaction
-      if (!reactions[emoji]) reactions[emoji] = [];
-      reactions[emoji].push(userKey);
-    }
-    
-    await setDoc(doc(db, 'posts', postId), { ...post, reactions }, { merge: true });
-  };
-
-  // Add comment to post
-  const addComment = async (postId) => {
-    const commentText = commentTexts[postId];
-    if (!commentText?.trim()) return;
-    
-    const post = posts.find(p => p.id === postId);
-    if (!post) return;
-    
-    const newComment = {
-      id: `comment_${Date.now()}`,
-      author: user.displayName || 'Anonymous',
-      authorPhoto: user.photoURL || null,
-      authorId: user.uid,
-      text: commentText,
-      createdAt: new Date().toISOString()
-    };
-    
-    const comments = [...(post.comments || []), newComment];
-    await setDoc(doc(db, 'posts', postId), { ...post, comments }, { merge: true });
-    setCommentTexts({ ...commentTexts, [postId]: '' });
-  };
-
-  // Delete post
-  const deletePost = async (postId) => {
-    if (window.confirm('Delete this post?')) {
-      await deleteDoc(doc(db, 'posts', postId));
-    }
   };
 
   // Create new challenge
