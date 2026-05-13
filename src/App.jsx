@@ -2718,6 +2718,7 @@ JSON array only:`
   // Weekly Personal Goal functions
   const saveWeeklyGoal = async () => {
     if (!newWeeklyGoal.goal.trim()) return;
+    if (!myParticipant) return;
 
     const isEditing = editingWeeklyGoal !== null;
     const goalId = isEditing ? editingWeeklyGoal.id : `goal_${currentWeek}_${user.uid}`;
@@ -3062,8 +3063,12 @@ JSON array only:`
     setEditingPastWeek(false);
   }, [currentWeek]);
 
-  // Get the user's assigned participant name
-  const myParticipant = userProfile?.linkedParticipant || user?.displayName || '';
+  // Get the user's assigned participant name. Explicit null when the profile
+  // isn't linked — we do NOT fall back to displayName. That fallback caused
+  // secondary Google accounts (e.g. "Brandon Brown") to read/write habits
+  // under the wrong participant, producing ghost data and 0 streaks.
+  // When null, the warning banner in the main shell prompts the user to fix it.
+  const myParticipant = userProfile?.linkedParticipant?.trim() || null;
 
   // Get sorted habits by streak/performance for current user
   const myHabitPerformance = useMemo(() => {
@@ -6376,6 +6381,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
       
       <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} userProfile={userProfile} onSignOut={handleSignOut} darkMode={darkMode} setDarkMode={setDarkMode} onAddHabit={() => setShowAddHabitModal(true)} isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
       <div className="flex-1 p-3 md:p-5 overflow-auto pb-32 md:pb-5">
+        {user && userProfile && !userProfile.linkedParticipant?.trim() && (
+          <div className={`mb-3 p-3 rounded-lg border ${darkMode ? 'bg-amber-900/30 border-amber-500/40 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-900'}`} role="alert">
+            <p className="text-sm font-medium">⚠️ Your profile isn't linked to a participant.</p>
+            <p className="text-xs mt-1 opacity-90">Streaks and habit tracking won't work until this is set. Contact Taylor to fix it.</p>
+          </div>
+        )}
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
