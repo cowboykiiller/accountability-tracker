@@ -31,3 +31,13 @@ firebase-key.json
 firestore-snapshot.json
 firestore-snapshot-pre-bug2-cleanup.json
 export-firestore.cjs
+
+# Local-only Firestore admin/debug scripts (kept on disk, never committed)
+scripts/inspect-*.cjs
+scripts/trace-*.cjs
+scripts/verify-*.cjs
+scripts/read-*.cjs
+scripts/export-*.cjs
+
+# Firebase Admin service account keys — match Firebase's default naming
+*-firebase-adminsdk-*.json
