@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock, Timer, Play, Pause, RotateCcw, Brain, Repeat, FileText, Coffee, ArrowRight, CheckSquare, Settings, Focus, Inbox, ListTodo, CalendarClock, ListPlus, Rocket, CircleDot, Link2 } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, BarChart3, CalendarDays, TrendingUp, TrendingDown, Award, CheckCircle2, XCircle, Home, ChevronDown, ChevronUp, LogOut, User, Sparkles, MessageCircle, Lightbulb, Wand2, Send, Loader2, Quote, Download, RefreshCw, Flame, Trophy, MessageSquare, Star, Crown, Medal, Heart, ThumbsUp, Zap, Camera, Image, Users, DollarSign, Swords, Gift, PartyPopper, MapPin, X, Edit3, Eye, Lock, Check, Sun, Moon, AlertCircle, Clock, Timer, Play, Pause, RotateCcw, Brain, Repeat, FileText, Coffee, ArrowRight, CheckSquare, Settings, Focus, Inbox, ListTodo, CalendarClock, ListPlus, Rocket, CircleDot, Link2, BookOpen } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar } from 'recharts';
 import {
   PARTICIPANTS,
@@ -19,13 +19,14 @@ import {
   getCurrentMonday,
 } from './constants';
 import { computeRate, computeStreak, computeScore, previousISOWeek } from './lib/scoring';
+import BooksPage from './views/BooksPage';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
-const VIEWS = ['dashboard', 'compete', 'tracker', 'monthly', 'tasks', 'insights', 'scorecard', 'quotes', 'vision', 'ai-coach', 'profile'];
+const VIEWS = ['dashboard', 'compete', 'tracker', 'monthly', 'tasks', 'insights', 'scorecard', 'quotes', 'vision', 'ai-coach', 'books', 'profile'];
 const DEFAULT_VIEW = 'dashboard';
 
 const viewFromPath = (pathname) => {
@@ -461,9 +462,10 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
     'scorecard': 'Scorecard', 
     'insights': 'Insights',
     'add': 'Add Habit', 
-    'quotes': 'Quotes', 
+    'quotes': 'Quotes',
     'ai-coach': 'AI Coach',
     'vision': '2026 Vision',
+    'books': 'Books',
     'profile': 'My Profile'
   };
   const allNavItems = [
@@ -476,9 +478,10 @@ const Sidebar = ({ activeView, setActiveView, user, userProfile, onSignOut, dark
     { id: 'scorecard', icon: Award, label: 'Score' },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
     { id: 'vision', icon: Star, label: '2026 Vision' },
+    { id: 'books', icon: BookOpen, label: 'Books' },
     { id: 'ai-coach', icon: Sparkles, label: 'Coach' }
   ];
-  
+
   const displayPhoto = userProfile?.photoURL || user?.photoURL;
   const displayName = userProfile?.displayName || user?.displayName || 'User';
   
@@ -620,6 +623,7 @@ const MobileNav = ({ activeView, setActiveView, darkMode, onAddHabit }) => {
     { id: 'scorecard', icon: Award, label: 'Scorecard' },
     { id: 'quotes', icon: Quote, label: 'Quotes' },
     { id: 'vision', icon: Star, label: '2026 Vision' },
+    { id: 'books', icon: BookOpen, label: 'Books' },
     { id: 'ai-coach', icon: Sparkles, label: 'AI Coach' },
     { id: 'profile', icon: User, label: 'Profile' }
   ];
@@ -816,6 +820,7 @@ export default function AccountabilityTracker() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [habits, setHabits] = useState([]);
+  const [books, setBooks] = useState([]);
   const [habitNormGroups, setHabitNormGroups] = useState({}); // { "normalizedName": ["Exercise", "Workout", "Gym"] }
   const [categorizingHabits, setCategorizingHabits] = useState(false);
   const [normalizingHabits, setNormalizingHabits] = useState(false);
@@ -1312,6 +1317,51 @@ export default function AccountabilityTracker() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Books Firestore listener
+  useEffect(() => {
+    if (!user) {
+      setBooks([]);
+      return;
+    }
+
+    const q = query(collection(db, 'books'), orderBy('dateAdded', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const booksData = snapshot.docs.map(d => ({
+        ...d.data(),
+        id: d.id
+      }));
+      setBooks(booksData);
+    }, (error) => {
+      console.error('Books error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const saveBook = useCallback(async (bookId, payload) => {
+    const id = bookId || `book_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const docPayload = { ...payload, id };
+    await setDoc(doc(db, 'books', id), docPayload);
+  }, []);
+
+  const deleteBook = useCallback(async (bookId) => {
+    await deleteDoc(doc(db, 'books', bookId));
+  }, []);
+
+  // Count of finished books this calendar year, per participant. Display only —
+  // not used in score calculation.
+  const booksFinishedThisYear = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const counts = {};
+    for (const b of books) {
+      if (b.status !== 'Finished' || !b.dateFinished) continue;
+      const d = new Date(b.dateFinished);
+      if (isNaN(d.getTime()) || d.getFullYear() !== currentYear) continue;
+      counts[b.participant] = (counts[b.participant] || 0) + 1;
+    }
+    return counts;
+  }, [books]);
 
   // Weekly Goals Firestore listener
   useEffect(() => {
@@ -10881,6 +10931,19 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           </div>
         )}
 
+        {/* BOOKS VIEW */}
+        {activeView === 'books' && (
+          <BooksPage
+            books={books}
+            myParticipant={myParticipant}
+            allParticipants={allParticipants}
+            user={user}
+            darkMode={darkMode}
+            saveBook={saveBook}
+            deleteBook={deleteBook}
+          />
+        )}
+
         {/* PROFILE VIEW */}
         {activeView === 'profile' && (
           <div className="max-w-4xl mx-auto space-y-4">
@@ -10937,6 +11000,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 {userProfile?.linkedParticipant && (() => {
                   const myStats = leaderboard.find(l => l.name === userProfile.linkedParticipant);
                   const myStreak = calculateStreaks[userProfile.linkedParticipant] || 0;
+                  const myBooks = booksFinishedThisYear[userProfile.linkedParticipant] || 0;
                   return myStats ? (
                     <div className="flex gap-4 md:gap-6">
                       <div className="text-center">
@@ -10950,6 +11014,10 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       <div className="text-center">
                         <p className="text-3xl font-bold text-orange-400">{myStreak}🔥</p>
                         <p className="text-xs text-white/60">Streak</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-purple-300">{myBooks}📚</p>
+                        <p className="text-xs text-white/60">Books {new Date().getFullYear()}</p>
                       </div>
                     </div>
                   ) : null;
@@ -11463,8 +11531,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               <div className="space-y-2">
                 {leaderboard.map((entry, idx) => {
                   const streak = calculateStreaks[entry.name] || 0;
+                  const bookCount = booksFinishedThisYear[entry.name] || 0;
                   return (
-                    <div 
+                    <div
                       key={entry.name}
                       className={`flex items-center gap-3 p-3 rounded-xl ${
                         idx === 0 ? 'bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200' :
@@ -11481,7 +11550,17 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       }`}>
                         {idx + 1}
                       </span>
-                      <span className={`flex-1 font-medium ${darkMode && idx > 2 ? 'text-white' : ''}`}>{entry.name}</span>
+                      <span className={`flex-1 font-medium flex items-center gap-2 ${darkMode && idx > 2 ? 'text-white' : ''}`}>
+                        {entry.name}
+                        {bookCount > 0 && (
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded-full font-normal ${darkMode ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}
+                            title={`${bookCount} book${bookCount === 1 ? '' : 's'} finished in ${new Date().getFullYear()}`}
+                          >
+                            📚 {bookCount}
+                          </span>
+                        )}
+                      </span>
                       <div className="flex items-center gap-4 text-sm">
                         <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{entry.rate}%</span>
                         <span className="text-orange-500">{streak}🔥</span>

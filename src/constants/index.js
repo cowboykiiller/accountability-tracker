@@ -32,6 +32,15 @@ export const PRIORITY_CONFIG = {
   'Optional': { color: 'bg-gray-400', textColor: 'text-gray-500', icon: '⚪' }
 };
 
+export const BOOK_STATUSES = ['Want to Read', 'Reading', 'Finished', 'Abandoned'];
+
+export const BOOK_STATUS_CONFIG = {
+  'Want to Read': { label: 'Want to Read', color: '#6b7280', bgColor: 'bg-gray-100', textColor: 'text-gray-700', darkBg: 'bg-gray-500/20', darkText: 'text-gray-300', icon: '📋' },
+  'Reading': { label: 'Reading', color: '#3b82f6', bgColor: 'bg-blue-100', textColor: 'text-blue-700', darkBg: 'bg-blue-500/20', darkText: 'text-blue-400', icon: '📖' },
+  'Finished': { label: 'Finished', color: '#22c55e', bgColor: 'bg-green-100', textColor: 'text-green-700', darkBg: 'bg-green-500/20', darkText: 'text-green-400', icon: '✅' },
+  'Abandoned': { label: 'Abandoned', color: '#ef4444', bgColor: 'bg-red-100', textColor: 'text-red-700', darkBg: 'bg-red-500/20', darkText: 'text-red-400', icon: '🚫' }
+};
+
 export const STREAK_LEVELS = [
   { min: 0, name: 'None', icon: '—', color: 'gray' },
   { min: 1, name: 'Ember', icon: '🔥', color: 'amber' },
