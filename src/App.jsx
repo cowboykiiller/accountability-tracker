@@ -8938,8 +8938,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               
               const pH = getRangeHabits.filter(h => h.participant === p);
               const rate = computeRate(pH, vacations, p);
+              const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
               const profile = getProfileByParticipant(p);
-              
+
               // Group by normalized habit name for metrics
               const habitGroups = {};
               pH.forEach(h => {
