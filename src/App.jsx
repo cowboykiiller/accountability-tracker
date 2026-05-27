@@ -18,8 +18,9 @@ import {
   getNextMilestone,
   getCurrentMonday,
 } from './constants';
-import { computeRate, computeStreak, computeScore, previousISOWeek } from './lib/scoring';
+import { computeRate, computeStreak, computeScore, previousISOWeek, isVacationDay, isFullVacationWeek, getVacationDaysInWeek } from './lib/scoring';
 import BooksPage from './views/BooksPage';
+import VacationsSection from './views/VacationsSection';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
@@ -821,6 +822,7 @@ export default function AccountabilityTracker() {
   const [authLoading, setAuthLoading] = useState(true);
   const [habits, setHabits] = useState([]);
   const [books, setBooks] = useState([]);
+  const [vacations, setVacations] = useState([]);
   const [habitNormGroups, setHabitNormGroups] = useState({}); // { "normalizedName": ["Exercise", "Workout", "Gym"] }
   const [categorizingHabits, setCategorizingHabits] = useState(false);
   const [normalizingHabits, setNormalizingHabits] = useState(false);
@@ -1349,6 +1351,37 @@ export default function AccountabilityTracker() {
     await deleteDoc(doc(db, 'books', bookId));
   }, []);
 
+  // Vacations Firestore listener
+  useEffect(() => {
+    if (!user) {
+      setVacations([]);
+      return;
+    }
+
+    const q = query(collection(db, 'vacations'), orderBy('startDate', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const vacationsData = snapshot.docs.map(d => ({
+        ...d.data(),
+        id: d.id
+      }));
+      setVacations(vacationsData);
+    }, (error) => {
+      console.error('Vacations error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const saveVacation = useCallback(async (vacationId, payload) => {
+    const id = vacationId || `vacation_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const docPayload = { ...payload, id };
+    await setDoc(doc(db, 'vacations', id), docPayload);
+  }, []);
+
+  const deleteVacation = useCallback(async (vacationId) => {
+    await deleteDoc(doc(db, 'vacations', vacationId));
+  }, []);
+
   // Count of finished books this calendar year, per participant. Display only —
   // not used in score calculation.
   const booksFinishedThisYear = useMemo(() => {
@@ -1814,15 +1847,30 @@ export default function AccountabilityTracker() {
     return monday.toISOString().split('T')[0];
   }, []);
 
+  // Helpers used by the per-day vacation indicators across views. Index 0
+  // = Monday, matching the DAYS constant and `daysCompleted` usage.
+  const dateForWeekDay = useCallback((weekStart, dayIdx) => {
+    if (!weekStart) return '';
+    const d = new Date(`${weekStart}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + dayIdx);
+    return d.toISOString().split('T')[0];
+  }, []);
+  const isVacationCell = useCallback(
+    (weekStart, dayIdx, participant) =>
+      isVacationDay(dateForWeekDay(weekStart, dayIdx), vacations, participant),
+    [vacations, dateForWeekDay]
+  );
+
   // Streaks per participant: strict consecutive ISO weeks (gap-bug fix).
-  // See src/lib/scoring.js — computeStreak.
+  // See src/lib/scoring.js — computeStreak. Full-vacation weeks are
+  // invisible to the streak walk; partial-vacation weeks score normally.
   const calculateStreaks = useMemo(() => {
     const streaks = {};
     allParticipants.forEach(p => {
-      streaks[p] = computeStreak(habits.filter(h => h.participant === p), currentWeekStart);
+      streaks[p] = computeStreak(habits.filter(h => h.participant === p), currentWeekStart, 0.7, vacations, p);
     });
     return streaks;
-  }, [habits, allParticipants, currentWeekStart]);
+  }, [habits, allParticipants, currentWeekStart, vacations]);
 
   // Calculate streaks for individual habits (by habit name per participant)
   const habitStreaks = useMemo(() => {
@@ -1950,7 +1998,7 @@ export default function AccountabilityTracker() {
   const leaderboard = useMemo(() => {
     return allParticipants.map(p => {
       const participantHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
-      const rate = computeRate(participantHabits);
+      const rate = computeRate(participantHabits, vacations, p);
       const streak = calculateStreaks[p] || 0;
       const totalCompleted = participantHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
       return {
@@ -1961,7 +2009,7 @@ export default function AccountabilityTracker() {
         score: computeScore(rate, streak),
       };
     }).sort((a, b) => b.score - a.score);
-  }, [habits, calculateStreaks, allParticipants, currentWeekStart]);
+  }, [habits, calculateStreaks, allParticipants, currentWeekStart, vacations]);
 
   // Calculate Wrapped Stats for the current user
   const wrappedStats = useMemo(() => {
@@ -3388,18 +3436,25 @@ JSON array only:`
   useEffect(() => {
     const autoAddNonNegotiables = async () => {
       if (!myParticipant || !currentWeek || !visionData || !db) return;
-      
+
       // Prevent duplicate auto-adds for the same week
       const weekKey = `${myParticipant}_${currentWeek}`;
       if (autoAddedWeeksRef.current.has(weekKey)) return;
-      
+
+      // Skip habit-doc creation entirely for full-vacation weeks. Partial
+      // vacations still create docs — the user manually lowers their target.
+      if (isFullVacationWeek(currentWeek, vacations, myParticipant)) {
+        autoAddedWeeksRef.current.add(weekKey);
+        return;
+      }
+
       // Get non-negotiables from vision data
       const nonNegotiables = [
         visionData.nonNegotiable1,
         visionData.nonNegotiable2,
         visionData.nonNegotiable3
       ].filter(Boolean);
-      
+
       if (nonNegotiables.length === 0) return;
       
       // Check if user already has any habits this week
@@ -3446,7 +3501,7 @@ JSON array only:`
     // Small delay to ensure habits have loaded from Firestore
     const timer = setTimeout(autoAddNonNegotiables, 500);
     return () => clearTimeout(timer);
-  }, [currentWeek, myParticipant, visionData, habits]);
+  }, [currentWeek, myParticipant, visionData, habits, vacations]);
 
   const addPercentageInstance = async (id, success) => {
     const habit = habits.find(h => h.id === id);
@@ -7042,19 +7097,23 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                     {dayNames.map((day, idx) => {
                                       const isDone = (habit.daysCompleted || []).includes(idx);
                                       const isToday = idx === todayIdx;
+                                      const isVacation = isVacationCell(habit.weekStart, idx, habit.participant);
                                       return (
                                         <button
                                           key={idx}
                                           onClick={() => toggleDay(habit.id, idx)}
+                                          title={isVacation ? 'Vacation day' : undefined}
                                           className={`w-5 h-5 rounded text-[9px] font-medium ${
-                                            isDone 
-                                              ? 'bg-green-500 text-white' 
-                                              : isToday 
-                                                ? darkMode ? 'bg-blue-500/30 text-blue-400' : 'bg-blue-100 text-blue-600'
-                                                : darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400'
+                                            isDone
+                                              ? 'bg-green-500 text-white'
+                                              : isVacation
+                                                ? darkMode ? 'bg-emerald-500/30 text-emerald-300 ring-1 ring-emerald-400/40' : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300'
+                                                : isToday
+                                                  ? darkMode ? 'bg-blue-500/30 text-blue-400' : 'bg-blue-100 text-blue-600'
+                                                  : darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400'
                                           }`}
                                         >
-                                          {day}
+                                          {isVacation && !isDone ? '🌴' : day}
                                         </button>
                                       );
                                     })}
@@ -7450,14 +7509,17 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                                 {DAYS.map((day, i) => {
                                   const isCompleted = daysCompleted.includes(i);
                                   const isToday = isCurrentWeek && i === todayIndex;
+                                  const isVacation = isVacationCell(h.weekStart, i, h.participant);
                                   return (
                                     <button key={day} onClick={() => canEdit && toggleDay(h.id, i)} disabled={!canEdit}
+                                      title={isVacation ? 'Vacation day' : undefined}
                                       className={`w-7 h-7 sm:w-7 sm:h-7 rounded text-[10px] font-medium transition-all ${
-                                        isCompleted ? 'bg-green-500 text-white' 
+                                        isCompleted ? 'bg-green-500 text-white'
+                                        : isVacation ? (darkMode ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40' : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300')
                                         : isToday ? (darkMode ? 'bg-[#1E3A5F]/30 text-[#1E3A5F] border border-[#1E3A5F]/50' : 'bg-[#1E3A5F]/10 text-[#1E3A5F] border border-[#1E3A5F]/30')
                                         : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-50 text-gray-400'
                                       } ${canEdit ? 'hover:opacity-80' : ''}`}>
-                                      {isCompleted ? <Check className="w-3 h-3 mx-auto" /> : day.slice(0, 1)}
+                                      {isCompleted ? <Check className="w-3 h-3 mx-auto" /> : isVacation ? '🌴' : day.slice(0, 1)}
                                     </button>
                                   );
                                 })}
@@ -7971,20 +8033,25 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               const isInWeek = !!weekHabit;
                               const isCompleted = weekHabit?.daysCompleted?.includes(dayOfWeek);
                               const canToggle = isMyHabit && isInWeek;
+                              const dayDateISO = dayDate.toISOString().split('T')[0];
+                              const isVacation = weekHabit && isVacationDay(dayDateISO, vacations, weekHabit.participant);
 
                               return (
-                                <td key={dayIdx} className={`p-0 text-center ${isToday ? 'bg-blue-100/50' : isWeekend ? (darkMode ? 'bg-gray-700/30' : 'bg-gray-100/50') : ''}`}>
+                                <td key={dayIdx} className={`p-0 text-center ${isVacation ? (darkMode ? 'bg-emerald-900/20' : 'bg-emerald-50') : isToday ? 'bg-blue-100/50' : isWeekend ? (darkMode ? 'bg-gray-700/30' : 'bg-gray-100/50') : ''}`}
+                                  title={isVacation ? 'Vacation day' : undefined}>
                                   {isInWeek ? (
                                     <button
                                       onClick={() => canToggle && toggleDay(weekHabit.id, dayOfWeek)}
                                       disabled={!canToggle}
                                       className={`w-5 h-5 mx-auto rounded flex items-center justify-center transition-all ${
-                                        isCompleted 
-                                          ? 'bg-green-500 text-white' 
-                                          : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+                                        isCompleted
+                                          ? 'bg-green-500 text-white'
+                                          : isVacation
+                                            ? darkMode ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-[10px]' : 'bg-emerald-100 hover:bg-emerald-200 text-[10px]'
+                                            : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
                                       } ${canToggle ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
                                     >
-                                      {isCompleted ? <Check className="w-3 h-3" /> : ''}
+                                      {isCompleted ? <Check className="w-3 h-3" /> : isVacation ? '🌴' : ''}
                                     </button>
                                   ) : (
                                     <div className={`w-5 h-5 mx-auto rounded ${darkMode ? 'bg-gray-800/30' : 'bg-gray-100/30'}`}></div>
@@ -8812,13 +8879,15 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
             {/* Team Summary - Visible to everyone */}
             {(() => {
-              const teamHabits = getRangeHabits;
+              // Team rate excludes each participant's full-vacation weeks
+              // before aggregating, mirroring per-participant rate behavior.
+              const teamHabits = getRangeHabits.filter(h => !isFullVacationWeek(h.weekStart, vacations, h.participant));
               const teamRate = computeRate(teamHabits);
 
               // Calculate user's rank
               const participantRates = allParticipants.map(p => {
                 const pH = getRangeHabits.filter(h => h.participant === p);
-                return { participant: p, rate: computeRate(pH) };
+                return { participant: p, rate: computeRate(pH, vacations, p) };
               }).sort((a, b) => b.rate - a.rate);
               
               const myRank = participantRates.findIndex(p => p.participant === myParticipant) + 1;
@@ -8868,7 +8937,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               if (!canView) return null;
               
               const pH = getRangeHabits.filter(h => h.participant === p);
-              const rate = computeRate(pH);
+              const rate = computeRate(pH, vacations, p);
               const profile = getProfileByParticipant(p);
               
               // Group by normalized habit name for metrics
@@ -8984,7 +9053,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 <div className="space-y-2">
                   {allParticipants.map((p, idx) => {
                     const pH = getRangeHabits.filter(h => h.participant === p);
-                    const rate = computeRate(pH);
+                    const rate = computeRate(pH, vacations, p);
                     const isMe = p === myParticipant;
                     
                     return (
@@ -10988,10 +11057,26 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     </div>
                   )}
                   {userProfile?.linkedParticipant && (
-                    <div className="flex items-center justify-center md:justify-start gap-2 mt-3">
+                    <div className="flex items-center justify-center md:justify-start gap-2 mt-3 flex-wrap">
                       <span className="px-3 py-1 bg-[#F5B800] text-[#1E3A5F] rounded-lg text-sm font-medium">
                         🎯 {userProfile.linkedParticipant}
                       </span>
+                      {(() => {
+                        const t = new Date().toISOString().split('T')[0];
+                        const myActiveVacation = vacations.find(v =>
+                          v.participant === userProfile.linkedParticipant &&
+                          v.startDate && v.endDate &&
+                          v.startDate <= t && v.endDate >= t
+                        );
+                        if (!myActiveVacation) return null;
+                        const endDate = new Date(`${myActiveVacation.endDate}T00:00:00Z`)
+                          .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                        return (
+                          <span className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-sm font-medium" title={myActiveVacation.note || 'On vacation'}>
+                            🌴 On vacation through {endDate}
+                          </span>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -11109,7 +11194,16 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     Save Profile
                   </button>
                 </div>
-                
+
+                <VacationsSection
+                  vacations={vacations}
+                  myParticipant={myParticipant}
+                  user={user}
+                  darkMode={darkMode}
+                  saveVacation={saveVacation}
+                  deleteVacation={deleteVacation}
+                />
+
                 {/* Active Challenges */}
                 <div className={`rounded-xl p-6 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -11532,6 +11626,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 {leaderboard.map((entry, idx) => {
                   const streak = calculateStreaks[entry.name] || 0;
                   const bookCount = booksFinishedThisYear[entry.name] || 0;
+                  const currentWeekVacationDays = getVacationDaysInWeek(currentWeek, vacations, entry.name);
+                  const onVacationThisWeek = currentWeekVacationDays.length > 0;
                   return (
                     <div
                       key={entry.name}
@@ -11552,6 +11648,14 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       </span>
                       <span className={`flex-1 font-medium flex items-center gap-2 ${darkMode && idx > 2 ? 'text-white' : ''}`}>
                         {entry.name}
+                        {onVacationThisWeek && (
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded-full font-normal ${darkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}`}
+                            title="On vacation"
+                          >
+                            🌴
+                          </span>
+                        )}
                         {bookCount > 0 && (
                           <span
                             className={`text-xs px-1.5 py-0.5 rounded-full font-normal ${darkMode ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}
