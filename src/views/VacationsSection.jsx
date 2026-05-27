@@ -1,3 +1,6 @@
+// All hooks must be called before any return statement — see React error #310.
+// Conditional renders ("if (!open) return null") go AFTER every useState /
+// useEffect / useMemo / useCallback / useRef in this file.
 import React, { useMemo, useState } from 'react';
 import { Plus, Edit3, Trash2, X, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
 
@@ -37,10 +40,6 @@ const VacationFormModal = ({ open, mode, initial, existingVacations, editingId, 
     }
   }, [open, initial]);
 
-  if (!open) return null;
-
-  const update = (patch) => setForm(prev => ({ ...prev, ...patch }));
-
   const datesValid = form.startDate && form.endDate && form.endDate >= form.startDate;
 
   const overlapping = useMemo(() => {
@@ -51,6 +50,10 @@ const VacationFormModal = ({ open, mode, initial, existingVacations, editingId, 
       v.startDate <= form.endDate && v.endDate >= form.startDate
     );
   }, [form.startDate, form.endDate, existingVacations, editingId, datesValid]);
+
+  if (!open) return null;
+
+  const update = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
   const handleSubmit = async () => {
     if (!form.startDate || !form.endDate) {

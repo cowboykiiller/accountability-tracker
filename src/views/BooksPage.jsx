@@ -1,3 +1,6 @@
+// All hooks must be called before any return statement — see React error #310.
+// Conditional renders ("if (!open) return null") go AFTER every useState /
+// useEffect / useMemo / useCallback / useRef in this file.
 import React, { useMemo, useState } from 'react';
 import { BookOpen, Plus, Edit3, Trash2, Star, X, AlertCircle } from 'lucide-react';
 import {
