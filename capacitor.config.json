@@ -1,0 +1,14 @@
+{
+  "appId": "com.accountabilitygroup.tracker",
+  "appName": "Accountability",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
+    }
+  }
+}

@@ -24,8 +24,10 @@ import VacationsSection from './views/VacationsSection';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver, signInWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { getFirestore, initializeFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 const VIEWS = ['dashboard', 'compete', 'tracker', 'monthly', 'tasks', 'insights', 'scorecard', 'quotes', 'vision', 'ai-coach', 'books', 'profile'];
 const DEFAULT_VIEW = 'dashboard';
@@ -58,8 +60,22 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// Use localStorage persistence (skips the IndexedDB probe that hangs in a
+// native WKWebView). On native we OMIT the popup/redirect resolver: it eagerly
+// loads a cross-origin auth iframe from the authDomain, which hangs inside the
+// Capacitor webview and stalls every auth call. Native uses the native Google
+// plugin instead, so the resolver isn't needed there. Web keeps it for popups.
+const auth = Capacitor.isNativePlatform()
+  ? initializeAuth(app, { persistence: browserLocalPersistence })
+  : initializeAuth(app, {
+      persistence: browserLocalPersistence,
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
+// In a native WKWebView the default WebChannel/streaming transport stalls,
+// so force long-polling there. Web keeps the default (auto-detect) transport.
+const db = Capacitor.isNativePlatform()
+  ? initializeFirestore(app, { experimentalForceLongPolling: true })
+  : getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 // Constants
@@ -1224,7 +1240,12 @@ export default function AccountabilityTracker() {
       setUser(user);
       setAuthLoading(false);
     });
-    return () => unsubscribe();
+    // Safety net: never hang on an infinite spinner if auth init stalls.
+    const timeout = setTimeout(() => setAuthLoading(false), 8000);
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   // Firestore listener
@@ -1234,7 +1255,6 @@ export default function AccountabilityTracker() {
       setDataLoading(false);
       return;
     }
-
     const q = query(collection(db, 'habits'), orderBy('weekStart', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
@@ -2829,14 +2849,29 @@ JSON array only:`
   // Sign in
   const handleSignIn = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      if (Capacitor.isNativePlatform()) {
+        // Native Google Sign-In (popups don't work in a WKWebView), then
+        // bridge the returned credential into the firebase JS SDK so the
+        // rest of the app's auth/db logic works unchanged.
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        const idToken = result.credential?.idToken;
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
     } catch (error) {
       console.error('Sign in error:', error);
     }
   };
 
   // Sign out
-  const handleSignOut = () => signOut(auth);
+  const handleSignOut = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try { await FirebaseAuthentication.signOut(); } catch (e) { /* ignore */ }
+    }
+    return signOut(auth);
+  };
 
   // Close calendar on click outside
   useEffect(() => {
@@ -6280,7 +6315,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           </div>
         )}
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between mb-3">
+        <div className="md:hidden flex items-center justify-between mb-3" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           <div className="flex items-center gap-2">
             <img src={LOGO_BASE64} alt="Logo" className="w-7 h-7" />
             <span className={`font-bold text-sm ${darkMode ? 'text-white' : 'text-[#1E3A5F]'}`}>Accountability</span>
