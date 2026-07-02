@@ -19,12 +19,13 @@ import {
   getCurrentMonday,
 } from './constants';
 import { computeRate, computeStreak, computeScore, previousISOWeek, isVacationDay, isFullVacationWeek, getVacationDaysInWeek } from './lib/scoring';
+import { computeMidYearReport, generateReportPDF } from './lib/report';
 import BooksPage from './views/BooksPage';
 import VacationsSection from './views/VacationsSection';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver, signInWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver, signInWithPopup, signInWithCredential, reauthenticateWithCredential, reauthenticateWithPopup, deleteUser, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -1013,6 +1014,9 @@ export default function AccountabilityTracker() {
   // Habit editing state
   const [editingHabit, setEditingHabit] = useState(null); // {id, habit, target, category}
   const [showAddHabitModal, setShowAddHabitModal] = useState(false); // Add habit popup
+  const [accountActionStage, setAccountActionStage] = useState(0); // 0 closed, 1 options, 2 confirm delete
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [accountActionError, setAccountActionError] = useState('');
   const [showHabitManagerModal, setShowHabitManagerModal] = useState(false); // Habit categorization/normalization manager
   const [habitManagerTab, setHabitManagerTab] = useState('uncategorized'); // 'uncategorized' | 'groups'
   const [weekHabitSuggestions, setWeekHabitSuggestions] = useState([]); // AI suggestions for new week
@@ -1128,7 +1132,11 @@ export default function AccountabilityTracker() {
     nonNegotiable3: '',
     letterToSelf: ''
   });
-  
+
+  // 2026 Mid-Year Report state
+  const [allVisions, setAllVisions] = useState([]); // Everyone's 2026 vision (report context: word/goal)
+  const [generatingReport, setGeneratingReport] = useState(false);
+
   // 2025 Reflection state
   const [reflectionData, setReflectionData] = useState(null); // Saved reflection document
   const [showReflectionModal, setShowReflectionModal] = useState(false); // Reflection experience modal
@@ -1711,6 +1719,18 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
+  // Listen for everyone's visions (report context: word of the year + biggest goal).
+  useEffect(() => {
+    if (!user) {
+      setAllVisions([]);
+      return;
+    }
+    const unsubV = onSnapshot(collection(db, 'visions'), (snap) => {
+      setAllVisions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => console.error('All visions error:', error));
+    return () => unsubV();
+  }, [user]);
+
   // Save vision document
   const saveVision = async () => {
     if (!user) return;
@@ -1726,6 +1746,34 @@ export default function AccountabilityTracker() {
     await setDoc(doc(db, 'visions', `vision_2026_${user.uid}`), visionDoc);
     setShowVisionWrapped(false);
     setVisionSlide(0);
+  };
+
+  // Build the 2026 mid-year report from tracked-habit data and download it as a
+  // branded PDF. Scoped to completed weeks of 2026 (excludes the in-progress week).
+  const handleGenerateReport = async () => {
+    if (generatingReport) return;
+    setGeneratingReport(true);
+    try {
+      const report = computeMidYearReport(habits, vacations, allParticipants, {
+        startISO: '2026-01-01',
+        endISO: currentWeekStart, // exclude the in-progress week for fair grading
+        year: 2026,
+        visions: allVisions
+      });
+      const subject = userProfile?.linkedParticipant || user?.displayName || myParticipant;
+      if (!report.people.length || !report.people.some(p => p.name.toLowerCase() === String(subject || '').toLowerCase())) {
+        alert("Not enough of your completed 2026 habit data yet to build your report. Track a couple of weeks first!");
+        return;
+      }
+      // Yield a frame so the spinner paints before the (sync) PDF render.
+      await new Promise(r => setTimeout(r, 30));
+      generateReportPDF(report, { subject, logo: LOGO_BASE64 });
+    } catch (err) {
+      console.error('Report generation failed:', err);
+      alert('Sorry — something went wrong generating the report. Check the console for details.');
+    } finally {
+      setGeneratingReport(false);
+    }
   };
 
   // Save 2025 reflection document
@@ -2883,6 +2931,104 @@ JSON array only:`
       try { await FirebaseAuthentication.signOut(); } catch (e) { /* ignore */ }
     }
     return signOut(auth);
+  };
+
+  // Pause the account: keep all data + streak, hide behind a resume gate, sign out.
+  const handlePauseAccount = async () => {
+    if (!user) return;
+    setAccountBusy(true);
+    setAccountActionError('');
+    try {
+      const profileId = userProfile?.id || `profile_${user.uid}`;
+      await setDoc(doc(db, 'profiles', profileId), { paused: true, pausedAt: new Date().toISOString() }, { merge: true });
+      setAccountActionStage(0);
+      await handleSignOut();
+    } catch (error) {
+      console.error('Pause account error:', error);
+      setAccountActionError(error?.message || 'Could not pause account. Please try again.');
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  // Permanently delete the user's account + all their data (App Store requirement).
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    setAccountBusy(true);
+    setAccountActionError('');
+    try {
+      const uid = user.uid;
+      const ids = [myParticipant, user.displayName].filter(Boolean);
+      const isMine = {
+        habits: (d) => ids.includes(d.participant),
+        checkIns: (d) => ids.includes(d.participant),
+        weeklyGoals: (d) => d.userId === uid || ids.includes(d.participant),
+        moods: (d) => d.userId === uid || ids.includes(d.participant),
+        nonNegotiables: (d) => d.userId === uid || ids.includes(d.participant),
+        scheduledEvents: (d) => d.userId === uid || ids.includes(d.participant),
+        vacations: (d) => ids.includes(d.participant),
+        bets: (d) => ids.includes(d.challenger),
+      };
+      const sources = { habits, checkIns, weeklyGoals, moods, nonNegotiables, scheduledEvents, vacations, bets };
+
+      // 1. Delete the user's own documents across collections (scoped to them).
+      const deletions = [];
+      for (const [col, rows] of Object.entries(sources)) {
+        (rows || []).filter(isMine[col]).forEach((d) => {
+          if (d.id) deletions.push(deleteDoc(doc(db, col, String(d.id))));
+        });
+      }
+      // 2. Delete their profile.
+      const profileId = userProfile?.id || `profile_${uid}`;
+      deletions.push(deleteDoc(doc(db, 'profiles', profileId)));
+      await Promise.allSettled(deletions);
+
+      // 3. Delete the Firebase Auth account (re-auth first if the session is stale).
+      const deleteAuth = async () => {
+        try {
+          await deleteUser(auth.currentUser);
+        } catch (e) {
+          if (e?.code === 'auth/requires-recent-login') {
+            if (Capacitor.isNativePlatform()) {
+              const res = await FirebaseAuthentication.signInWithGoogle();
+              const cred = GoogleAuthProvider.credential(res.credential?.idToken);
+              await reauthenticateWithCredential(auth.currentUser, cred);
+            } else {
+              await reauthenticateWithPopup(auth.currentUser, googleProvider);
+            }
+            await deleteUser(auth.currentUser);
+          } else {
+            throw e;
+          }
+        }
+      };
+      await deleteAuth();
+
+      // 4. Native sign-out for good measure; onAuthStateChanged returns to login.
+      if (Capacitor.isNativePlatform()) {
+        try { await FirebaseAuthentication.signOut(); } catch (e) { /* ignore */ }
+      }
+      setAccountActionStage(0);
+    } catch (error) {
+      console.error('Delete account error:', error);
+      setAccountActionError(error?.message || 'Could not delete account. Please try again.');
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  // Resume a paused account.
+  const handleResumeAccount = async () => {
+    if (!user) return;
+    setAccountBusy(true);
+    try {
+      const profileId = userProfile?.id || `profile_${user.uid}`;
+      await setDoc(doc(db, 'profiles', profileId), { paused: false, resumedAt: new Date().toISOString() }, { merge: true });
+    } catch (error) {
+      console.error('Resume account error:', error);
+    } finally {
+      setAccountBusy(false);
+    }
   };
 
   // Close calendar on click outside
@@ -6287,6 +6433,35 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-[#F5B800] border-t-[#1E3A5F] rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-500">Loading habits...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Paused-account resume gate
+  if (userProfile?.paused) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(150deg, #294870 0%, #1E3A5F 45%, #122339 100%)' }}>
+        <div className="w-full max-w-sm rounded-3xl p-7 bg-white/95 shadow-2xl text-center">
+          <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-5">
+            <Pause className="w-8 h-8 text-amber-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-[#1E3A5F]">Your account is paused</h1>
+          <p className="text-gray-500 mt-2 text-sm">Your data and streak are safe. Resume whenever you're ready to get back to it.</p>
+          <button
+            onClick={handleResumeAccount}
+            disabled={accountBusy}
+            className="mt-6 w-full py-3 rounded-2xl bg-[#1E3A5F] text-white font-semibold flex items-center justify-center gap-2 hover:bg-[#162D4D] disabled:opacity-60 transition-colors"
+          >
+            {accountBusy ? (<><Loader2 className="w-4 h-4 animate-spin" /> Resuming…</>) : (<><Play className="w-4 h-4" /> Resume my account</>)}
+          </button>
+          <button
+            onClick={handleSignOut}
+            disabled={accountBusy}
+            className="mt-2 w-full py-3 rounded-2xl bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 disabled:opacity-60 transition-colors"
+          >
+            Sign out
+          </button>
         </div>
       </div>
     );
@@ -10202,6 +10377,40 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               </div>
             </div>
 
+            {/* 2026 Mid-Year Report — auto-generated, branded PDF scorecard for the group */}
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 rounded-2xl p-5 md:p-6 text-white relative overflow-hidden">
+              <div className="absolute inset-0 opacity-20 pointer-events-none">
+                <div className="absolute top-0 right-10 w-40 h-40 bg-white rounded-full blur-3xl" />
+              </div>
+              <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <FileText className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-xl font-bold">My 2026 Mid-Year Report</h3>
+                      <span className="px-2 py-0.5 bg-white/25 rounded-full text-xs font-semibold">Half the year is done 🎉</span>
+                    </div>
+                    <p className="text-white/80 text-sm mt-1">
+                      Your personalized report card — sector grades (A+ → F), your persona, trophy case, a roast &amp; toast, power rankings, and a second-half game plan.
+                    </p>
+                    <p className="text-white/60 text-xs mt-1">Auto-built from your tracked habits. Download the branded PDF and share it on the call.</p>
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  <button
+                    onClick={handleGenerateReport}
+                    disabled={generatingReport}
+                    className="flex items-center gap-2 px-5 py-3 bg-white text-teal-700 rounded-xl font-bold text-sm hover:bg-white/90 transition-colors disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    {generatingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    {generatingReport ? 'Generating…' : 'Generate PDF Report'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Three Cards: Reflection, Time Capsule, Vision */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               
@@ -10986,7 +11195,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                 </div>
                 
                 {/* Account Actions */}
-                <div className={`rounded-xl p-4 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
+                <div className={`rounded-xl p-4 border space-y-2 ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
                   <button
                     onClick={handleSignOut}
                     className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition-colors"
@@ -10994,10 +11203,87 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     <LogOut className="w-4 h-4" />
                     Sign Out
                   </button>
+                  <button
+                    onClick={() => { setAccountActionError(''); setAccountActionStage(1); }}
+                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg font-medium transition-colors ${darkMode ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Account
+                  </button>
                 </div>
               </div>
             </div>
-            
+
+            {/* Account: pause / delete (3-press flow) */}
+            {accountActionStage > 0 && (
+              <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => !accountBusy && setAccountActionStage(0)}>
+                <div className={`w-full max-w-sm rounded-3xl p-6 ${darkMode ? 'bg-gray-900 border border-white/10' : 'bg-white'} shadow-2xl`} onClick={(e) => e.stopPropagation()}>
+                  {accountActionStage === 1 ? (
+                    <>
+                      <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                        <Pause className="w-7 h-7 text-amber-600" />
+                      </div>
+                      <h2 className={`text-xl font-bold text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>Need a break?</h2>
+                      <p className={`text-sm text-center mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        You can <span className="font-semibold">pause</span> your account instead — your data and streak are kept, and you can resume anytime. Deleting removes everything permanently.
+                      </p>
+                      {accountActionError && <p className="text-xs text-red-500 text-center mt-3 break-words">{accountActionError}</p>}
+                      <div className="mt-5 space-y-2">
+                        <button
+                          onClick={handlePauseAccount}
+                          disabled={accountBusy}
+                          className="w-full py-3 rounded-2xl bg-amber-500 text-white font-semibold flex items-center justify-center gap-2 hover:bg-amber-600 disabled:opacity-60 transition-colors"
+                        >
+                          {accountBusy ? (<><Loader2 className="w-4 h-4 animate-spin" /> Pausing…</>) : (<><Pause className="w-4 h-4" /> Pause my account</>)}
+                        </button>
+                        <button
+                          onClick={() => { setAccountActionError(''); setAccountActionStage(2); }}
+                          disabled={accountBusy}
+                          className={`w-full py-3 rounded-2xl font-medium transition-colors disabled:opacity-60 ${darkMode ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'}`}
+                        >
+                          Continue to delete
+                        </button>
+                        <button
+                          onClick={() => setAccountActionStage(0)}
+                          disabled={accountBusy}
+                          className={`w-full py-3 rounded-2xl font-semibold transition-colors disabled:opacity-60 ${darkMode ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+                        <Trash2 className="w-7 h-7 text-red-600" />
+                      </div>
+                      <h2 className={`text-xl font-bold text-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>Delete your account?</h2>
+                      <p className={`text-sm text-center mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        This permanently deletes your account and your data — profile, habits, check-ins, goals, and more. <span className="font-semibold">This cannot be undone.</span>
+                      </p>
+                      {accountActionError && <p className="text-xs text-red-500 text-center mt-3 break-words">{accountActionError}</p>}
+                      <div className="mt-5 space-y-2">
+                        <button
+                          onClick={handleDeleteAccount}
+                          disabled={accountBusy}
+                          className="w-full py-3 rounded-2xl bg-red-600 text-white font-semibold flex items-center justify-center gap-2 hover:bg-red-700 disabled:opacity-60 transition-colors"
+                        >
+                          {accountBusy ? (<><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</>) : 'Permanently delete'}
+                        </button>
+                        <button
+                          onClick={() => setAccountActionStage(1)}
+                          disabled={accountBusy}
+                          className={`w-full py-3 rounded-2xl font-semibold transition-colors disabled:opacity-60 ${darkMode ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          Back
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Add New Participant Modal */}
             {showAddParticipant && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
