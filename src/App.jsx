@@ -21,7 +21,7 @@ import {
   toLocalISODate,
 } from './constants';
 import { computeRate, computeStreak, computeScore, computeLongestStreak, previousISOWeek, nextISOWeek, isVacationDay, isFullVacationWeek, getVacationDaysInWeek, isCountableHabit, countedDays } from './lib/scoring';
-import { computeMidYearReport, generateReportPDF, SECTORS } from './lib/report';
+import { computeMidYearReport, generateReportPDF, SECTORS, sectorForHabit } from './lib/report';
 import BooksPage from './views/BooksPage';
 import VacationsSection from './views/VacationsSection';
 
@@ -9369,8 +9369,21 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               const excellenceRate = totalHabits > 0 ? (exceededHabits / totalHabits) * 100 : 0;
               const excellencePoints = Math.round(excellenceRate * 0.5); // 0-50 points (need to exceed targets)
               
-              const categoriesUsed = new Set(myHabits.map(h => h.category).filter(Boolean)).size;
-              const categoryPoints = Math.min(Math.round(categoriesUsed * 3.5), 25); // 0-25 points (7 categories = 24.5)
+              // Balance factor: breadth of life areas actually practiced.
+              // Stored `category` is unreliable (bulk-add/onboarding write
+              // category: '' — ~36% of habits), which shorted members who
+              // never picked a chip. Infer the area from the habit name via
+              // the shared SECTORS keyword map (same map Wrapped and the PDF
+              // grade with); fall back to the stored category mapped into
+              // sector space for names no keyword matches.
+              const CATEGORY_TO_SECTOR = { fitness: 'fitness', business: 'business', finance: 'finance', health: 'health', learning: 'learning', relationships: 'social', spiritual: 'mindfulness' };
+              const lifeAreas = new Set();
+              myHabits.forEach(h => {
+                const area = sectorForHabit(h.habit) || CATEGORY_TO_SECTOR[(h.category || '').trim().toLowerCase()];
+                if (area) lifeAreas.add(area);
+              });
+              const categoriesUsed = lifeAreas.size;
+              const categoryPoints = Math.min(Math.round(categoriesUsed * 3.5), 25); // 0-25 points (7+ areas = 25)
               
               // Total score (300-850 scale)
               // 100% completion = 600 (Fair/Good boundary)
@@ -9448,8 +9461,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   maxPoints: 25, 
                   impact: 'Low',
                   status: categoriesUsed >= 5 ? 'positive' : categoriesUsed >= 3 ? 'neutral' : 'negative',
-                  detail: `${categoriesUsed} of 7 life areas active`,
-                  tip: categoriesUsed < 5 ? 'Add habits in more life categories' : 'Well-rounded lifestyle!'
+                  detail: `${categoriesUsed} of ${SECTORS.length} life areas active`,
+                  tip: categoriesUsed < 5 ? 'Add habits in more life areas' : 'Well-rounded lifestyle!'
                 }
               ];
               

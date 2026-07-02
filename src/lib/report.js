@@ -28,7 +28,7 @@ export const SECTORS = [
   { key: 'discipline', label: 'Discipline', keywords: ['no social', 'no phone', 'wake', 'morning', 'routine', 'discipline', 'focus', 'cold'] }
 ];
 
-const sectorForHabit = (name) => {
+export const sectorForHabit = (name) => {
   const n = (name || '').toLowerCase();
   for (const s of SECTORS) {
     if (s.keywords.some(kw => n.includes(kw))) return s.key;
