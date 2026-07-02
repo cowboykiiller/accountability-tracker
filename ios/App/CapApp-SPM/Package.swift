@@ -13,7 +13,9 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.4.1"),
         .package(name: "CapacitorFirebaseAuthentication", path: "../../../node_modules/@capacitor-firebase/authentication"),
-        .package(name: "CapacitorHaptics", path: "../../../node_modules/@capacitor/haptics")
+        .package(name: "CapacitorFilesystem", path: "../../../node_modules/@capacitor/filesystem"),
+        .package(name: "CapacitorHaptics", path: "../../../node_modules/@capacitor/haptics"),
+        .package(name: "CapacitorShare", path: "../../../node_modules/@capacitor/share")
     ],
     targets: [
         .target(
@@ -22,7 +24,9 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "CapacitorFirebaseAuthentication", package: "CapacitorFirebaseAuthentication"),
-                .product(name: "CapacitorHaptics", package: "CapacitorHaptics")
+                .product(name: "CapacitorFilesystem", package: "CapacitorFilesystem"),
+                .product(name: "CapacitorHaptics", package: "CapacitorHaptics"),
+                .product(name: "CapacitorShare", package: "CapacitorShare")
             ]
         )
     ]

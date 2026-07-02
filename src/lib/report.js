@@ -12,6 +12,7 @@
  */
 import { jsPDF } from 'jspdf';
 import { DAYS } from '../constants/index.js';
+import { isFullVacationWeek, previousISOWeek, nextISOWeek, computeLongestStreak } from './scoring.js';
 
 // ---------------------------------------------------------------------------
 // Sector definitions (keyword-inferred, first match wins — mirrors wrappedStats)
@@ -35,8 +36,12 @@ const sectorForHabit = (name) => {
   return null;
 };
 
-const completedDays = (h) =>
-  Array.isArray(h.daysCompleted) ? h.daysCompleted.length : DAYS.filter(d => h.days?.[d]).length;
+// Clamped to target — matches scoring.js's over-completion policy: extra
+// checks beyond the weekly target don't inflate any rate.
+const completedDays = (h) => {
+  const raw = Array.isArray(h.daysCompleted) ? h.daysCompleted.length : DAYS.filter(d => h.days?.[d]).length;
+  return Math.min(raw, h.target || 5);
+};
 
 const possibleDays = (h) => (h.target || 5);
 
@@ -108,36 +113,50 @@ const trendFromWeekly = ({ perf, weeks }) => {
   return { label, delta, firstAvg, secondAvg };
 };
 
-const streaksFromWeekly = ({ perf, weeks }, threshold = 70) => {
-  let longest = 0, temp = 0;
-  for (const w of weeks) {
-    if (perf[w].rate >= threshold) { temp++; longest = Math.max(longest, temp); }
-    else temp = 0;
-  }
+// Canonical streak semantics (matches scoring.js computeStreak): consecutive
+// CALENDAR weeks at a raw ratio >= 0.7 — an untracked gap week breaks the
+// streak, full-vacation weeks are invisible, and the current streak is
+// anchored at the week before `endISO` (it goes stale if tracking stopped).
+const streaksFromWeekly = ({ perf, weeks }, { endISO, isVacWeek } = {}) => {
+  if (!weeks.length) return { longest: 0, current: 0, perfectWeeks: 0 };
+  const end = endISO || nextISOWeek(weeks[weeks.length - 1]);
+  const vac = isVacWeek || (() => false);
+  const met = (w) => !!perf[w] && perf[w].possible > 0 && (perf[w].completed / perf[w].possible) >= 0.7;
+
+  const longest = computeLongestStreak(perf, end, { isVacWeek: vac });
+
   let current = 0;
-  for (let i = weeks.length - 1; i >= 0; i--) {
-    if (perf[weeks[i]].rate >= threshold) current++; else break;
+  let cursor = previousISOWeek(end);
+  for (let i = 0; i < 520; i++) {
+    if (vac(cursor)) { cursor = previousISOWeek(cursor); continue; }
+    if (!met(cursor)) break;
+    current++;
+    cursor = previousISOWeek(cursor);
   }
-  return { longest, current, perfectWeeks: weeks.filter(w => perf[w].rate >= 100).length };
+
+  // A perfect week means every counted day was hit, not a rounded 99.6%.
+  const perfectWeeks = weeks.filter(w => perf[w].possible > 0 && perf[w].completed >= perf[w].possible).length;
+  return { longest, current, perfectWeeks };
 };
 
-// Per-sector grades for a habit subset.
+// Per-sector grades for a habit subset. `habits` counts DISTINCT habit names
+// (not habit-week rows — 2 habits over 20 weeks is 2, not 40).
 const sectorGrades = (subset) => {
   const acc = {};
   for (const h of subset) {
     if (!isCountable(h)) continue;
     const key = sectorForHabit(h.habit);
     if (!key) continue;
-    if (!acc[key]) acc[key] = { completed: 0, possible: 0, habits: 0 };
+    if (!acc[key]) acc[key] = { completed: 0, possible: 0, names: new Set() };
     acc[key].completed += completedDays(h);
     acc[key].possible += possibleDays(h);
-    acc[key].habits++;
+    acc[key].names.add((h.habit || '').toLowerCase().trim());
   }
   return SECTORS
     .filter(s => acc[s.key] && acc[s.key].possible > 0)
     .map(s => {
       const r = rate(acc[s.key].completed, acc[s.key].possible);
-      return { key: s.key, label: s.label, rate: r, grade: gradeFromRate(r), habits: acc[s.key].habits };
+      return { key: s.key, label: s.label, rate: r, grade: gradeFromRate(r), habits: acc[s.key].names.size };
     });
 };
 
@@ -237,16 +256,16 @@ const buildAwards = (people) => {
   if (!withData.length) return awards;
 
   const mvp = [...withData].sort((a, b) => b.overall.rate - a.overall.rate)[0];
-  awards.push({ title: 'MVP of the Half', name: mvp.name, stat: `${mvp.overall.rate}% overall (${mvp.overall.grade.letter})`, blurb: 'Highest completion rate in the group. Leading from the front.' });
+  awards.push({ title: 'MVP of the Half', name: mvp.displayName || mvp.name, stat: `${mvp.overall.rate}% overall (${mvp.overall.grade.letter})`, blurb: 'Highest completion rate in the group. Leading from the front.' });
 
   const improved = [...withData].sort((a, b) => b.trend.delta - a.trend.delta)[0];
   if (improved && improved.trend.delta > 0) {
-    awards.push({ title: 'Most Improved', name: improved.name, stat: `+${improved.trend.delta} pts back half`, blurb: 'Biggest jump from the first half to the second. The arrow is pointing up.' });
+    awards.push({ title: 'Most Improved', name: improved.displayName || improved.name, stat: `+${improved.trend.delta} pts back half`, blurb: 'Biggest jump from the first half to the second. The arrow is pointing up.' });
   }
 
   const consistent = [...withData].sort((a, b) => (b.streak.current - a.streak.current) || (b.streak.longest - a.streak.longest) || (b.overall.rate - a.overall.rate))[0];
   if (consistent && (consistent.streak.current > 0 || consistent.streak.longest > 0)) {
-    awards.push({ title: 'Most Consistent', name: consistent.name, stat: `${consistent.streak.current}-week active streak`, blurb: 'Shows up week after week. Consistency compounds.' });
+    awards.push({ title: 'Most Consistent', name: consistent.displayName || consistent.name, stat: `${consistent.streak.current}-week active streak`, blurb: 'Shows up week after week. Consistency compounds.' });
   }
 
   const balanced = withData
@@ -254,14 +273,14 @@ const buildAwards = (people) => {
     .map(p => ({ p, spread: Math.max(...p.sectors.map(s => s.rate)) - Math.min(...p.sectors.map(s => s.rate)) }))
     .sort((a, b) => a.spread - b.spread)[0];
   if (balanced) {
-    awards.push({ title: 'Most Balanced', name: balanced.p.name, stat: `${balanced.p.sectors.length} sectors, tight spread`, blurb: 'Strong across the board, not just one lane. True well-rounded effort.' });
+    awards.push({ title: 'Most Balanced', name: balanced.p.displayName || balanced.p.name, stat: `${balanced.p.sectors.length} sectors, tight spread`, blurb: 'Strong across the board, not just one lane. True well-rounded effort.' });
   }
 
   const comeback = withData
     .filter(p => p.trend.firstAvg < 60 && p.trend.delta > 0)
     .sort((a, b) => b.trend.delta - a.trend.delta)[0];
   if (comeback && comeback.name !== improved?.name) {
-    awards.push({ title: 'Comeback Award', name: comeback.name, stat: `${comeback.trend.firstAvg}% → ${comeback.trend.secondAvg}%`, blurb: 'Started slow, finished strong. Never counted out.' });
+    awards.push({ title: 'Comeback Award', name: comeback.displayName || comeback.name, stat: `${comeback.trend.firstAvg}% → ${comeback.trend.secondAvg}%`, blurb: 'Started slow, finished strong. Never counted out.' });
   }
 
   return awards;
@@ -282,7 +301,10 @@ const headlineFor = (grade) => {
 // ---------------------------------------------------------------------------
 export const computeMidYearReport = (habits, vacations = [], participants = [], options = {}) => {
   const {
-    startISO = '2026-01-01',
+    // '2025-12-29' is the Monday of ISO week 2026-W01 (the week containing
+    // Jan 1) — starting at '2026-01-01' would silently drop everyone's first
+    // tracked week of the year, since habit docs are keyed by their Monday.
+    startISO = '2025-12-29',
     endISO = null,           // exclusive (typically currentWeekStart); null = include all
     year = 2026
   } = options;
@@ -293,6 +315,18 @@ export const computeMidYearReport = (habits, vacations = [], participants = [], 
 
   const windowHabits = (habits || []).filter(inWindow);
 
+  // Full-vacation weeks are excluded from every rate/grade denominator and
+  // invisible to streaks — the same treatment scoring.js gives the in-app
+  // scorecard. Cached per (participant, week).
+  const vacCache = new Map();
+  const isVacationWeekFor = (participant, weekStart) => {
+    if (!Array.isArray(vacations) || vacations.length === 0 || !participant || !weekStart) return false;
+    const k = `${participant}|${weekStart}`;
+    if (!vacCache.has(k)) vacCache.set(k, isFullVacationWeek(weekStart, vacations, participant));
+    return vacCache.get(k);
+  };
+  const isVacHabit = (h) => isVacationWeekFor(h.participant, h.weekStart);
+
   // Who to report on: provided participants ∪ anyone with data, that actually has data.
   const names = Array.from(new Set([
     ...participants,
@@ -302,14 +336,20 @@ export const computeMidYearReport = (habits, vacations = [], participants = [], 
   const visionByName = {};
   visions.forEach(v => { if (v.participant) visionByName[v.participant.toLowerCase()] = v; });
 
+  // Calendar ISO weeks elapsed in the report window (for year-end forecasts).
+  let weeksElapsed = 0;
+  if (endISO) {
+    for (let w = startISO; w < endISO && weeksElapsed < 60; w = nextISOWeek(w)) weeksElapsed++;
+  }
+
   const people = names
     .map(name => {
-      const subset = windowHabits.filter(h => h.participant === name);
+      const subset = windowHabits.filter(h => h.participant === name && !isVacHabit(h));
       if (!subset.length) return null;
       const weekly = weeklyFromHabits(subset);
       if (weekly.overall.possible === 0) return null;
       const trend = trendFromWeekly(weekly);
-      const streak = streaksFromWeekly(weekly);
+      const streak = streaksFromWeekly(weekly, { endISO, isVacWeek: (w) => isVacationWeekFor(name, w) });
       const sectors = sectorGrades(subset);
       const ranks = habitRankings(subset);
       const vision = visionByName[name.toLowerCase()] || null;
@@ -317,6 +357,8 @@ export const computeMidYearReport = (habits, vacations = [], participants = [], 
       const overall = { ...weekly.overall, grade: gradeFromRate(weekly.overall.rate) };
       const person = {
         name,
+        // PDF-facing casing ('aaron' → 'Aaron'); matching stays on raw `name`.
+        displayName: name ? name.charAt(0).toUpperCase() + name.slice(1) : name,
         overall,
         weekly,
         trend,
@@ -337,9 +379,10 @@ export const computeMidYearReport = (habits, vacations = [], participants = [], 
     .filter(Boolean)
     .sort((a, b) => b.overall.rate - a.overall.rate);
 
-  // Group aggregates (over all in-window habits belonging to reported people).
+  // Group aggregates (over all in-window habits belonging to reported people,
+  // with each member's full-vacation weeks excluded).
   const reportedNames = new Set(people.map(p => p.name));
-  const groupSubset = windowHabits.filter(h => reportedNames.has(h.participant));
+  const groupSubset = windowHabits.filter(h => reportedNames.has(h.participant) && !isVacHabit(h));
   const groupWeekly = weeklyFromHabits(groupSubset);
   const groupTrend = trendFromWeekly(groupWeekly);
   const groupSectorsRaw = sectorGrades(groupSubset);
@@ -358,6 +401,7 @@ export const computeMidYearReport = (habits, vacations = [], participants = [], 
     generatedAt: new Date().toISOString(),
     dateRange,
     weeksCovered: allWeeks.length,
+    weeksElapsed: weeksElapsed || allWeeks.length,
     group: {
       overallRate,
       grade: gradeFromPoints(gpaPoints),
@@ -477,8 +521,10 @@ const computeToast = (p) => {
   return out.slice(0, 3);
 };
 
-const computeForecast = (p, weeksCovered) => {
-  const weeksRemaining = Math.max(0, 52 - weeksCovered);
+const computeForecast = (p, weeksElapsed) => {
+  // Calendar weeks left in the year — NOT 52 minus weeks-with-data, which
+  // handed members phantom future weeks for every week they skipped.
+  const weeksRemaining = Math.max(0, 52 - weeksElapsed);
   const perWeek = p.weeksTracked ? p.totalDaysCompleted / p.weeksTracked : 0;
   const projDays = Math.round(p.totalDaysCompleted + perWeek * weeksRemaining);
   const projRate = p.trend.label === 'improving'
@@ -495,16 +541,15 @@ const computeForecast = (p, weeksCovered) => {
 
 const computeChallenge = (p) => {
   const weak = [...p.sectors].sort((a, b) => a.rate - b.rate)[0];
-  const toNextGrade = (() => {
-    const cur = p.overall.rate;
-    const next = GRADE_TABLE.find(g => g.min > cur);
-    return next ? next.min - cur : 0;
-  })();
+  // GRADE_TABLE is ordered A+ → F, so search from the bottom up to find the
+  // NEAREST next grade (a plain .find() would always return A+).
+  const nextGrade = [...GRADE_TABLE].reverse().find(g => g.min > p.overall.rate);
+  const toNextGrade = nextGrade ? nextGrade.min - p.overall.rate : 0;
   if (weak && weak.rate < 70) {
     return `Pick ONE ${weak.label.toLowerCase()} habit and hit it 6 of 7 days for the next 4 weeks. Drag that ${weak.grade.letter} up a full letter.`;
   }
   if (toNextGrade > 0 && toNextGrade <= 5) {
-    return `You’re ${toNextGrade} point${toNextGrade > 1 ? 's' : ''} from a ${GRADE_TABLE.find(g => g.min > p.overall.rate)?.letter}. One extra check-in a week gets you there. Go take it.`;
+    return `You’re ${toNextGrade} point${toNextGrade > 1 ? 's' : ''} from a ${nextGrade.letter}. One extra check-in a week gets you there. Go take it.`;
   }
   if (p.streak.current < 4) {
     return `String together 4 straight weeks at 70%+ and earn your "On Fire" badge by next check-in.`;
@@ -555,7 +600,7 @@ export const personalize = (report, subjectName) => {
     superlatives: computeSuperlatives(subject, people),
     roast: computeRoast(subject),
     toast: computeToast(subject),
-    forecast: computeForecast(subject, report.weeksCovered),
+    forecast: computeForecast(subject, report.weeksElapsed),
     challenge: computeChallenge(subject),
     quote: computeQuote(subject),
     funFact: computeFunFact(subject)
@@ -613,7 +658,7 @@ export const generateReportPDF = (report, opts = {}) => {
   const footer = () => {
     setText(MUTE); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
     doc.text('THE ACCOUNTABILITY GROUP', M, H - 22);
-    doc.text(`${p.name} • 2026 Mid-Year Report`, W / 2, H - 22, { align: 'center' });
+    doc.text(`${p.displayName || p.name} • 2026 Mid-Year Report`, W / 2, H - 22, { align: 'center' });
     doc.text(`Page ${pageNum}`, W - M, H - 22, { align: 'right' });
     setDraw(LIGHT); doc.setLineWidth(0.5); doc.line(M, H - 32, W - M, H - 32);
   };
@@ -683,7 +728,7 @@ export const generateReportPDF = (report, opts = {}) => {
   setText(GOLD); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
   doc.text('2026 MID-YEAR REPORT', W / 2, 108, { align: 'center' });
   setText(WHITE); doc.setFont('helvetica', 'bold'); doc.setFontSize(40);
-  doc.text(p.name, W / 2, 150, { align: 'center' });
+  doc.text(p.displayName || p.name, W / 2, 150, { align: 'center' });
   // Archetype
   setText(GOLD); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
   doc.text(personal.archetype.name, W / 2, 182, { align: 'center' });
@@ -701,7 +746,7 @@ export const generateReportPDF = (report, opts = {}) => {
   }
   // Date range
   setText([170, 182, 200]); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  doc.text(`${fmtDate(report.dateRange.from)} – ${fmtDate(report.dateRange.to)}  •  ${report.weeksCovered} weeks tracked`, W / 2, 274, { align: 'center' });
+  doc.text(`${fmtDate(report.dateRange.from)} – ${fmtDate(report.dateRange.to)}  •  ${p.weeksTracked} weeks tracked`, W / 2, 274, { align: 'center' });
 
   // Big grade ring
   const cx = W / 2, cy = 410;
@@ -733,7 +778,7 @@ export const generateReportPDF = (report, opts = {}) => {
 
   // ----- PAGE 2: REPORT CARD + TROPHY CASE -----
   newPage();
-  let y = contentHeader(`${p.name} — Report Card`);
+  let y = contentHeader(`${p.displayName || p.name} — Report Card`);
   y = sectionLabel('Sector Grades', M, y);
   const sectors = p.sectors;
   if (sectors.length) {
@@ -855,7 +900,7 @@ export const generateReportPDF = (report, opts = {}) => {
     const cellY = ry + 15;
     setText(isMe ? NAVY : INK); doc.setFont('helvetica', isMe ? 'bold' : 'normal'); doc.setFontSize(9);
     doc.text(`${i + 1}`, cxp, cellY); cxp += cols[0].w;
-    doc.text(isMe ? `${m.name}  (you)` : m.name, cxp, cellY); cxp += cols[1].w;
+    doc.text(isMe ? `${m.displayName || m.name}  (you)` : (m.displayName || m.name), cxp, cellY); cxp += cols[1].w;
     // grade chip
     const gc2 = gradeColor(m.overall.grade);
     setFill(gc2); doc.roundedRect(cxp + cols[2].w / 2 - 14, ry + 4, 28, 15, 3, 3, 'F');

@@ -82,10 +82,20 @@ export const getNextMilestone = (current) => {
   return null;
 };
 
-export const getCurrentMonday = () => {
-  const today = new Date();
-  const day = today.getDay();
-  const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-  const mondayDate = new Date(today.getFullYear(), today.getMonth(), diff);
-  return mondayDate.toISOString().split('T')[0];
+// Format a Date's LOCAL calendar date as 'YYYY-MM-DD'. Never use
+// toISOString() for this — it converts to UTC first, which shifts the date
+// for part of every day (e.g. after 8pm ET the UTC date is tomorrow).
+export const toLocalISODate = (d) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
+
+// Monday of the ISO week containing `date`, by the user's LOCAL calendar.
+export const getMondayOf = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return toLocalISODate(new Date(d.getFullYear(), d.getMonth(), diff));
+};
+
+export const getCurrentMonday = () => getMondayOf(new Date());

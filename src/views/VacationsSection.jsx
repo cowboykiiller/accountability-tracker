@@ -4,7 +4,12 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Edit3, Trash2, X, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
 
-const today = () => new Date().toISOString().split('T')[0];
+// LOCAL calendar date — toISOString() would flip to tomorrow during US evenings.
+const today = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 const dayCount = (start, end) => {
   if (!start || !end) return 0;

@@ -16,7 +16,29 @@
  * ISO week fall within a vacation range for the participant) is excluded
  * from rate denominator and is invisible to the streak walk (neither
  * breaks nor increments). Partial-vacation weeks score normally.
+ *
+ * Over-completion policy (group decision 2026-07-02): a habit contributes at
+ * most `target` days to any rate or streak calculation. "Exceeded" still
+ * shows in the UI, but extra checks can't inflate a rate past 100% or rescue
+ * an otherwise-failing week's streak.
  */
+
+/**
+ * True if a habit participates in day-level rate/streak math.
+ * Percentage-type habits have percent targets (50/75/100), not day counts;
+ * target-0 habits would otherwise coerce to 5 via `target || 5`.
+ */
+export const isCountableHabit = (h) =>
+  h.habitType !== 'percentage' && h.target !== 0;
+
+/**
+ * Days a habit contributes to rate/streak math: completed days clamped to
+ * target (see over-completion policy above).
+ */
+export const countedDays = (h) => {
+  const target = h.target || 5;
+  return Math.min(h.daysCompleted?.length || 0, target);
+};
 
 /**
  * Returns the Monday of the given date's ISO week as a 'YYYY-MM-DD' string.
@@ -46,6 +68,50 @@ export const previousISOWeek = (weekStartString) => {
   const d = new Date(`${weekStartString}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 7);
   return d.toISOString().split('T')[0];
+};
+
+/**
+ * Returns the YYYY-MM-DD string for exactly 7 days later.
+ *
+ * @param {string} weekStartString - 'YYYY-MM-DD'
+ * @returns {string} 'YYYY-MM-DD'
+ */
+export const nextISOWeek = (weekStartString) => {
+  const d = new Date(`${weekStartString}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 7);
+  return d.toISOString().split('T')[0];
+};
+
+/**
+ * Longest run of consecutive calendar ISO weeks meeting `threshold`, walking
+ * forward from the earliest bucket to `endISO` (exclusive). Weeks for which
+ * `isVacWeek` returns true are invisible (skipped without breaking the run).
+ *
+ * @param {Object<string, {completed: number, possible: number}>} buckets
+ * @param {string} endISO - exclusive upper bound (typically currentWeekStart)
+ * @param {{threshold?: number, isVacWeek?: (w: string) => boolean}} [opts]
+ * @returns {number}
+ */
+export const computeLongestStreak = (buckets, endISO, opts = {}) => {
+  const { threshold = 0.7, isVacWeek } = opts;
+  const weeks = Object.keys(buckets).sort();
+  if (!weeks.length || !endISO) return 0;
+  const met = (w) => {
+    const b = buckets[w];
+    return !!b && b.possible > 0 && (b.completed / b.possible) >= threshold;
+  };
+  let longest = 0;
+  let temp = 0;
+  for (let w = weeks[0], i = 0; w && w < endISO && i < 520; w = nextISOWeek(w), i++) {
+    if (isVacWeek && isVacWeek(w)) continue;
+    if (met(w)) {
+      temp++;
+      longest = Math.max(longest, temp);
+    } else {
+      temp = 0;
+    }
+  }
+  return longest;
 };
 
 /**
@@ -123,7 +189,7 @@ export const getVacationDaysInWeek = (weekStartISO, vacations, participant) => {
 /**
  * Day-level completion rate as an integer percentage 0-100.
  *
- *   rate = round( Σ daysCompleted.length / Σ target * 100 )
+ *   rate = round( Σ min(daysCompleted.length, target) / Σ target * 100 )
  *
  * Habits with target === 0 are excluded entirely (they would otherwise
  * silently coerce to 5 via `target||5`). Percentage-type habits are also
@@ -152,12 +218,10 @@ export const computeRate = (habits, vacations, participant) => {
   let totalCompleted = 0;
   let totalPossible = 0;
   for (const h of habits) {
-    if (h.habitType === 'percentage') continue;
-    if (h.target === 0) continue;
+    if (!isCountableHabit(h)) continue;
     if (isFullWeek(h.weekStart)) continue;
-    const target = h.target || 5;
-    totalPossible += target;
-    totalCompleted += (h.daysCompleted?.length || 0);
+    totalPossible += (h.target || 5);
+    totalCompleted += countedDays(h);
   }
   if (totalPossible === 0) return 0;
   return Math.round((totalCompleted / totalPossible) * 100);
@@ -194,13 +258,11 @@ export const computeStreak = (habits, currentWeekStart, threshold = 0.7, vacatio
   const useVacations = Array.isArray(vacations) && vacations.length > 0 && !!participant;
   const buckets = {};
   for (const h of habits) {
-    if (h.habitType === 'percentage') continue;
-    if (h.target === 0) continue;
+    if (!isCountableHabit(h)) continue;
     if (!h.weekStart || h.weekStart >= currentWeekStart) continue;
     if (!buckets[h.weekStart]) buckets[h.weekStart] = { completed: 0, possible: 0 };
-    const target = h.target || 5;
-    buckets[h.weekStart].possible += target;
-    buckets[h.weekStart].completed += (h.daysCompleted?.length || 0);
+    buckets[h.weekStart].possible += (h.target || 5);
+    buckets[h.weekStart].completed += countedDays(h);
   }
   let streak = 0;
   let cursor = previousISOWeek(currentWeekStart);

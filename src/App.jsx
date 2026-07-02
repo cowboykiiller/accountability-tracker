@@ -17,9 +17,11 @@ import {
   getMasteryLevel,
   getNextMilestone,
   getCurrentMonday,
+  getMondayOf,
+  toLocalISODate,
 } from './constants';
-import { computeRate, computeStreak, computeScore, previousISOWeek, isVacationDay, isFullVacationWeek, getVacationDaysInWeek } from './lib/scoring';
-import { computeMidYearReport, generateReportPDF } from './lib/report';
+import { computeRate, computeStreak, computeScore, computeLongestStreak, previousISOWeek, nextISOWeek, isVacationDay, isFullVacationWeek, getVacationDaysInWeek, isCountableHabit, countedDays } from './lib/scoring';
+import { computeMidYearReport, generateReportPDF, SECTORS } from './lib/report';
 import BooksPage from './views/BooksPage';
 import VacationsSection from './views/VacationsSection';
 
@@ -29,7 +31,9 @@ import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver, 
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { getFirestore, initializeFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { getFirestore, initializeFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, query, orderBy } from 'firebase/firestore';
 
 const VIEWS = ['dashboard', 'compete', 'tracker', 'monthly', 'tasks', 'insights', 'scorecard', 'quotes', 'vision', 'ai-coach', 'books', 'profile'];
 const DEFAULT_VIEW = 'dashboard';
@@ -438,17 +442,15 @@ const getStatus = (h) => {
     return 'Missed';
   }
   // Handle daily habits (default)
+  // Canonical math excludes target-0 habits entirely — neutral status here
+  // so they don't render as 'Missed' or count as a permanent 'Done' freebie.
+  if (h.target === 0) return 'Pending';
   const c = (h.daysCompleted || []).length;
-  const t = h.target; 
-  return c > t ? 'Exceeded' : c >= t ? 'Done' : c >= t * 0.75 ? 'On Track' : c >= t * 0.5 ? 'At Risk' : 'Missed'; 
+  // Missing target defaults to 5 (matches scoring.js).
+  const t = h.target || 5;
+  return c > t ? 'Exceeded' : c >= t ? 'Done' : c >= t * 0.75 ? 'On Track' : c >= t * 0.5 ? 'At Risk' : 'Missed';
 };
-const getWeekStartFromDate = (date) => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  return d.toISOString().split('T')[0];
-};
+const getWeekStartFromDate = (date) => getMondayOf(date);
 
 // Components
 const NAV_ITEMS = [
@@ -1134,7 +1136,6 @@ export default function AccountabilityTracker() {
   });
 
   // 2026 Mid-Year Report state
-  const [allVisions, setAllVisions] = useState([]); // Everyone's 2026 vision (report context: word/goal)
   const [generatingReport, setGeneratingReport] = useState(false);
 
   // 2025 Reflection state
@@ -1192,8 +1193,6 @@ export default function AccountabilityTracker() {
   const [showHabitBreakdown, setShowHabitBreakdown] = useState(null); // 'exceeded' | 'missed' | 'completed' | 'total' | null
   
   // Participant AI summaries
-  const [participantSummaries, setParticipantSummaries] = useState({});
-  const [summaryLoading, setSummaryLoading] = useState(false);
   
   // Daily view state
   const [selectedDay, setSelectedDay] = useState(null); // 0-6 for Mon-Sun
@@ -1719,17 +1718,10 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
-  // Listen for everyone's visions (report context: word of the year + biggest goal).
-  useEffect(() => {
-    if (!user) {
-      setAllVisions([]);
-      return;
-    }
-    const unsubV = onSnapshot(collection(db, 'visions'), (snap) => {
-      setAllVisions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (error) => console.error('All visions error:', error));
-    return () => unsubV();
-  }, [user]);
+  // NOTE: the report deliberately does NOT keep a live subscription to the
+  // whole `visions` collection — vision docs contain private fields (letter
+  // to self, obstacles). handleGenerateReport fetches only the two fields it
+  // needs, once, at generation time, and degrades gracefully if rules deny it.
 
   // Save vision document
   const saveVision = async () => {
@@ -1754,8 +1746,22 @@ export default function AccountabilityTracker() {
     if (generatingReport) return;
     setGeneratingReport(true);
     try {
+      // One-time fetch, reduced to the two fields the PDF uses. Vision docs
+      // hold private content (letter to self), so no live subscription and
+      // no retention of the full docs; if security rules deny the read, the
+      // report simply renders without word-of-year context.
+      let allVisions = [];
+      try {
+        const visionSnap = await getDocs(collection(db, 'visions'));
+        allVisions = visionSnap.docs.map(d => {
+          const v = d.data();
+          return { participant: v.participant, wordOfYear: v.wordOfYear, biggestGoal: v.biggestGoal };
+        });
+      } catch (e) {
+        console.warn('Visions unavailable for report (continuing without):', e?.code || e);
+      }
       const report = computeMidYearReport(habits, vacations, allParticipants, {
-        startISO: '2026-01-01',
+        startISO: '2025-12-29', // Monday of ISO week 2026-W01 (the week containing Jan 1)
         endISO: currentWeekStart, // exclude the in-progress week for fair grading
         year: 2026,
         visions: allVisions
@@ -1767,7 +1773,26 @@ export default function AccountabilityTracker() {
       }
       // Yield a frame so the spinner paints before the (sync) PDF render.
       await new Promise(r => setTimeout(r, 30));
-      generateReportPDF(report, { subject, logo: LOGO_BASE64 });
+      if (Capacitor.isNativePlatform()) {
+        // WKWebView ignores jsPDF's <a download> save — write the bytes to the
+        // cache dir and open the iOS share sheet instead.
+        const buffer = generateReportPDF(report, { subject, logo: LOGO_BASE64, output: 'arraybuffer' });
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        const CHUNK = 0x8000;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+        }
+        const fileName = `Mid-Year-Report-2026-${String(subject || 'Member').replace(/[^a-z0-9]+/gi, '-')}.pdf`;
+        const written = await Filesystem.writeFile({
+          path: fileName,
+          data: btoa(binary),
+          directory: Directory.Cache
+        });
+        await Share.share({ title: '2026 Mid-Year Report', url: written.uri });
+      } else {
+        generateReportPDF(report, { subject, logo: LOGO_BASE64 });
+      }
     } catch (err) {
       console.error('Report generation failed:', err);
       alert('Sorry — something went wrong generating the report. Check the console for details.');
@@ -1859,12 +1884,7 @@ export default function AccountabilityTracker() {
       // Create initial habits for current week if provided
       const initialHabits = onboardingData.initialHabits.filter(h => h.trim());
       if (initialHabits.length > 0) {
-        const today = new Date();
-        const dayOfWeek = today.getDay();
-        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-        const monday = new Date(today);
-        monday.setDate(today.getDate() + mondayOffset);
-        const weekStart = monday.toISOString().split('T')[0];
+        const weekStart = getCurrentMonday();
         
         for (const habitName of initialHabits) {
           const habitDoc = {
@@ -1917,15 +1937,25 @@ export default function AccountabilityTracker() {
     return baseParticipants;
   }, [profiles, habits]);
 
-  // Helper: Get current week start string (for excluding from past metrics)
-  const currentWeekStart = useMemo(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
-    return monday.toISOString().split('T')[0];
+  // Local calendar "today", refreshed on an interval so the current week
+  // rolls over at local midnight without a reload. Local formatting matters:
+  // toISOString() flips to tomorrow's UTC date during US evenings, which
+  // used to zero every streak and grade the in-progress week (see
+  // math-audit-2026-07-02.md, H1).
+  const [todayLocalISO, setTodayLocalISO] = useState(() => toLocalISODate(new Date()));
+  useEffect(() => {
+    const tick = setInterval(() => {
+      const now = toLocalISODate(new Date());
+      setTodayLocalISO(prev => (prev === now ? prev : now));
+    }, 60000);
+    return () => clearInterval(tick);
   }, []);
+
+  // Helper: Get current week start string (for excluding from past metrics)
+  const currentWeekStart = useMemo(
+    () => getMondayOf(`${todayLocalISO}T00:00:00`),
+    [todayLocalISO]
+  );
 
   // Helpers used by the per-day vacation indicators across views. Index 0
   // = Monday, matching the DAYS constant and `daysCompleted` usage.
@@ -1969,69 +1999,43 @@ export default function AccountabilityTracker() {
         habitsByName[name].push(h);
       });
       
-      // Calculate streak for each habit
+      // Calculate streak for each habit. Canonical semantics (see
+      // math-audit-2026-07-02.md M1): percentage habits excluded, completions
+      // clamped to target, streak adjacency is calendar weeks (a tracking gap
+      // breaks the streak), full-vacation weeks are invisible.
       Object.entries(habitsByName).forEach(([habitName, habitInstances]) => {
-        // Sort by week descending (most recent first)
-        const sorted = [...habitInstances].sort((a, b) => b.weekStart.localeCompare(a.weekStart));
-        
+        const countable = habitInstances.filter(isCountableHabit);
+        if (countable.length === 0) return;
+
+        // Bucket by completed week (skip current + any future auto-created docs)
+        const byWeek = {};
+        countable.forEach(h => {
+          if (!h.weekStart || h.weekStart >= currentWeekStart) return;
+          if (!byWeek[h.weekStart]) byWeek[h.weekStart] = { completed: 0, possible: 0 };
+          byWeek[h.weekStart].completed += countedDays(h);
+          byWeek[h.weekStart].possible += (h.target || 5);
+        });
+        const weekKeys = Object.keys(byWeek).sort();
+        const metWeek = (w) => !!byWeek[w] && byWeek[w].completed >= byWeek[w].possible;
+        const isVacWeek = (w) => isFullVacationWeek(w, vacations, p);
+
+        // Current streak: walk back from the most recent completed week.
         let currentStreak = 0;
-        let bestStreak = 0;
-        let tempStreak = 0;
-        let totalCompleted = 0;
-        let totalTarget = 0;
-        
-        // Get all weeks this habit appears
-        const weeks = sorted.map(h => h.weekStart);
-        
-        for (let i = 0; i < sorted.length; i++) {
-          const h = sorted[i];
-          const completed = h.daysCompleted?.length || 0;
-          const target = h.target || 5;
-          const metTarget = completed >= target;
-          
-          totalCompleted += completed;
-          totalTarget += target;
-          
-          // Skip current week (incomplete) AND any future weeks (e.g. next-week
-          // NN docs auto-created with empty daysCompleted — they would otherwise
-          // break the streak on the very first iteration).
-          if (h.weekStart >= currentWeekStart) continue;
-
-          if (metTarget) {
-            tempStreak++;
-            if (i === 0 || (i === 1 && sorted[0].weekStart === currentWeekStart)) {
-              currentStreak = tempStreak;
-            }
-            bestStreak = Math.max(bestStreak, tempStreak);
-          } else {
-            if (tempStreak === currentStreak && currentStreak > 0) {
-            } else {
-              currentStreak = i === 0 || (i === 1 && sorted[0].weekStart === currentWeekStart) ? 0 : currentStreak;
-            }
-            tempStreak = 0;
-          }
-        }
-        
-        bestStreak = Math.max(bestStreak, tempStreak);
-        
-        // Recalculate current streak more accurately
-        currentStreak = 0;
-        for (let i = 0; i < sorted.length; i++) {
-          const h = sorted[i];
-          if (h.weekStart >= currentWeekStart) continue;
-
-          const completed = h.daysCompleted?.length || 0;
-          const target = h.target || 5;
-
-          if (completed >= target) {
-            currentStreak++;
-          } else {
-            break;
-          }
+        let cursor = previousISOWeek(currentWeekStart);
+        for (let i = 0; i < 520; i++) {
+          if (isVacWeek(cursor)) { cursor = previousISOWeek(cursor); continue; }
+          if (!metWeek(cursor)) break;
+          currentStreak++;
+          cursor = previousISOWeek(cursor);
         }
 
+        // Best streak: shared forward walk (per-habit bar is 100% of target).
+        const bestStreak = computeLongestStreak(byWeek, currentWeekStart, { threshold: 1, isVacWeek });
+
+        const totalCompleted = weekKeys.reduce((s, w) => s + byWeek[w].completed, 0);
+        const totalTarget = weekKeys.reduce((s, w) => s + byWeek[w].possible, 0);
         const completionRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
-        const totalWeeks = weeks.filter(w => w < currentWeekStart).length;
+        const totalWeeks = weekKeys.length;
         
         // Gamification: Calculate XP and levels
         const streakXP = currentStreak * 50; // 50 XP per week of streak
@@ -2070,14 +2074,16 @@ export default function AccountabilityTracker() {
     });
     
     return streaks;
-  }, [habits, allParticipants, currentWeekStart]);
+  }, [habits, allParticipants, currentWeekStart, vacations]);
 
   // Leaderboard: excludes the current (incomplete) week so standings only
   // reflect completed weeks. Rate, streak, and score all flow through the
   // shared scoring module.
   const leaderboard = useMemo(() => {
     return allParticipants.map(p => {
-      const participantHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
+      // `<` (not !==) also excludes future-dated docs (e.g. next-week NN
+      // habits auto-created early), which would otherwise deflate the rate.
+      const participantHabits = habits.filter(h => h.participant === p && h.weekStart < currentWeekStart);
       const rate = computeRate(participantHabits, vacations, p);
       const streak = calculateStreaks[p] || 0;
       const totalCompleted = participantHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
@@ -2096,32 +2102,33 @@ export default function AccountabilityTracker() {
     const myParticipantName = userProfile?.linkedParticipant || user?.displayName;
     if (!myParticipantName || habits.length === 0) return null;
     
-    // Filter to only PAST weeks (exclude current week)
-    const myHabits = habits.filter(h => h.participant === myParticipantName && h.weekStart !== currentWeekStart);
+    // Filter to only PAST weeks (exclude current + future auto-created docs).
+    // Day-level math uses countable habits only (no percentage-type, no
+    // target-0) with completions clamped to target — same equations as the
+    // Compete leaderboard (see math-audit-2026-07-02.md H5).
+    const myHabits = habits.filter(h => h.participant === myParticipantName && h.weekStart < currentWeekStart);
     if (myHabits.length === 0) return null;
-    
+    const myCountable = myHabits.filter(isCountableHabit);
+    const isMyVacationWeek = (w) => isFullVacationWeek(w, vacations, myParticipantName);
+
     // Basic totals
     const totalHabitsTracked = myHabits.length;
-    const totalDaysCompleted = myHabits.reduce((sum, h) => {
-      const days = h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length;
-      return sum + days;
-    }, 0);
-    const totalTargetDays = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
-    const overallCompletionRate = totalTargetDays > 0 ? Math.round((totalDaysCompleted / totalTargetDays) * 100) : 0;
-    
+    const totalDaysCompleted = myCountable.reduce((sum, h) => sum + countedDays(h), 0);
+    const totalTargetDays = myCountable.reduce((sum, h) => sum + (h.target || 5), 0);
+    const overallCompletionRate = computeRate(myCountable, vacations, myParticipantName);
+
     // Unique weeks tracked (past weeks only)
     const weeksTracked = [...new Set(myHabits.map(h => h.weekStart))].sort();
     const totalWeeks = weeksTracked.length;
-    
+
     // Calculate per-habit stats
     const habitStats = {};
-    myHabits.forEach(h => {
+    myCountable.forEach(h => {
       const habitName = h.habit?.toLowerCase().trim() || 'unknown';
       if (!habitStats[habitName]) {
         habitStats[habitName] = { name: h.habit, completed: 0, target: 0, weeks: 0 };
       }
-      const days = h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length;
-      habitStats[habitName].completed += days;
+      habitStats[habitName].completed += countedDays(h);
       habitStats[habitName].target += (h.target || 5);
       habitStats[habitName].weeks++;
     });
@@ -2139,14 +2146,13 @@ export default function AccountabilityTracker() {
     const worstHabit = habitRankings[habitRankings.length - 1] || null;
     const perfectHabits = habitRankings.filter(h => h.rate >= 100);
     
-    // Calculate weekly performance
+    // Calculate weekly performance (full-vacation weeks excluded — they are
+    // invisible to rates and streaks, matching computeRate/computeStreak)
     const weeklyPerformance = {};
-    weeksTracked.forEach(week => {
-      const weekHabits = myHabits.filter(h => h.weekStart === week);
+    weeksTracked.filter(w => !isMyVacationWeek(w)).forEach(week => {
+      const weekHabits = myCountable.filter(h => h.weekStart === week);
       const weekTarget = weekHabits.reduce((sum, h) => sum + (h.target || 5), 0);
-      const weekCompleted = weekHabits.reduce((sum, h) => {
-        return sum + (h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length);
-      }, 0);
+      const weekCompleted = weekHabits.reduce((sum, h) => sum + countedDays(h), 0);
       weeklyPerformance[week] = {
         week,
         target: weekTarget,
@@ -2155,28 +2161,21 @@ export default function AccountabilityTracker() {
         habitCount: weekHabits.length
       };
     });
-    
+
     const weeklyRankings = Object.values(weeklyPerformance).sort((a, b) => b.rate - a.rate);
     const bestWeek = weeklyRankings[0] || null;
     const worstWeek = weeklyRankings[weeklyRankings.length - 1] || null;
     const perfectWeeks = weeklyRankings.filter(w => w.rate >= 100).length;
     
-    // Category breakdown (infer from habit names)
-    const categories = {
-      fitness: { keywords: ['workout', 'run', 'gym', 'exercise', 'cardio', 'lift', 'walk', 'stretch', 'yoga'], count: 0, completed: 0 },
-      health: { keywords: ['sleep', 'water', 'eat', 'diet', 'vitamin', 'meditat', 'health', 'track food', 'no sugar', 'no alcohol'], count: 0, completed: 0 },
-      business: { keywords: ['work', 'client', 'call', 'email', 'meeting', 'sales', 'deal', 'business', 'lead', 'prospect', 'tiktok', 'post'], count: 0, completed: 0 },
-      finance: { keywords: ['trade', 'invest', 'money', 'budget', 'save', 'finance', 'stock', 'crypto', 'portfolio'], count: 0, completed: 0 },
-      learning: { keywords: ['read', 'learn', 'study', 'course', 'book', 'podcast', 'app', 'code', 'practice'], count: 0, completed: 0 },
-      mindfulness: { keywords: ['journal', 'gratitude', 'reflect', 'pray', 'meditat', 'mindful', 'quiet', 'breathe'], count: 0, completed: 0 },
-      social: { keywords: ['friend', 'family', 'call', 'hang', 'connect', 'relationship', 'date'], count: 0, completed: 0 },
-      discipline: { keywords: ['no social', 'no phone', 'wake', 'morning', 'routine', 'habit', 'discipline', 'focus'], count: 0, completed: 0 }
-    };
+    // Category breakdown — the SAME keyword map the mid-year report grades
+    // with (SECTORS), so Wrapped and the PDF agree on every habit's sector.
+    const categories = {};
+    SECTORS.forEach(s => { categories[s.key] = { keywords: s.keywords, count: 0, completed: 0 }; });
     
-    myHabits.forEach(h => {
+    myCountable.forEach(h => {
       const habitLower = (h.habit || '').toLowerCase();
-      const days = h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length;
-      
+      const days = countedDays(h);
+
       for (const [cat, data] of Object.entries(categories)) {
         if (data.keywords.some(kw => habitLower.includes(kw))) {
           data.count++;
@@ -2193,31 +2192,14 @@ export default function AccountabilityTracker() {
     
     const topCategory = categoryRankings[0] || null;
     
-    // Streak calculation (consecutive weeks with 70%+ completion)
-    let longestStreak = 0;
-    let currentStreak = 0;
-    let tempStreak = 0;
-    
-    weeksTracked.sort().forEach(week => {
-      const perf = weeklyPerformance[week];
-      if (perf && perf.rate >= 70) {
-        tempStreak++;
-        longestStreak = Math.max(longestStreak, tempStreak);
-      } else {
-        tempStreak = 0;
-      }
-    });
-    
-    // Current streak (from most recent week backwards)
-    const recentWeeks = [...weeksTracked].sort().reverse();
-    for (const week of recentWeeks) {
-      const perf = weeklyPerformance[week];
-      if (perf && perf.rate >= 70) {
-        currentStreak++;
-      } else {
-        break;
-      }
-    }
+    // Streaks use the canonical walk: consecutive CALENDAR weeks at >= 70%
+    // (raw ratio), untracked gap weeks break the streak, full-vacation weeks
+    // are invisible — identical to the Compete leaderboard.
+    const currentStreak = computeStreak(myHabits, currentWeekStart, 0.7, vacations, myParticipantName);
+    const wrapBuckets = Object.fromEntries(
+      Object.entries(weeklyPerformance).map(([w, v]) => [w, { completed: v.completed, possible: v.target }])
+    );
+    const longestStreak = computeLongestStreak(wrapBuckets, currentWeekStart, { isVacWeek: isMyVacationWeek });
     
     // Fun facts
     const funFacts = [];
@@ -2246,16 +2228,15 @@ export default function AccountabilityTracker() {
       funFacts.push(`${noHabits.length} "No" habits tracked - saying no to distractions is saying yes to success! 🚫➡️✅`);
     }
     
-    // Group comparison (also excluding current week for fair comparison)
+    // Group comparison — same canonical rate as the Compete leaderboard
     const groupStats = allParticipants.map(p => {
-      const pHabits = habits.filter(h => h.participant === p && h.weekStart !== currentWeekStart);
-      const pCompleted = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || DAYS.filter(d => h.days?.[d]).length), 0);
-      const pTarget = pHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+      const pHabits = habits.filter(h => h.participant === p && h.weekStart < currentWeekStart);
+      const pCountable = pHabits.filter(isCountableHabit);
       return {
         name: p,
-        rate: pTarget > 0 ? Math.round((pCompleted / pTarget) * 100) : 0,
+        rate: computeRate(pCountable, vacations, p),
         totalHabits: pHabits.length,
-        totalCompleted: pCompleted
+        totalCompleted: pCountable.reduce((sum, h) => sum + countedDays(h), 0)
       };
     }).sort((a, b) => b.rate - a.rate);
     
@@ -2317,7 +2298,7 @@ export default function AccountabilityTracker() {
       gradeEmoji,
       myParticipantName
     };
-  }, [habits, userProfile, user, allParticipants, currentWeekStart]);
+  }, [habits, userProfile, user, allParticipants, currentWeekStart, vacations]);
 
   // Submit weekly check-in
   const submitCheckIn = async () => {
@@ -2440,7 +2421,7 @@ export default function AccountabilityTracker() {
       allowMultipleWinners: newBet.allowMultipleWinners || false,
       goal: newBet.goal,
       reward: newBet.reward || 'Bragging rights! 🏆',
-      deadline: newBet.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      deadline: newBet.deadline || toLocalISODate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
       status: 'pending', // pending, accepted, declined, completed
       acceptedBy: [], // Track who has accepted (for group challenges)
       declinedBy: [], // Track who has declined
@@ -2959,6 +2940,22 @@ JSON array only:`
     try {
       const uid = user.uid;
       const ids = [myParticipant, user.displayName].filter(Boolean);
+
+      // 1. Re-authenticate FIRST. If this fails or is cancelled, nothing has
+      //    been deleted — deleting data before discovering the session is too
+      //    stale for deleteUser would destroy data without closing the account.
+      if (Capacitor.isNativePlatform()) {
+        const res = await FirebaseAuthentication.signInWithGoogle();
+        const cred = GoogleAuthProvider.credential(res.credential?.idToken);
+        await reauthenticateWithCredential(auth.currentUser, cred);
+      } else {
+        await reauthenticateWithPopup(auth.currentUser, googleProvider);
+      }
+
+      // 2. Delete the user's own documents across collections. Docs are
+      //    fetched from the SERVER here — the in-memory listener arrays can
+      //    still be empty right after sign-in, which would silently skip
+      //    everything and then orphan it once the Auth account is gone.
       const isMine = {
         habits: (d) => ids.includes(d.participant),
         checkIns: (d) => ids.includes(d.participant),
@@ -2967,51 +2964,71 @@ JSON array only:`
         nonNegotiables: (d) => d.userId === uid || ids.includes(d.participant),
         scheduledEvents: (d) => d.userId === uid || ids.includes(d.participant),
         vacations: (d) => ids.includes(d.participant),
-        bets: (d) => ids.includes(d.challenger),
+        books: (d) => ids.includes(d.participant),
+        bets: (d) => d.challengerId === uid || ids.includes(d.challenger),
       };
-      const sources = { habits, checkIns, weeklyGoals, moods, nonNegotiables, scheduledEvents, vacations, bets };
 
-      // 1. Delete the user's own documents across collections (scoped to them).
       const deletions = [];
-      for (const [col, rows] of Object.entries(sources)) {
-        (rows || []).filter(isMine[col]).forEach((d) => {
-          if (d.id) deletions.push(deleteDoc(doc(db, col, String(d.id))));
+      const serverBets = [];
+      for (const col of Object.keys(isMine)) {
+        const snap = await getDocs(collection(db, col));
+        snap.docs.forEach((docSnap) => {
+          const d = { id: docSnap.id, ...docSnap.data() };
+          if (col === 'bets') serverBets.push(d);
+          if (isMine[col](d)) deletions.push(deleteDoc(docSnap.ref));
         });
       }
-      // 2. Delete their profile.
-      const profileId = userProfile?.id || `profile_${uid}`;
-      deletions.push(deleteDoc(doc(db, 'profiles', profileId)));
-      await Promise.allSettled(deletions);
+      // Per-user keyed documents (missing these left highly personal data behind).
+      deletions.push(deleteDoc(doc(db, 'visions', `vision_2026_${uid}`)));
+      deletions.push(deleteDoc(doc(db, 'reflections', `reflection_2025_${uid}`)));
+      deletions.push(deleteDoc(doc(db, 'timeCapsules', `capsule_2026_${uid}`)));
 
-      // 3. Delete the Firebase Auth account (re-auth first if the session is stale).
-      const deleteAuth = async () => {
-        try {
-          await deleteUser(auth.currentUser);
-        } catch (e) {
-          if (e?.code === 'auth/requires-recent-login') {
-            if (Capacitor.isNativePlatform()) {
-              const res = await FirebaseAuthentication.signInWithGoogle();
-              const cred = GoogleAuthProvider.credential(res.credential?.idToken);
-              await reauthenticateWithCredential(auth.currentUser, cred);
-            } else {
-              await reauthenticateWithPopup(auth.currentUser, googleProvider);
-            }
-            await deleteUser(auth.currentUser);
-          } else {
-            throw e;
-          }
-        }
-      };
-      await deleteAuth();
+      // The user's Supabase task rows (separate backend from Firestore).
+      const taskDeletes = ids.map(name =>
+        fetch(`${SUPABASE_URL}/rest/v1/tasks?participant=eq.${encodeURIComponent(name)}`, {
+          method: 'DELETE',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        }).then(r => { if (!r.ok) throw new Error(`tasks delete failed (${r.status})`); })
+      );
+      deletions.push(...taskDeletes);
 
-      // 4. Native sign-out for good measure; onAuthStateChanged returns to login.
+      const results = await Promise.allSettled(deletions);
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        // Abort BEFORE the profile + Auth deletion — proceeding would orphan
+        // the remaining data with no owner left who could ever delete it.
+        console.error('Delete account: data deletion failures', failed.map(f => f.reason));
+        throw new Error(`Could not delete ${failed.length} of your data record${failed.length === 1 ? '' : 's'}. Your account was NOT deleted — please try again.`);
+      }
+
+      // 3. Best-effort: scrub the user out of OTHER members' bets (challenged /
+      //    accepted / declined arrays). These docs belong to someone else, so a
+      //    rules denial here must not block the account deletion itself.
+      const scrubs = serverBets
+        .filter(d => !isMine.bets(d) && Array.isArray(d.challenged) && d.challenged.some(c => ids.includes(c)))
+        .map(d => setDoc(doc(db, 'bets', String(d.id)), {
+          challenged: d.challenged.filter(c => !ids.includes(c)),
+          acceptedBy: (d.acceptedBy || []).filter(c => !ids.includes(c)),
+          declinedBy: (d.declinedBy || []).filter(c => !ids.includes(c)),
+        }, { merge: true }));
+      const scrubResults = await Promise.allSettled(scrubs);
+      scrubResults.filter(r => r.status === 'rejected').forEach(r => console.warn('Bet scrub skipped:', r.reason));
+
+      // 4. Profile last among the data docs, then the Auth account itself.
+      await deleteDoc(doc(db, 'profiles', userProfile?.id || `profile_${uid}`));
+      await deleteUser(auth.currentUser);
+
+      // 5. Native sign-out for good measure; onAuthStateChanged returns to login.
       if (Capacitor.isNativePlatform()) {
         try { await FirebaseAuthentication.signOut(); } catch (e) { /* ignore */ }
       }
       setAccountActionStage(0);
     } catch (error) {
       console.error('Delete account error:', error);
-      setAccountActionError(error?.message || 'Could not delete account. Please try again.');
+      const cancelled = error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/user-cancelled' || error?.code === 'auth/cancelled-popup-request';
+      setAccountActionError(cancelled
+        ? 'Re-authentication was cancelled — nothing was deleted.'
+        : (error?.message || 'Could not delete account. Please try again.'));
     } finally {
       setAccountBusy(false);
     }
@@ -3021,11 +3038,13 @@ JSON array only:`
   const handleResumeAccount = async () => {
     if (!user) return;
     setAccountBusy(true);
+    setAccountActionError('');
     try {
       const profileId = userProfile?.id || `profile_${user.uid}`;
       await setDoc(doc(db, 'profiles', profileId), { paused: false, resumedAt: new Date().toISOString() }, { merge: true });
     } catch (error) {
       console.error('Resume account error:', error);
+      setAccountActionError(error?.message || 'Could not resume your account. Check your connection and try again.');
     } finally {
       setAccountBusy(false);
     }
@@ -3047,17 +3066,7 @@ JSON array only:`
     // Get weeks from existing habits
     const habitWeeks = [...new Set(habits.map(h => h.weekStart))].filter(Boolean);
     
-    // Get current week's Monday
-    const getMonday = (d) => {
-      const date = new Date(d);
-      const day = date.getDay();
-      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(date.getFullYear(), date.getMonth(), diff);
-      return monday.toISOString().split('T')[0];
-    };
-    
-    const today = new Date();
-    const currentMonday = getMonday(new Date(today)); // Pass a copy
+    const currentMonday = getCurrentMonday();
     
     // Find the earliest week (from habits or default to 8 weeks ago)
     let earliestWeek = currentMonday;
@@ -3065,9 +3074,9 @@ JSON array only:`
       earliestWeek = habitWeeks.sort()[0];
     } else {
       // Default start: 8 weeks ago
-      const eightWeeksAgo = new Date(today);
+      const eightWeeksAgo = new Date();
       eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
-      earliestWeek = getMonday(new Date(eightWeeksAgo));
+      earliestWeek = getMondayOf(eightWeeksAgo);
     }
     
     // Generate all weeks from earliest through 52 weeks into future (1 year ahead)
@@ -3078,7 +3087,7 @@ JSON array only:`
     
     let current = new Date(startDate);
     while (current <= futureDate) {
-      weeks.push(current.toISOString().split('T')[0]);
+      weeks.push(toLocalISODate(current));
       current.setDate(current.getDate() + 7);
     }
     
@@ -3197,12 +3206,14 @@ JSON array only:`
   const dayAnalytics = useMemo(() => {
     if (!myParticipant) return { best: null, worst: null, dayStats: [] };
     
-    const myHabits = habits.filter(h => h.participant === myParticipant);
+    // Completed weeks + countable habits only, so the in-progress week's
+    // future days can't deflate the day-of-week rates.
+    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart < currentWeekStart && isCountableHabit(h));
     if (myHabits.length === 0) return { best: null, worst: null, dayStats: [] };
-    
+
     const dayTotals = [0, 0, 0, 0, 0, 0, 0];
     const dayPossible = [0, 0, 0, 0, 0, 0, 0];
-    
+
     myHabits.forEach(h => {
       for (let i = 0; i < 7; i++) {
         dayPossible[i]++;
@@ -3227,15 +3238,15 @@ JSON array only:`
       worst: sorted[sorted.length - 1] || null,
       dayStats
     };
-  }, [habits, myParticipant]);
+  }, [habits, myParticipant, currentWeekStart]);
 
   // Calculate habit correlations
   const habitCorrelations = useMemo(() => {
     if (!myParticipant) return [];
     
-    const myHabits = habits.filter(h => h.participant === myParticipant);
+    const myHabits = habits.filter(h => h.participant === myParticipant && h.weekStart < currentWeekStart && isCountableHabit(h));
     const weeklyHabits = {};
-    
+
     myHabits.forEach(h => {
       if (!weeklyHabits[h.weekStart]) weeklyHabits[h.weekStart] = [];
       weeklyHabits[h.weekStart].push(h);
@@ -3269,7 +3280,7 @@ JSON array only:`
       .filter(p => p.total >= 14)
       .sort((a, b) => b.correlation - a.correlation)
       .slice(0, 10);
-  }, [habits, myParticipant]);
+  }, [habits, myParticipant, currentWeekStart]);
 
   // Calculate monthly stats
   const monthlyStats = useMemo(() => {
@@ -3279,28 +3290,32 @@ JSON array only:`
     const monthStart = new Date(year, month, 1);
     const monthEnd = new Date(year, month + 1, 0);
     
+    // Weeks are assigned to the month containing their Monday. Countable
+    // habits only, clamped completions, in-progress week excluded.
     const myHabits = habits.filter(h => {
       if (h.participant !== myParticipant) return false;
+      if (h.weekStart >= currentWeekStart) return false;
+      if (!isCountableHabit(h)) return false;
       const weekDate = new Date(h.weekStart + 'T00:00:00');
       return weekDate >= monthStart && weekDate <= monthEnd;
     });
-    
+
     if (myHabits.length === 0) return null;
-    
-    const totalCompleted = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
+
+    const totalCompleted = myHabits.reduce((sum, h) => sum + countedDays(h), 0);
     const totalTarget = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
-    
+
     const weeklyBreakdown = {};
     myHabits.forEach(h => {
       if (!weeklyBreakdown[h.weekStart]) weeklyBreakdown[h.weekStart] = { completed: 0, target: 0 };
-      weeklyBreakdown[h.weekStart].completed += h.daysCompleted?.length || 0;
+      weeklyBreakdown[h.weekStart].completed += countedDays(h);
       weeklyBreakdown[h.weekStart].target += h.target || 5;
     });
-    
+
     const habitPerformance = {};
     myHabits.forEach(h => {
       if (!habitPerformance[h.habit]) habitPerformance[h.habit] = { completed: 0, target: 0 };
-      habitPerformance[h.habit].completed += h.daysCompleted?.length || 0;
+      habitPerformance[h.habit].completed += countedDays(h);
       habitPerformance[h.habit].target += h.target || 5;
     });
     
@@ -3320,7 +3335,7 @@ JSON array only:`
       perfectWeeks: Object.values(weeklyBreakdown).filter(w => w.completed >= w.target).length,
       totalWeeks: Object.keys(weeklyBreakdown).length
     };
-  }, [habits, myParticipant, reportMonth]);
+  }, [habits, myParticipant, reportMonth, currentWeekStart]);
 
   // Set selectedParticipant to myParticipant when profile loads
   useEffect(() => {
@@ -3340,42 +3355,6 @@ JSON array only:`
     return days;
   }, [calendarMonth]);
 
-  const weeklyTrendData = useMemo(() => {
-    // Get weeks based on selected range
-    let weeksToShow = ALL_WEEKS;
-    const today = new Date();
-    
-    // Filter to only past/current weeks
-    weeksToShow = weeksToShow.filter(w => new Date(w + 'T00:00:00') <= today);
-    
-    if (scorecardRange === 'week') {
-      const idx = weeksToShow.indexOf(currentWeek);
-      if (idx !== -1) {
-        weeksToShow = weeksToShow.slice(Math.max(0, idx - 7), idx + 1);
-      }
-    } else if (scorecardRange === '4weeks') {
-      const idx = weeksToShow.indexOf(currentWeek);
-      if (idx !== -1) {
-        weeksToShow = weeksToShow.slice(Math.max(0, idx - 7), idx + 1);
-      }
-    } else if (scorecardRange === 'quarter') {
-      const d = new Date(currentWeek + 'T00:00:00');
-      const quarterStart = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
-      weeksToShow = weeksToShow.filter(w => new Date(w + 'T00:00:00') >= quarterStart && new Date(w + 'T00:00:00') <= d);
-    }
-    
-    return weeksToShow.map(week => {
-      const wH = habits.filter(h => h.weekStart === week);
-      const completed = wH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-      const byP = {};
-      allParticipants.forEach(p => {
-        const pH = wH.filter(h => h.participant === p);
-        byP[p] = pH.length > 0 ? Math.round((pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length / pH.length) * 100) : 0;
-      });
-      return { week: formatWeekString(week), rate: wH.length > 0 ? Math.round((completed / wH.length) * 100) : 0, ...byP };
-    });
-  }, [habits, ALL_WEEKS, scorecardRange, currentWeek, allParticipants]);
-
   const getRangeHabits = useMemo(() => {
     // "This Week" - show current week (user needs to see their progress)
     if (scorecardRange === 'week') return habits.filter(h => h.weekStart === currentWeek);
@@ -3386,15 +3365,15 @@ JSON array only:`
       return habits.filter(h => pastWeeks.includes(h.weekStart)); 
     }
     
-    // "Quarter" - show quarter but exclude current week
-    if (scorecardRange === 'quarter') { 
-      const d = new Date(currentWeek + 'T00:00:00'); 
-      const qs = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1); 
-      return habits.filter(h => new Date(h.weekStart + 'T00:00:00') >= qs && h.weekStart !== currentWeekStart); 
+    // "Quarter" - show quarter but exclude current + future weeks
+    if (scorecardRange === 'quarter') {
+      const d = new Date(currentWeek + 'T00:00:00');
+      const qs = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
+      return habits.filter(h => new Date(h.weekStart + 'T00:00:00') >= qs && h.weekStart < currentWeekStart);
     }
-    
-    // "All Time" - exclude current week so incomplete weeks don't drag down metrics
-    return habits.filter(h => h.weekStart !== currentWeekStart);
+
+    // "All Time" - exclude current + future weeks so incomplete weeks don't drag down metrics
+    return habits.filter(h => h.weekStart < currentWeekStart);
   }, [habits, currentWeek, scorecardRange, ALL_WEEKS, currentWeekStart]);
 
   // My habits in the selected range
@@ -3402,42 +3381,6 @@ JSON array only:`
 
   // Dashboard view mode state
   const [dashboardView, setDashboardView] = useState('personal'); // 'personal' or 'team'
-
-  const statusDistribution = useMemo(() => {
-    const habitsToUse = dashboardView === 'personal' ? myRangeHabits : getRangeHabits;
-    return Object.keys(STATUS_CONFIG).map(s => ({ name: s, value: habitsToUse.filter(h => getStatus(h) === s).length, color: STATUS_CONFIG[s].color })).filter(d => d.value > 0);
-  }, [getRangeHabits, myRangeHabits, dashboardView]);
-
-  const overallStats = useMemo(() => {
-    const habitsToUse = dashboardView === 'personal' ? myRangeHabits : getRangeHabits;
-    const total = habitsToUse.length, completed = habitsToUse.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-    const exceeded = habitsToUse.filter(h => getStatus(h) === 'Exceeded').length, missed = habitsToUse.filter(h => getStatus(h) === 'Missed').length;
-    const inProgress = total - completed - missed;
-    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { total, completed, exceeded, missed, inProgress, rate, trend: 5 };
-  }, [getRangeHabits, myRangeHabits, dashboardView]);
-
-  // Team comparison - calculate your rank
-  const teamComparison = useMemo(() => {
-    const participantRates = allParticipants.map(p => {
-      const pH = getRangeHabits.filter(h => h.participant === p);
-      const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-      return { name: p, rate: pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0 };
-    }).sort((a, b) => b.rate - a.rate);
-    
-    const myRank = participantRates.findIndex(p => p.name === myParticipant) + 1;
-    const teamAvg = participantRates.length > 0 ? Math.round(participantRates.reduce((sum, p) => sum + p.rate, 0) / participantRates.length) : 0;
-    const myRate = participantRates.find(p => p.name === myParticipant)?.rate || 0;
-    const vsTeam = myRate - teamAvg;
-    
-    return { rank: myRank, total: participantRates.length, teamAvg, myRate, vsTeam };
-  }, [getRangeHabits, allParticipants, myParticipant]);
-
-  const participantData = useMemo(() => allParticipants.map(p => {
-    const pH = getRangeHabits.filter(h => h.participant === p);
-    const completed = pH.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-    return { name: p, rate: pH.length > 0 ? Math.round((completed / pH.length) * 100) : 0, completed, total: pH.length, color: PARTICIPANT_COLORS[p] || '#6366f1' };
-  }), [getRangeHabits, allParticipants]);
 
   const currentWeekHabits = useMemo(() => habits.filter(h => h.weekStart === currentWeek), [habits, currentWeek]);
   
@@ -3477,50 +3420,6 @@ JSON array only:`
     return result;
   }, [habits, myParticipant, currentWeek]);
 
-  // Daily stats for current week (Week at a Glance)
-  const dailyStats = useMemo(() => {
-    const habitsToUse = dashboardView === 'personal' 
-      ? currentWeekHabits.filter(h => h.participant === myParticipant)
-      : currentWeekHabits;
-    
-    const weekStart = currentWeek ? new Date(currentWeek + 'T00:00:00') : new Date();
-    
-    return DAYS.map((dayName, dayIndex) => {
-      const dayDate = new Date(weekStart);
-      dayDate.setDate(dayDate.getDate() + dayIndex);
-      
-      const isToday = dayDate.toDateString() === new Date().toDateString();
-      const isPast = dayDate < new Date() && !isToday;
-      const isFuture = dayDate > new Date();
-      
-      // Count habits completed on this day
-      let completed = 0;
-      let total = 0;
-      
-      habitsToUse.forEach(h => {
-        total++;
-        if (h.daysCompleted?.includes(dayIndex)) {
-          completed++;
-        }
-      });
-      
-      const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
-      
-      return {
-        dayIndex,
-        dayName,
-        shortName: dayName.slice(0, 3),
-        date: dayDate,
-        dateStr: dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        completed,
-        total,
-        rate,
-        isToday,
-        isPast,
-        isFuture
-      };
-    });
-  }, [currentWeekHabits, currentWeek, dashboardView, myParticipant]);
   
   // Ensure selectedParticipant syncs to a valid value when data changes
   useEffect(() => {
@@ -4144,7 +4043,7 @@ JSON array only:`
     const taskDoc = {
       id: `task_${Date.now()}`,
       task: newTask.task,
-      due_date: newTask.dueDate || new Date().toISOString().split('T')[0],
+      due_date: newTask.dueDate || toLocalISODate(new Date()),
       priority: newTask.priority,
       category: newTask.category,
       status: 'Not Started',
@@ -4189,7 +4088,7 @@ JSON array only:`
     if (!batchTaskInput.trim()) return;
     
     const lines = batchTaskInput.split('\n').filter(line => line.trim());
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalISODate(new Date());
     
     let addedCount = 0;
     let errors = [];
@@ -4312,7 +4211,7 @@ Respond with ONLY a JSON array of strings, no other text, no markdown. Example:
   const addSubtasksFromAI = async () => {
     if (!aiBreakdownTask || aiSubtasks.length === 0) return;
     
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalISODate(new Date());
     let addedCount = 0;
     let errors = [];
     
@@ -4795,7 +4694,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
             tasksToCreate.push({
               id: `task_${Date.now()}_rec_${week}_${day}_${Math.random().toString(36).substr(2, 5)}`,
               task,
-              due_date: date.toISOString().split('T')[0],
+              due_date: toLocalISODate(date),
               time_slot: time_slot || null,
               priority: priority || 'Medium',
               category: category || 'Work',
@@ -4819,7 +4718,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
             tasksToCreate.push({
               id: `task_${Date.now()}_rec_${week}_${dayName}_${Math.random().toString(36).substr(2, 5)}`,
               task,
-              due_date: date.toISOString().split('T')[0],
+              due_date: toLocalISODate(date),
               time_slot: time_slot || null,
               priority: priority || 'Medium',
               category: category || 'Work',
@@ -5159,20 +5058,9 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     // Determine which week to use - prefer the editing task's due date, otherwise current week
     let targetWeekStart;
     if (editingTask?.dueDate) {
-      const taskDate = new Date(editingTask.dueDate + 'T00:00:00');
-      const dayOfWeek = taskDate.getDay();
-      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(taskDate);
-      monday.setDate(taskDate.getDate() + diff);
-      targetWeekStart = monday.toISOString().split('T')[0];
+      targetWeekStart = getMondayOf(`${editingTask.dueDate}T00:00:00`);
     } else {
-      // Use current week
-      const today = new Date();
-      const dayOfWeek = today.getDay();
-      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(today);
-      monday.setDate(today.getDate() + diff);
-      targetWeekStart = monday.toISOString().split('T')[0];
+      targetWeekStart = getCurrentMonday();
     }
     
     console.log('getHabitsForLinking:', { myParticipant, targetWeekStart, habitsCount: habits.length });
@@ -5220,7 +5108,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     }
     
     const today = new Date();
-    let dueDateStr = today.toISOString().split('T')[0];
+    let dueDateStr = toLocalISODate(today);
     let timeSlot = null;
     let priority = 'Medium';
     let cleanText = taskText;
@@ -5238,14 +5126,14 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     if (/\btomorrow\b/i.test(cleanText)) {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      dueDateStr = tomorrow.toISOString().split('T')[0];
+      dueDateStr = toLocalISODate(tomorrow);
       cleanText = cleanText.replace(/\btomorrow\b/gi, '').trim();
     } else if (/\btoday\b/i.test(cleanText)) {
       cleanText = cleanText.replace(/\btoday\b/gi, '').trim();
     } else if (/\bnext week\b/i.test(cleanText)) {
       const nextWeek = new Date(today);
       nextWeek.setDate(nextWeek.getDate() + 7);
-      dueDateStr = nextWeek.toISOString().split('T')[0];
+      dueDateStr = toLocalISODate(nextWeek);
       cleanText = cleanText.replace(/\bnext week\b/gi, '').trim();
     } else if (/\bmonday\b|\btuesday\b|\bwednesday\b|\bthursday\b|\bfriday\b|\bsaturday\b|\bsunday\b/i.test(cleanText)) {
       const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -5257,17 +5145,17 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
         if (daysUntil <= 0) daysUntil += 7;
         const targetDate = new Date(today);
         targetDate.setDate(targetDate.getDate() + daysUntil);
-        dueDateStr = targetDate.toISOString().split('T')[0];
+        dueDateStr = toLocalISODate(targetDate);
         cleanText = cleanText.replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, '').trim();
       }
     } else if (defaultDate === 'tomorrow') {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      dueDateStr = tomorrow.toISOString().split('T')[0];
+      dueDateStr = toLocalISODate(tomorrow);
     } else if (defaultDate === 'nextweek') {
       const nextWeek = new Date(today);
       nextWeek.setDate(nextWeek.getDate() + 7);
-      dueDateStr = nextWeek.toISOString().split('T')[0];
+      dueDateStr = toLocalISODate(nextWeek);
     } else if (defaultDate === 'inbox') {
       dueDateStr = null; // No date = inbox
     }
@@ -5349,7 +5237,7 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     setAiScheduling(true);
     
     // Get existing scheduled tasks for the day
-    const taskDate = task.dueDate || new Date().toISOString().split('T')[0];
+    const taskDate = task.dueDate || toLocalISODate(new Date());
     const dayTasks = tasks.filter(t => t.dueDate === taskDate && t.time_slot && t.id !== taskId);
     const busySlots = dayTasks.map(t => ({ time: t.time_slot, duration: t.time_estimate || 30 }));
     
@@ -5414,15 +5302,15 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
     let dueDateStr;
     const today = new Date();
     if (newDate === 'today') {
-      dueDateStr = today.toISOString().split('T')[0];
+      dueDateStr = toLocalISODate(today);
     } else if (newDate === 'tomorrow') {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      dueDateStr = tomorrow.toISOString().split('T')[0];
+      dueDateStr = toLocalISODate(tomorrow);
     } else if (newDate === 'nextweek') {
       const nextWeek = new Date(today);
       nextWeek.setDate(nextWeek.getDate() + 7);
-      dueDateStr = nextWeek.toISOString().split('T')[0];
+      dueDateStr = toLocalISODate(nextWeek);
     } else if (newDate === 'inbox') {
       dueDateStr = null;
     } else {
@@ -5449,7 +5337,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
       now.setHours(9, 0, 0, 0);
     }
     
-    const dueDateStr = now.toISOString().split('T')[0];
+    const dueDateStr = toLocalISODate(now);
     const timeSlot = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     
     await updateTask(taskId, { due_date: dueDateStr, time_slot: timeSlot });
@@ -5580,7 +5468,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
   // Mood tracking functions
   const saveMood = async () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalISODate(new Date());
     const moodDoc = {
       id: `mood_${today}_${user?.uid}`,
       date: today,
@@ -5599,7 +5487,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
   // Get today's mood entry
   const todaysMoodEntry = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalISODate(new Date());
     return moodData.find(m => m.date === today && m.userId === user?.uid);
   }, [moodData, user]);
 
@@ -5619,14 +5507,14 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
         past4Weeks.includes(h.weekStart)
       );
       
-      // Calculate success rates for each habit
+      // Calculate success rates for each habit (countable only, clamped)
       const habitStats = {};
-      pastHabits.forEach(h => {
+      pastHabits.filter(isCountableHabit).forEach(h => {
         const key = h.habit;
         if (!habitStats[key]) {
           habitStats[key] = { habit: key, totalCompleted: 0, totalTarget: 0, count: 0 };
         }
-        habitStats[key].totalCompleted += h.daysCompleted?.length || 0;
+        habitStats[key].totalCompleted += countedDays(h);
         habitStats[key].totalTarget += h.target || 5;
         habitStats[key].count++;
       });
@@ -5919,73 +5807,6 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
     setAiLoading(false);
     setAiFollowUp('');
   };
-
-  // Generate AI summaries for all participants
-  const generateParticipantSummaries = async () => {
-    if (summaryLoading) return;
-    setSummaryLoading(true);
-    
-    try {
-      // Get last 4 weeks of data
-      const idx = ALL_WEEKS.indexOf(currentWeek);
-      const past4Weeks = ALL_WEEKS.slice(Math.max(0, idx - 3), idx + 1);
-      const recentHabits = habits.filter(h => past4Weeks.includes(h.weekStart));
-      
-      const summaries = {};
-      
-      for (const participant of allParticipants) {
-        const pHabits = recentHabits.filter(h => h.participant === participant);
-        if (pHabits.length === 0) {
-          summaries[participant] = "⏸️ No habits tracked recently";
-          continue;
-        }
-        
-        const completed = pHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-        const exceeded = pHabits.filter(h => getStatus(h) === 'Exceeded').length;
-        const missed = pHabits.filter(h => getStatus(h) === 'Missed').length;
-        const rate = pHabits.length > 0 ? Math.round((completed / pHabits.length) * 100) : 0;
-        
-        // Get top habit names
-        const habitNames = [...new Set(pHabits.map(h => h.habit))];
-        const topHabit = habitNames[0] || '';
-        
-        // Generate contextual summary
-        if (rate >= 90) {
-          if (exceeded > 2) {
-            summaries[participant] = `🔥 On fire! Exceeding ${exceeded} goals`;
-          } else {
-            summaries[participant] = `⭐ Excellent consistency at ${rate}%`;
-          }
-        } else if (rate >= 75) {
-          summaries[participant] = `📈 Strong momentum, ${completed}/${pHabits.length} completed`;
-        } else if (rate >= 60) {
-          summaries[participant] = `💪 Good progress, building habits`;
-        } else if (rate >= 40) {
-          summaries[participant] = missed > 2 ? `🎯 ${missed} habits need attention` : `🌱 Growing, ${rate}% completion`;
-        } else if (rate > 0) {
-          summaries[participant] = `🌱 Getting started, keep going!`;
-        } else {
-          summaries[participant] = `⏸️ Time to get back on track`;
-        }
-      }
-      
-      setParticipantSummaries(summaries);
-    } catch (error) {
-      console.error('Failed to generate summaries:', error);
-    }
-    
-    setSummaryLoading(false);
-  };
-
-  // Auto-generate summaries when data changes (debounced)
-  useEffect(() => {
-    if (allParticipants.length > 0 && habits.length > 0) {
-      const timer = setTimeout(() => {
-        generateParticipantSummaries();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [allParticipants, habits, currentWeek]);
 
   // Add a suggested habit
   const addSuggestedHabit = async (habit, index) => {
@@ -6347,7 +6168,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
       
       // Generate filename
       const themeName = (quote.theme || 'Quote').replace(/[^a-zA-Z0-9]/g, '_');
-      const weekStr = quote.weekOf || new Date().toISOString().split('T')[0];
+      const weekStr = quote.weekOf || toLocalISODate(new Date());
       
       // Download
       pptx.writeFile({ fileName: `${themeName}_${weekStr}.pptx` })
@@ -6448,6 +6269,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           </div>
           <h1 className="text-2xl font-bold text-[#1E3A5F]">Your account is paused</h1>
           <p className="text-gray-500 mt-2 text-sm">Your data and streak are safe. Resume whenever you're ready to get back to it.</p>
+          {accountActionError && (
+            <p className="text-xs text-red-500 mt-3 break-words">{accountActionError}</p>
+          )}
           <button
             onClick={handleResumeAccount}
             disabled={accountBusy}
@@ -6750,58 +6574,55 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           <div className="space-y-5">
             {(() => {
               const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+              // Completed weeks only: `< currentWeekStart` excludes both the
+              // in-progress week and future-dated docs (e.g. next-week NN
+              // habits auto-created early), which used to zero the default view.
               const weeksWithData = [...new Set(habits.map(h => h.weekStart))].sort();
-              const pastWeeks = weeksWithData.filter(w => w !== currentWeek);
+              const pastWeeks = weeksWithData.filter(w => w < currentWeekStart);
               const periodWeeks = statsPeriod === 'week' ? pastWeeks.slice(-1) : pastWeeks.slice(-4);
               const last8Weeks = pastWeeks.slice(-8);
 
-              const myWeekHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
-              const weekCompleted = myWeekHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-              const weekTarget = myWeekHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-              const weekRate = weekTarget > 0 ? Math.round((weekCompleted / weekTarget) * 100) : 0;
-              const weekScorecard = myWeekHabits.length > 0
-                ? Math.round((myWeekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length / myWeekHabits.length) * 100)
+              // Day-level rate math uses the shared canonical rules:
+              // countable habits only (no percentage-type / target-0),
+              // completions clamped to target — same as Compete/Scorecard.
+              const dayRate = (hs) => {
+                const countable = hs.filter(isCountableHabit);
+                const target = countable.reduce((sum, h) => sum + (h.target || 5), 0);
+                const completed = countable.reduce((sum, h) => sum + countedDays(h), 0);
+                return { rate: target > 0 ? Math.round((completed / target) * 100) : 0, completed, target };
+              };
+              const statusRate = (hs) => hs.length > 0
+                ? Math.round((hs.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length / hs.length) * 100)
                 : 0;
+
+              const myWeekHabits = habits.filter(h => h.weekStart === currentWeek && h.participant === myParticipant);
+              const { rate: weekRate } = dayRate(myWeekHabits);
+              const weekScorecard = statusRate(myWeekHabits);
 
               const myPeriodHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === myParticipant);
-              const periodCompleted = myPeriodHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-              const periodTarget = myPeriodHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-              const periodRate = periodTarget > 0 ? Math.round((periodCompleted / periodTarget) * 100) : 0;
-              const periodScorecard = myPeriodHabits.length > 0
-                ? Math.round((myPeriodHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length / myPeriodHabits.length) * 100)
-                : 0;
+              const { rate: periodRate } = dayRate(myPeriodHabits);
+              const periodScorecard = statusRate(myPeriodHabits);
 
+              // Team ranking uses the canonical day-level rate (same quantity
+              // Compete ranks by), not the status share it used to sort by.
               const teamStats = allParticipants.map(p => {
                 const pHabits = habits.filter(h => periodWeeks.includes(h.weekStart) && h.participant === p);
-                const completed = pHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                const target = pHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                const scorecard = pHabits.length > 0
-                  ? Math.round((pHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length / pHabits.length) * 100)
-                  : 0;
-                return { name: p, rate: target > 0 ? Math.round((completed / target) * 100) : 0, scorecard };
-              }).filter(p => p.rate > 0 || p.name === myParticipant).sort((a, b) => b.scorecard - a.scorecard);
+                return { name: p, rate: computeRate(pHabits, vacations, p), scorecard: statusRate(pHabits) };
+              }).filter(p => p.rate > 0 || p.name === myParticipant).sort((a, b) => b.rate - a.rate);
 
               const activeTeam = teamStats.filter(p => p.rate > 0);
-              const teamAvg = activeTeam.length > 0 ? Math.round(activeTeam.reduce((sum, p) => sum + p.scorecard, 0) / activeTeam.length) : 0;
+              const teamAvg = activeTeam.length > 0 ? Math.round(activeTeam.reduce((sum, p) => sum + p.rate, 0) / activeTeam.length) : 0;
               const myRank = teamStats.findIndex(p => p.name === myParticipant) + 1;
-              const diff = periodScorecard - teamAvg;
+              const diff = periodRate - teamAvg;
 
               const trendData = last8Weeks.map(week => {
                 const wHabits = habits.filter(h => h.weekStart === week && h.participant === myParticipant);
-                const completed = wHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                const target = wHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                const rate = target > 0 ? Math.round((completed / target) * 100) : 0;
-                const scorecard = wHabits.length > 0
-                  ? Math.round((wHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length / wHabits.length) * 100)
-                  : 0;
-                return { week: week.slice(5), rate, scorecard };
+                return { week: week.slice(5), rate: dayRate(wHabits).rate, scorecard: statusRate(wHabits) };
               });
 
               const categoryData = HABIT_CATEGORIES.map(cat => {
                 const catHabits = myPeriodHabits.filter(h => h.category === cat.id);
-                const completed = catHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                const target = catHabits.reduce((sum, h) => sum + (h.target || 0), 0);
-                return { ...cat, rate: target > 0 ? Math.round((completed / target) * 100) : 0, count: catHabits.length };
+                return { ...cat, rate: dayRate(catHabits).rate, count: catHabits.length };
               }).filter(c => c.count > 0).sort((a, b) => b.rate - a.rate);
 
               const hour = new Date().getHours();
@@ -7118,8 +6939,12 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               const dailyHabits = myHabits.filter(h => h.habitType !== 'percentage');
               const todayCompleted = dailyHabits.filter(h => (h.daysCompleted || []).includes(todayIndex)).length;
               const todayTotal = dailyHabits.length;
-              const weekCompleted = myHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-              const weekTarget = myHabits.reduce((sum, h) => sum + (h.target || 5), 0);
+              // Countable habits only — a percentage habit's target is a
+              // percent (e.g. 80), not a day count, and used to add phantom
+              // days to this denominator.
+              const weekCountable = myHabits.filter(isCountableHabit);
+              const weekCompleted = weekCountable.reduce((sum, h) => sum + countedDays(h), 0);
+              const weekTarget = weekCountable.reduce((sum, h) => sum + (h.target || 5), 0);
               const weekPct = weekTarget > 0 ? Math.round((weekCompleted / weekTarget) * 100) : 0;
               
               // Non-negotiables check
@@ -7596,8 +7421,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                          weekDate.getFullYear() === monthlyViewMonth.year &&
                          (!viewParticipant || h.participant === viewParticipant);
                 });
-                const totalCompleted = monthHabits.reduce((sum, h) => sum + (h.daysCompleted?.length || 0), 0);
-                const totalTarget = monthHabits.reduce((sum, h) => sum + (h.target || 0), 0);
+                const monthCountable = monthHabits.filter(isCountableHabit);
+                const totalCompleted = monthCountable.reduce((sum, h) => sum + countedDays(h), 0);
+                const totalTarget = monthCountable.reduce((sum, h) => sum + (h.target || 5), 0);
                 const progressPct = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
                 const uniqueHabits = new Set(monthHabits.map(h => h.habit)).size;
                 
@@ -7684,8 +7510,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                           };
                         }
                         baseGroups[baseKey].weeks.push(h);
-                        baseGroups[baseKey].totalTarget += h.target || 0;
-                        baseGroups[baseKey].totalCompleted += h.daysCompleted?.length || 0;
+                        // Percentage habits contribute nothing to day totals
+                        baseGroups[baseKey].totalTarget += isCountableHabit(h) ? (h.target || 5) : 0;
+                        baseGroups[baseKey].totalCompleted += isCountableHabit(h) ? countedDays(h) : 0;
                       });
 
                       // Step 2: Apply grouping based on mode
@@ -7891,7 +7718,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               const isInWeek = !!weekHabit;
                               const isCompleted = weekHabit?.daysCompleted?.includes(dayOfWeek);
                               const canToggle = isMyHabit && isInWeek;
-                              const dayDateISO = dayDate.toISOString().split('T')[0];
+                              const dayDateISO = toLocalISODate(dayDate);
                               const isVacation = weekHabit && isVacationDay(dayDateISO, vacations, weekHabit.participant);
 
                               return (
@@ -8028,7 +7855,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   {(() => {
                     const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
                     const viewTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
-                    const today = new Date().toISOString().split('T')[0];
+                    const today = toLocalISODate(new Date());
                     const todayTasks = viewTasks.filter(t => t.dueDate === today);
                     const todayCompleted = todayTasks.filter(t => t.status === 'Completed').length;
                     const todayTotal = todayTasks.length;
@@ -8166,7 +7993,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   <div className="divide-y divide-gray-100 dark:divide-gray-700">
                     {(() => {
                       const viewParticipant = selectedParticipant === 'All' ? null : selectedParticipant;
-                      const today = new Date().toISOString().split('T')[0];
+                      const today = toLocalISODate(new Date());
                       const myParticipant = userProfile?.linkedParticipant || user?.displayName;
                       
                       let filteredTasks = viewParticipant ? tasks.filter(t => t.participant === viewParticipant) : tasks;
@@ -8910,11 +8737,15 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}`}>
                 <h3 className={`font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Team Leaderboard</h3>
                 <div className="space-y-2">
-                  {allParticipants.map((p, idx) => {
-                    const pH = getRangeHabits.filter(h => h.participant === p);
-                    const rate = computeRate(pH, vacations, p);
+                  {/* Sort by the same rate the row displays BEFORE assigning
+                      rank badges — this list used to bake ranks in first and
+                      then sort by a different quantity (done-habit count). */}
+                  {allParticipants
+                    .map(p => ({ p, rate: computeRate(getRangeHabits.filter(h => h.participant === p), vacations, p) }))
+                    .sort((a, b) => b.rate - a.rate)
+                    .map(({ p, rate }, idx) => {
                     const isMe = p === myParticipant;
-                    
+
                     return (
                       <div key={p} className={`flex items-center gap-3 p-2 rounded-lg ${isMe ? (darkMode ? 'bg-[#1E3A5F]/30 border border-[#1E3A5F]/50' : 'bg-blue-50 border border-blue-200') : ''}`}>
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -8928,11 +8759,6 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{rate}%</span>
                       </div>
                     );
-                  }).sort((a, b) => {
-                    // Sort by rate descending
-                    const aRate = getRangeHabits.filter(h => h.participant === a.key).filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                    const bRate = getRangeHabits.filter(h => h.participant === b.key).filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                    return bRate - aRate;
                   })}
                 </div>
               </div>
@@ -9496,37 +9322,43 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               const periodLabels = { month: 'Last 4 weeks', quarter: 'Last 13 weeks', year: 'Last 52 weeks' };
               const periodLabel = periodLabels[insightsTimePeriod] || 'Last 13 weeks';
               
-              const today = new Date();
-              const startDate = new Date(today);
+              const startDate = new Date();
               startDate.setDate(startDate.getDate() - (weeksBack * 7));
-              const periodStartDate = startDate.toISOString().split('T')[0];
+              const periodStartDate = toLocalISODate(startDate);
               
-              // Get current week start to EXCLUDE it
-              const currentWeekStart = getCurrentMonday();
-              
-              // Filter habits: within period AND exclude current week
-              const myHabits = habits.filter(h => 
-                h.participant === myParticipant && 
+              // Filter habits: within period AND exclude current + future weeks
+              const myHabits = habits.filter(h =>
+                h.participant === myParticipant &&
                 h.weekStart >= periodStartDate &&
-                h.weekStart !== currentWeekStart
+                h.weekStart < currentWeekStart
               );
               const totalHabits = myHabits.length;
               const completedHabits = myHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
               const exceededHabits = myHabits.filter(h => getStatus(h) === 'Exceeded').length;
-              
+
               // Score calculations (300-850 scale like credit score)
-              // Rebalanced so 850 requires excellence across ALL factors
-              const completionRate = totalHabits > 0 ? (completedHabits / totalHabits) * 100 : 0;
+              // Rebalanced so 850 requires excellence across ALL factors.
+              // Main factor is the canonical day-level rate — the same
+              // equation as Compete/Scorecard (not the old status share).
+              // A member tracking ONLY percentage-type habits has no
+              // day-countable data, so fall back to the status share rather
+              // than collapsing their score to the floor.
+              const hasCountable = myHabits.some(isCountableHabit);
+              const completionRate = hasCountable
+                ? computeRate(myHabits, vacations, myParticipant)
+                : (totalHabits > 0 ? Math.round((completedHabits / totalHabits) * 100) : 0);
               const completionPoints = Math.round(completionRate * 3); // 0-300 points (main factor)
-              
+
               const currentStreak = calculateStreaks[myParticipant] || 0;
               const streakPoints = Math.min(currentStreak * 12, 100); // 0-100 points (need 8+ weeks for max)
-              
-              const uniqueWeeks = [...new Set(myHabits.map(h => h.weekStart))].sort();
+
+              const uniqueWeeks = [...new Set(myHabits.map(h => h.weekStart))].sort()
+                .filter(w => !isFullVacationWeek(w, vacations, myParticipant));
               const weeklyRates = uniqueWeeks.map(week => {
-                const weekHabits = myHabits.filter(h => h.weekStart === week);
-                const weekCompleted = weekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                return weekHabits.length > 0 ? (weekCompleted / weekHabits.length) * 100 : null;
+                const weekHabits = myHabits.filter(h => h.weekStart === week && isCountableHabit(h));
+                const target = weekHabits.reduce((s, h) => s + (h.target || 5), 0);
+                const completed = weekHabits.reduce((s, h) => s + countedDays(h), 0);
+                return target > 0 ? (completed / target) * 100 : null;
               }).filter(r => r !== null);
               const avgRate = weeklyRates.length > 0 ? weeklyRates.reduce((a, b) => a + b, 0) / weeklyRates.length : 0;
               const variance = weeklyRates.length > 1 ? weeklyRates.reduce((sum, r) => sum + Math.pow(r - avgRate, 2), 0) / weeklyRates.length : 0;
@@ -9559,12 +9391,13 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               const rating = getScoreRating(totalScore);
               
               // Score history (weekly scores) - also rebalanced
-              const allWeeksData = [...new Set(habits.filter(h => h.participant === myParticipant).map(h => h.weekStart))].sort().slice(-12);
+              const allWeeksData = [...new Set(habits.filter(h => h.participant === myParticipant).map(h => h.weekStart))]
+                .filter(w => w < currentWeekStart) // completed weeks only — no in-progress/future docs
+                .sort().slice(-12);
               const scoreHistory = allWeeksData.map(week => {
                 const weekHabits = habits.filter(h => h.participant === myParticipant && h.weekStart === week);
-                const completed = weekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
                 const exceeded = weekHabits.filter(h => getStatus(h) === 'Exceeded').length;
-                const rate = weekHabits.length > 0 ? (completed / weekHabits.length) * 100 : 0;
+                const rate = computeRate(weekHabits, vacations, myParticipant);
                 const exceedRate = weekHabits.length > 0 ? (exceeded / weekHabits.length) * 100 : 0;
                 // Weekly score: base 300 + completion (0-300) + excellence bonus (0-50)
                 const weekScore = Math.round(300 + (rate * 3) + (exceedRate * 0.5));
@@ -9579,7 +9412,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   maxPoints: 300, 
                   impact: 'High',
                   status: completionRate >= 80 ? 'positive' : completionRate >= 60 ? 'neutral' : 'negative',
-                  detail: `${Math.round(completionRate)}% of habits completed`,
+                  detail: `${Math.round(completionRate)}% of habit days completed`,
                   tip: completionRate < 80 ? 'Complete more habits to boost your score' : 'Great job staying on track!'
                 },
                 { 
@@ -9597,7 +9430,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   maxPoints: 100, 
                   impact: 'Medium',
                   status: currentStreak >= 4 ? 'positive' : currentStreak >= 2 ? 'neutral' : 'negative',
-                  detail: `${currentStreak} week${currentStreak !== 1 ? 's' : ''} at 80%+`,
+                  detail: `${currentStreak} week${currentStreak !== 1 ? 's' : ''} at 70%+`,
                   tip: currentStreak < 4 ? 'Build momentum with consecutive strong weeks' : 'Keep the streak alive!'
                 },
                 { 
@@ -10041,9 +9874,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       <p className={`text-xs font-medium ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>This Week</p>
                       <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                         {(() => {
+                          // Day-level rate — same equation as the tracker ring
                           const thisWeekHabits = habits.filter(h => h.participant === myParticipant && h.weekStart === currentWeekStart);
-                          const completed = thisWeekHabits.filter(h => ['Done', 'Exceeded'].includes(getStatus(h))).length;
-                          return thisWeekHabits.length > 0 ? Math.round((completed / thisWeekHabits.length) * 100) : 0;
+                          return computeRate(thisWeekHabits, vacations, myParticipant);
                         })()}%
                       </p>
                       <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>in progress</p>
@@ -10058,7 +9891,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     <div className={`p-4 rounded-xl ${darkMode ? 'bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/20' : 'bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200'}`}>
                       <p className={`text-xs font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>Streak</p>
                       <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{currentStreak}</p>
-                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>weeks at 80%+</p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>weeks at 70%+</p>
                     </div>
                     <div className={`p-4 rounded-xl ${darkMode ? 'bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/20' : 'bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200'}`}>
                       <p className={`text-xs font-medium ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>Total Habits</p>
@@ -10955,7 +10788,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         🎯 {userProfile.linkedParticipant}
                       </span>
                       {(() => {
-                        const t = new Date().toISOString().split('T')[0];
+                        const t = toLocalISODate(new Date());
                         const myActiveVacation = vacations.find(v =>
                           v.participant === userProfile.linkedParticipant &&
                           v.startDate && v.endDate &&
@@ -11516,9 +11349,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               
               {/* Past Week Summary */}
               {(() => {
-                const lastWeek = new Date(currentWeek);
-                lastWeek.setDate(lastWeek.getDate() - 7);
-                const lastWeekStr = lastWeek.toISOString().split('T')[0];
+                const lastWeekStr = previousISOWeek(currentWeek);
                 const lastWeekGoals = weeklyGoals.filter(g => g.weekStart === lastWeekStr);
                 const completedCount = lastWeekGoals.filter(g => g.status === 'completed').length;
                 
@@ -14182,8 +14013,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       habitFrequency[h.habit] = { habit: h.habit, participant: h.participant, count: 0, totalCompleted: 0, totalTarget: 0 };
                     }
                     habitFrequency[h.habit].count++;
-                    habitFrequency[h.habit].totalCompleted += h.daysCompleted?.length || 0;
-                    habitFrequency[h.habit].totalTarget += h.target || 0;
+                    habitFrequency[h.habit].totalCompleted += isCountableHabit(h) ? countedDays(h) : 0;
+                    habitFrequency[h.habit].totalTarget += isCountableHabit(h) ? (h.target || 5) : 0;
                   });
                   
                   const sortedHabits = Object.values(habitFrequency).sort((a, b) => b.count - a.count);

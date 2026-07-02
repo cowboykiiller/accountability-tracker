@@ -2,8 +2,8 @@
   "currentWeek": "2026-05-25",
   "participants": {
     "Brandon": {
-      "rate_noArgs": 83,
-      "rate_emptyVacations": 83,
+      "rate_noArgs": 76,
+      "rate_emptyVacations": 76,
       "streak_noArgs": 0,
       "streak_emptyVacations": 0,
       "streak_irrelevantVacations": 0
@@ -16,22 +16,22 @@
       "streak_irrelevantVacations": 0
     },
     "John": {
-      "rate_noArgs": 69,
-      "rate_emptyVacations": 69,
+      "rate_noArgs": 56,
+      "rate_emptyVacations": 56,
       "streak_noArgs": 0,
       "streak_emptyVacations": 0,
       "streak_irrelevantVacations": 0
     },
     "Taylor": {
-      "rate_noArgs": 87,
-      "rate_emptyVacations": 87,
+      "rate_noArgs": 78,
+      "rate_emptyVacations": 78,
       "streak_noArgs": 0,
       "streak_emptyVacations": 0,
       "streak_irrelevantVacations": 0
     },
     "aaron": {
-      "rate_noArgs": 74,
-      "rate_emptyVacations": 74,
+      "rate_noArgs": 70,
+      "rate_emptyVacations": 70,
       "streak_noArgs": 0,
       "streak_emptyVacations": 0,
       "streak_irrelevantVacations": 0
