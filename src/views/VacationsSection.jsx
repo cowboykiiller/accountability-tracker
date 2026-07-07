@@ -3,6 +3,7 @@
 // useEffect / useMemo / useCallback / useRef in this file.
 import React, { useMemo, useState } from 'react';
 import { Plus, Edit3, Trash2, X, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
+import AddToCalendarButton from './AddToCalendarButton';
 
 // LOCAL calendar date — toISOString() would flip to tomorrow during US evenings.
 const today = () => {
@@ -173,7 +174,7 @@ const VacationFormModal = ({ open, mode, initial, existingVacations, editingId, 
   );
 };
 
-const VacationRow = ({ vacation, onEdit, onDelete, darkMode }) => (
+const VacationRow = ({ vacation, onEdit, onDelete, darkMode, showCalendar }) => (
   <div className={`flex items-start justify-between gap-3 p-3 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
     <div className="flex-1 min-w-0">
       <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
@@ -184,6 +185,18 @@ const VacationRow = ({ vacation, onEdit, onDelete, darkMode }) => (
       )}
     </div>
     <div className="flex gap-1">
+      {showCalendar && (
+        <AddToCalendarButton
+          darkMode={darkMode}
+          event={{
+            title: vacation.note ? `Vacation: ${vacation.note}` : 'Vacation',
+            details: 'Accountability Tracker — streak and rate are paused for full vacation weeks.',
+            startDate: vacation.startDate,
+            endDate: vacation.endDate,
+            uid: `vacation-${vacation.id}@accountability-tracker`
+          }}
+        />
+      )}
       <button onClick={onEdit} className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`} title="Edit">
         <Edit3 className="w-3.5 h-3.5 text-blue-500" />
       </button>
@@ -307,7 +320,7 @@ const VacationsSection = ({
           {sectionHeader('Currently on vacation')}
           <div className="space-y-2">
             {current.map(v => (
-              <VacationRow key={v.id} vacation={v} onEdit={() => openEdit(v)} onDelete={() => handleDelete(v)} darkMode={darkMode} />
+              <VacationRow key={v.id} vacation={v} onEdit={() => openEdit(v)} onDelete={() => handleDelete(v)} darkMode={darkMode} showCalendar />
             ))}
           </div>
         </div>
@@ -318,7 +331,7 @@ const VacationsSection = ({
           {sectionHeader('Upcoming')}
           <div className="space-y-2">
             {upcoming.map(v => (
-              <VacationRow key={v.id} vacation={v} onEdit={() => openEdit(v)} onDelete={() => handleDelete(v)} darkMode={darkMode} />
+              <VacationRow key={v.id} vacation={v} onEdit={() => openEdit(v)} onDelete={() => handleDelete(v)} darkMode={darkMode} showCalendar />
             ))}
           </div>
         </div>

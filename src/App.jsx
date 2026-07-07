@@ -24,6 +24,7 @@ import { computeRate, computeStreak, computeScore, computeLongestStreak, previou
 import { computeMidYearReport, generateReportPDF, SECTORS, sectorForHabit } from './lib/report';
 import BooksPage from './views/BooksPage';
 import VacationsSection from './views/VacationsSection';
+import AddToCalendarButton from './views/AddToCalendarButton';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
@@ -10942,6 +10943,35 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   saveVacation={saveVacation}
                   deleteVacation={deleteVacation}
                 />
+
+                {/* Weekly check-in calendar reminder */}
+                <div className={`rounded-xl p-6 border flex items-center justify-between gap-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+                  <div className="min-w-0">
+                    <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Weekly Check-In Reminder</h3>
+                    <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Add a repeating Sunday 7pm event to your calendar so you log your habits before the week closes.
+                    </p>
+                  </div>
+                  <AddToCalendarButton
+                    darkMode={darkMode}
+                    label="Add to Calendar"
+                    event={{
+                      title: 'Log habits — Accountability Tracker',
+                      details: 'The week closes tonight — log your habits in the Accountability Tracker app.',
+                      startDate: (() => {
+                        // Next Sunday (or today, if it's Sunday) in local time.
+                        const d = new Date();
+                        d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+                        const pad = (n) => String(n).padStart(2, '0');
+                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                      })(),
+                      startTime: '19:00',
+                      endTime: '19:30',
+                      recurrence: 'FREQ=WEEKLY;BYDAY=SU',
+                      uid: 'weekly-checkin@accountability-tracker'
+                    }}
+                  />
+                </div>
 
                 {/* Active Challenges */}
                 <div className={`rounded-xl p-6 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100"}`}>
