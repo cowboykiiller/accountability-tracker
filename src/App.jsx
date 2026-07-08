@@ -1104,11 +1104,6 @@ export default function AccountabilityTracker() {
   const [recurringTasks, setRecurringTasks] = useState([]);
   const [editingRecurring, setEditingRecurring] = useState(null);
   
-  // Google Calendar Integration
-  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
-  const [googleCalendarEvents, setGoogleCalendarEvents] = useState([]);
-  const [syncingCalendar, setSyncingCalendar] = useState(false);
-  
   // Non-Negotiables state - 3 core habits that never change
   const [nonNegotiables, setNonNegotiables] = useState([]);
   const [showNonNegotiableModal, setShowNonNegotiableModal] = useState(false);
