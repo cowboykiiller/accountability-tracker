@@ -24,6 +24,7 @@ import { computeRate, computeStreak, computeScore, computeLongestStreak, previou
 import { computeMidYearReport, generateReportPDF, SECTORS, sectorForHabit } from './lib/report';
 import BooksPage from './views/BooksPage';
 import VacationsSection from './views/VacationsSection';
+import DashboardCalendar from './views/DashboardCalendar';
 import {
   connectGoogleCalendar,
   disconnectGoogleCalendar,
@@ -31,7 +32,8 @@ import {
   getCalendarToken,
   upsertVacationEvent,
   deleteCalendarEvent,
-  createWeeklyReminderEvent
+  createWeeklyReminderEvent,
+  listUpcomingEvents
 } from './lib/googleCalendar';
 
 // Firebase imports
@@ -854,6 +856,8 @@ export default function AccountabilityTracker() {
   const [vacations, setVacations] = useState([]);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [calendarBusy, setCalendarBusy] = useState(false);
+  const [gcalEvents, setGcalEvents] = useState([]);
+  const [gcalAuthNeeded, setGcalAuthNeeded] = useState(false);
   const [habitNormGroups, setHabitNormGroups] = useState({}); // { "normalizedName": ["Exercise", "Workout", "Gym"] }
   const [categorizingHabits, setCategorizingHabits] = useState(false);
   const [normalizingHabits, setNormalizingHabits] = useState(false);
@@ -1421,6 +1425,46 @@ export default function AccountabilityTracker() {
   useEffect(() => {
     setCalendarConnected(isCalendarConnected(user?.uid));
   }, [user]);
+
+  // Load upcoming Google events for the dashboard calendar. Non-interactive:
+  // an expired token flips gcalAuthNeeded so the panel shows a refresh button
+  // instead of popping a surprise consent window.
+  useEffect(() => {
+    if (activeView !== 'dashboard' || !calendarConnected || !user) return;
+    let cancelled = false;
+    (async () => {
+      const token = await getCalendarToken({ auth, interactive: false });
+      if (!token) {
+        if (!cancelled) setGcalAuthNeeded(true);
+        return;
+      }
+      try {
+        const events = await listUpcomingEvents(token);
+        if (!cancelled) {
+          setGcalEvents(events);
+          setGcalAuthNeeded(false);
+        }
+      } catch (err) {
+        console.warn('Calendar events fetch failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeView, calendarConnected, user]);
+
+  const refreshCalendarAccess = async () => {
+    setCalendarBusy(true);
+    try {
+      const token = await getCalendarToken({ auth, interactive: true });
+      if (token) {
+        setGcalEvents(await listUpcomingEvents(token));
+        setGcalAuthNeeded(false);
+      }
+    } catch (err) {
+      console.warn('Calendar refresh failed:', err);
+    } finally {
+      setCalendarBusy(false);
+    }
+  };
 
   // Push a vacation to Google Calendar and record the event id on its doc.
   // Throws on failure — callers decide whether that's fatal or best-effort.
@@ -6785,7 +6829,7 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
               return (
                 <>
                   {/* ============ 1. HERO ============ */}
-                  <div className="relative overflow-hidden rounded-[28px] p-6 shadow-xl" style={{ background: 'linear-gradient(150deg, #294870 0%, #1E3A5F 45%, #122339 100%)' }}>
+                  <div className="relative overflow-hidden rounded-[28px] p-6 lg:p-8 shadow-xl" style={{ background: 'linear-gradient(150deg, #294870 0%, #1E3A5F 45%, #122339 100%)' }}>
                     <div className="absolute -top-16 -right-12 w-52 h-52 rounded-full bg-[#F5B800]/20 blur-3xl pointer-events-none" />
                     <div className="absolute -bottom-20 -left-12 w-52 h-52 rounded-full bg-blue-400/10 blur-3xl pointer-events-none" />
                     <div className="relative">
@@ -6844,6 +6888,9 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     </div>
                   </div>
 
+                  {/* Desktop: 3-column grid (2 on smaller laptops); mobile: stacked */}
+                  <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-5 lg:items-start">
+                  <div className="space-y-5">
                   {/* ============ 2. TODAY'S FOCUS ============ */}
                   <div className={cardCls}>
                     <div className="flex items-center justify-between mb-4">
@@ -6952,6 +6999,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     )}
                   </div>
 
+                  </div>
+                  <div className="space-y-5">
                   {/* ============ 4. ACCOUNTABILITY STATUS (COACH) ============ */}
                   <div className="rounded-3xl p-5 border" style={{ background: statusInfo.bg, borderColor: 'transparent' }}>
                     <div className="flex items-center gap-3">
@@ -6993,6 +7042,22 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                     </div>
                   )}
 
+                  </div>
+                  <div className="space-y-5">
+                  {/* ============ NEW: CALENDAR ============ */}
+                  <DashboardCalendar
+                    darkMode={darkMode}
+                    className={cardCls}
+                    events={gcalEvents}
+                    vacations={vacations}
+                    myParticipant={myParticipant}
+                    connected={calendarConnected}
+                    authNeeded={gcalAuthNeeded}
+                    busy={calendarBusy}
+                    onConnect={handleConnectCalendar}
+                    onRefresh={refreshCalendarAccess}
+                  />
+
                   {/* ============ 6. QUICK ACTIONS ============ */}
                   <div>
                     <h2 className={`${titleCls} mb-3 px-1`}>Quick Actions</h2>
@@ -7004,6 +7069,8 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                         </button>
                       ))}
                     </div>
+                  </div>
+                  </div>
                   </div>
                 </>
               );

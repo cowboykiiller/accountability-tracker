@@ -139,6 +139,32 @@ export const deleteCalendarEvent = async (token, eventId) => {
   }
 };
 
+// Upcoming events for the dashboard calendar, normalized to render-friendly
+// shapes. `endDateExclusive` is only set for all-day events (Google's all-day
+// end date is exclusive, matching how the calendar grid iterates spans).
+export const listUpcomingEvents = async (token, days = 35) => {
+  const timeMin = new Date();
+  timeMin.setHours(0, 0, 0, 0);
+  const timeMax = new Date(timeMin);
+  timeMax.setDate(timeMax.getDate() + days);
+  const params = new URLSearchParams({
+    timeMin: timeMin.toISOString(),
+    timeMax: timeMax.toISOString(),
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '100'
+  });
+  const data = await gcalFetch(token, `?${params.toString()}`, 'GET');
+  return (data?.items || []).map(e => ({
+    id: e.id,
+    title: e.summary || '(no title)',
+    allDay: !!e.start?.date,
+    startDate: e.start?.date || (e.start?.dateTime || '').slice(0, 10),
+    endDateExclusive: e.start?.date ? (e.end?.date || null) : null,
+    startTime: e.start?.dateTime || null
+  }));
+};
+
 // Recurring Sunday-evening reminder in the device's timezone. Returns event id.
 export const createWeeklyReminderEvent = async (token) => {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
