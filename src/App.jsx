@@ -24,7 +24,15 @@ import { computeRate, computeStreak, computeScore, computeLongestStreak, previou
 import { computeMidYearReport, generateReportPDF, SECTORS, sectorForHabit } from './lib/report';
 import BooksPage from './views/BooksPage';
 import VacationsSection from './views/VacationsSection';
-import AddToCalendarButton from './views/AddToCalendarButton';
+import {
+  connectGoogleCalendar,
+  disconnectGoogleCalendar,
+  isCalendarConnected,
+  getCalendarToken,
+  upsertVacationEvent,
+  deleteCalendarEvent,
+  createWeeklyReminderEvent
+} from './lib/googleCalendar';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
@@ -844,6 +852,8 @@ export default function AccountabilityTracker() {
   const [habits, setHabits] = useState([]);
   const [books, setBooks] = useState([]);
   const [vacations, setVacations] = useState([]);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarBusy, setCalendarBusy] = useState(false);
   const [habitNormGroups, setHabitNormGroups] = useState({}); // { "normalizedName": ["Exercise", "Workout", "Gym"] }
   const [categorizingHabits, setCategorizingHabits] = useState(false);
   const [normalizingHabits, setNormalizingHabits] = useState(false);
@@ -1412,15 +1422,100 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
+  // Reflect the per-user Google Calendar connection flag on sign-in/out.
+  useEffect(() => {
+    setCalendarConnected(isCalendarConnected(user?.uid));
+  }, [user]);
+
+  // Push a vacation to Google Calendar and record the event id on its doc.
+  // Throws on failure — callers decide whether that's fatal or best-effort.
+  const syncVacationToCalendar = useCallback(async (vacation) => {
+    const token = await getCalendarToken({ auth, interactive: true });
+    if (!token) throw new Error('Google Calendar is not connected.');
+    const eventId = await upsertVacationEvent(token, vacation);
+    if (eventId !== vacation.googleEventId) {
+      await setDoc(doc(db, 'vacations', vacation.id), { googleEventId: eventId }, { merge: true });
+    }
+  }, []);
+
   const saveVacation = useCallback(async (vacationId, payload) => {
     const id = vacationId || `vacation_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const docPayload = { ...payload, id };
     await setDoc(doc(db, 'vacations', id), docPayload);
-  }, []);
+    // Calendar sync is best-effort: the vacation is saved either way, and an
+    // unsynced row shows a sync button instead of the green check.
+    if (isCalendarConnected(user?.uid)) {
+      try {
+        await syncVacationToCalendar(docPayload);
+      } catch (err) {
+        console.warn('Vacation calendar sync failed:', err);
+      }
+    }
+  }, [user, syncVacationToCalendar]);
 
-  const deleteVacation = useCallback(async (vacationId) => {
+  const deleteVacation = useCallback(async (vacationId, googleEventId) => {
     await deleteDoc(doc(db, 'vacations', vacationId));
-  }, []);
+    if (googleEventId && isCalendarConnected(user?.uid)) {
+      try {
+        const token = await getCalendarToken({ auth, interactive: true });
+        if (token) await deleteCalendarEvent(token, googleEventId);
+      } catch (err) {
+        console.warn('Vacation calendar delete failed:', err);
+      }
+    }
+  }, [user]);
+
+  const handleConnectCalendar = async () => {
+    setCalendarBusy(true);
+    try {
+      await connectGoogleCalendar({ auth });
+      setCalendarConnected(true);
+      // Backfill: push my current/upcoming vacations that aren't on the
+      // calendar yet. Best-effort — rows left unsynced keep a sync button.
+      const me = userProfile?.linkedParticipant?.trim();
+      const nowDate = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const todayStr = `${nowDate.getFullYear()}-${pad(nowDate.getMonth() + 1)}-${pad(nowDate.getDate())}`;
+      const toBackfill = vacations.filter(v => v.participant === me && !v.googleEventId && v.endDate >= todayStr);
+      for (const v of toBackfill) {
+        try { await syncVacationToCalendar(v); } catch (err) { console.warn('Backfill sync failed:', v.id, err); }
+      }
+    } catch (err) {
+      console.error('Calendar connect failed:', err);
+      if (!/cancel|closed-by-user|popup-closed/i.test(String(err?.message || err?.code))) {
+        alert('Could not connect Google Calendar. Try again.');
+      }
+    } finally {
+      setCalendarBusy(false);
+    }
+  };
+
+  const handleDisconnectCalendar = () => {
+    disconnectGoogleCalendar(user?.uid);
+    setCalendarConnected(false);
+  };
+
+  const handleToggleWeeklyReminder = async () => {
+    if (!user) return;
+    setCalendarBusy(true);
+    try {
+      const token = await getCalendarToken({ auth, interactive: true });
+      if (!token) throw new Error('Google Calendar is not connected.');
+      const profileId = userProfile?.id || `profile_${user.uid}`;
+      if (userProfile?.weeklyReminderEventId) {
+        await deleteCalendarEvent(token, userProfile.weeklyReminderEventId);
+        await setDoc(doc(db, 'profiles', profileId), { weeklyReminderEventId: null }, { merge: true });
+      } else {
+        const eventId = await createWeeklyReminderEvent(token);
+        await setDoc(doc(db, 'profiles', profileId), { weeklyReminderEventId: eventId }, { merge: true });
+      }
+    } catch (err) {
+      console.error('Weekly reminder toggle failed:', err);
+      alert('Could not update the weekly reminder on your calendar. Try again.');
+    } finally {
+      setCalendarBusy(false);
+    }
+  };
 
   // Count of finished books this calendar year, per participant. Display only —
   // not used in score calculation.
@@ -10942,35 +11037,68 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   darkMode={darkMode}
                   saveVacation={saveVacation}
                   deleteVacation={deleteVacation}
+                  calendarConnected={calendarConnected}
+                  syncVacation={syncVacationToCalendar}
                 />
 
-                {/* Weekly check-in calendar reminder */}
-                <div className={`rounded-xl p-6 border flex items-center justify-between gap-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-                  <div className="min-w-0">
-                    <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Weekly Check-In Reminder</h3>
-                    <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Add a repeating Sunday 7pm event to your calendar so you log your habits before the week closes.
-                    </p>
+                {/* Google Calendar integration */}
+                <div className={`rounded-xl p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className={`font-semibold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      <Calendar className="w-5 h-5 text-blue-500" />
+                      Google Calendar
+                    </h3>
+                    {calendarConnected && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>
+                    )}
                   </div>
-                  <AddToCalendarButton
-                    darkMode={darkMode}
-                    label="Add to Calendar"
-                    event={{
-                      title: 'Log habits — Accountability Tracker',
-                      details: 'The week closes tonight — log your habits in the Accountability Tracker app.',
-                      startDate: (() => {
-                        // Next Sunday (or today, if it's Sunday) in local time.
-                        const d = new Date();
-                        d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
-                        const pad = (n) => String(n).padStart(2, '0');
-                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-                      })(),
-                      startTime: '19:00',
-                      endTime: '19:30',
-                      recurrence: 'FREQ=WEEKLY;BYDAY=SU',
-                      uid: 'weekly-checkin@accountability-tracker'
-                    }}
-                  />
+                  {!calendarConnected ? (
+                    <>
+                      <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Connect your Google Calendar and the app will keep it in sync automatically —
+                        vacations appear as all-day events, and you can turn on a Sunday-evening reminder
+                        to log your habits before the week closes.
+                      </p>
+                      <button
+                        onClick={handleConnectCalendar}
+                        disabled={calendarBusy}
+                        className="px-4 py-2 rounded-lg font-medium bg-gradient-to-r from-[#1E3A5F] to-[#2d4a6f] text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {calendarBusy ? 'Connecting…' : 'Connect Google Calendar'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Vacations sync to your calendar automatically when you add, edit, or delete them.
+                      </p>
+                      <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className="min-w-0">
+                          <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>Weekly check-in reminder</p>
+                          <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Repeating Sunday 7pm event — log your habits before the week closes.
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleToggleWeeklyReminder}
+                          disabled={calendarBusy}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap disabled:opacity-50 ${
+                            userProfile?.weeklyReminderEventId
+                              ? (darkMode ? 'bg-gray-600 text-gray-200 hover:bg-gray-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+                              : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                          }`}
+                        >
+                          {calendarBusy ? 'Working…' : userProfile?.weeklyReminderEventId ? 'Remove' : 'Add to my calendar'}
+                        </button>
+                      </div>
+                      <button
+                        onClick={handleDisconnectCalendar}
+                        className={`mt-3 text-xs underline ${darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        Disconnect Google Calendar
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {/* Active Challenges */}
