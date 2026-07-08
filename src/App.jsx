@@ -4876,13 +4876,6 @@ Respond with ONLY a valid JSON array of task objects, no markdown, no explanatio
     setShowRecurringModal(false);
   };
 
-  // Google Calendar Integration placeholder
-  const connectGoogleCalendar = async () => {
-    // This requires Google OAuth setup
-    // For now, show instructions modal
-    alert('Google Calendar integration requires setting up OAuth credentials in Google Cloud Console. Coming soon!');
-  };
-
   const updateTaskStatus = async (taskId, newStatus) => {
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.${taskId}`, {
