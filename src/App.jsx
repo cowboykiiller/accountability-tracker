@@ -3636,6 +3636,7 @@ JSON array only:`
           target: habit.target || 5,
           daysCompleted: [],
           category: habit.category || '',
+          isNonNegotiable: habit.isNonNegotiable === true,
           order: habit.order || i
         });
         copied++;
