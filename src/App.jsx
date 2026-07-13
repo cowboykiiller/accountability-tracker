@@ -1112,6 +1112,10 @@ export default function AccountabilityTracker() {
   const [nonNegotiables, setNonNegotiables] = useState([]);
   const [showNonNegotiableModal, setShowNonNegotiableModal] = useState(false);
   const [newNonNegotiable, setNewNonNegotiable] = useState({ habit: '', description: '', frequency: 'Daily' });
+
+  // 67-Day Challenge state - habit-formation challenges fed by daily check-offs
+  const [challenges, setChallenges] = useState([]);
+  const [showChallengeModal, setShowChallengeModal] = useState(false);
   
   // Mood tracking state  
   const [moodData, setMoodData] = useState([]); // {date, mood: 1-10, motivation: 1-10, notes}
@@ -1656,6 +1660,27 @@ export default function AccountabilityTracker() {
       setNonNegotiables(nnData);
     }, (error) => {
       console.error('Non-negotiables error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Listen for 67-day challenges
+  useEffect(() => {
+    if (!user) {
+      setChallenges([]);
+      return;
+    }
+
+    const q = query(collection(db, 'challenges'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const challengeData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setChallenges(challengeData);
+    }, (error) => {
+      console.error('Challenges error:', error);
     });
 
     return () => unsubscribe();
@@ -3097,6 +3122,7 @@ JSON array only:`
         weeklyGoals: (d) => d.userId === uid || ids.includes(d.participant),
         moods: (d) => d.userId === uid || ids.includes(d.participant),
         nonNegotiables: (d) => d.userId === uid || ids.includes(d.participant),
+        challenges: (d) => d.userId === uid || ids.includes(d.participant),
         scheduledEvents: (d) => d.userId === uid || ids.includes(d.participant),
         vacations: (d) => ids.includes(d.participant),
         books: (d) => ids.includes(d.participant),
@@ -3730,6 +3756,72 @@ JSON array only:`
     const timer = setTimeout(autoAddNonNegotiables, 500);
     return () => clearTimeout(timer);
   }, [currentWeek, myParticipant, visionData, habits, vacations]);
+
+  // 67-Day Challenge: complete a habit 67 times to make it automatic
+  // (~66.666 days per the habit-formation research, rounded up).
+  // Total-reps rule: missed days don't reset progress, they just don't add.
+  // Progress is derived from the daily check-offs already on habit docs —
+  // name-matched per participant — so there's no second place to tap.
+  const CHALLENGE_GOAL = 67;
+
+  const challengeProgress = useCallback((challenge) => {
+    const name = (challenge.habit || '').toLowerCase().trim();
+    const todayISO = toLocalISODate(new Date());
+    const completedDates = new Set();
+    for (const h of habits) {
+      if (h.participant !== challenge.participant) continue;
+      if ((h.habit || '').toLowerCase().trim() !== name) continue;
+      // Percentage habits track instances, not calendar days
+      if (!h.weekStart || h.habitType === 'percentage') continue;
+      for (const idx of h.daysCompleted || []) {
+        const d = new Date(h.weekStart + 'T00:00:00');
+        d.setDate(d.getDate() + idx);
+        const iso = toLocalISODate(d);
+        if (iso >= challenge.startDate && iso <= todayISO) completedDates.add(iso);
+      }
+    }
+    const days = Math.min(completedDates.size, CHALLENGE_GOAL);
+    const complete = days >= CHALLENGE_GOAL;
+    // Rough pace projection off calendar days elapsed since start
+    let projectedFinish = null;
+    if (!complete && days > 0) {
+      const elapsed = Math.max(1, Math.round((new Date(todayISO + 'T00:00:00') - new Date(challenge.startDate + 'T00:00:00')) / 86400000) + 1);
+      const finish = new Date(todayISO + 'T00:00:00');
+      finish.setDate(finish.getDate() + Math.ceil((CHALLENGE_GOAL - days) / (days / elapsed)));
+      projectedFinish = finish.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    return { days, pct: Math.round((days / CHALLENGE_GOAL) * 100), complete, projectedFinish };
+  }, [habits]);
+
+  const startChallenge = async (habitName) => {
+    if (!myParticipant || !habitName || !user) return;
+    const id = `challenge_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    try {
+      await setDoc(doc(db, 'challenges', id), {
+        id,
+        habit: habitName,
+        participant: myParticipant,
+        userId: user.uid,
+        startDate: toLocalISODate(new Date()),
+        goal: CHALLENGE_GOAL,
+        createdAt: new Date().toISOString()
+      });
+      setShowChallengeModal(false);
+    } catch (err) {
+      console.error('startChallenge error:', err);
+      alert('Failed to start challenge. Check your permissions.');
+    }
+  };
+
+  const deleteChallenge = async (id) => {
+    if (!window.confirm('Abandon this 67-day challenge? Your habit check-offs are untouched — only the challenge tracking goes away.')) return;
+    try {
+      await deleteDoc(doc(db, 'challenges', id));
+    } catch (err) {
+      console.error('deleteChallenge error:', err);
+      alert('Failed to delete challenge. Check your permissions.');
+    }
+  };
 
   const addPercentageInstance = async (id, success) => {
     const habit = habits.find(h => h.id === id);
@@ -7042,6 +7134,55 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                       </div>
                     </div>
                   )}
+
+                  {/* ============ 67-DAY CHALLENGE ============ */}
+                  <div className={cardCls}>
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <div className="min-w-0">
+                        <h2 className={titleCls}>67-Day Challenge</h2>
+                        <p className={subCls}>Science says 66.666 days builds a habit. We rounded up.</p>
+                      </div>
+                      <button onClick={() => setShowChallengeModal(true)} className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition ${darkMode ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'}`}>
+                        <Flame className="w-3.5 h-3.5" /> Start
+                      </button>
+                    </div>
+                    {challenges.length === 0 ? (
+                      <p className={`mt-3 text-sm leading-relaxed ${tSub}`}>No one has a challenge running yet. Pick one habit and complete it 67 times — missed days don't reset you, they just don't count.</p>
+                    ) : (
+                      <div className="mt-4 space-y-4">
+                        {challenges.slice().sort((a, b) => {
+                          const mineFirst = (a.participant === myParticipant ? 0 : 1) - (b.participant === myParticipant ? 0 : 1);
+                          return mineFirst || (a.startDate || '').localeCompare(b.startDate || '');
+                        }).map(c => {
+                          const prog = challengeProgress(c);
+                          const mine = c.participant === myParticipant;
+                          const barColor = PARTICIPANT_COLORS[c.participant] || '#F5B800';
+                          return (
+                            <div key={c.id}>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-semibold truncate ${tMain}`}>{c.habit}</span>
+                                <span className={`text-xs shrink-0 ${tSub}`}>· {mine ? 'You' : c.participant}</span>
+                                <span className={`ml-auto text-xs font-bold shrink-0 ${prog.complete ? 'text-emerald-500' : tMain}`}>
+                                  {prog.complete ? '🏆 Habit formed!' : `${prog.days}/67`}
+                                </span>
+                                {mine && (
+                                  <button onClick={() => deleteChallenge(c.id)} className={`shrink-0 p-1 rounded-lg hover:text-red-500 ${tSub}`}>
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                              <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-black/[0.06]'}`}>
+                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${prog.pct}%`, background: prog.complete ? '#10B981' : barColor }} />
+                              </div>
+                              {mine && !prog.complete && prog.projectedFinish && (
+                                <p className={`mt-1 text-[11px] ${tSub}`}>On pace to form this habit by {prog.projectedFinish}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
 
                   </div>
                   <div className="space-y-5">
@@ -12522,6 +12663,64 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                   Lock In Habit
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 67-Day Challenge Modal */}
+        {showChallengeModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl p-6 w-full max-w-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-bold mb-1 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                <Flame className="w-5 h-5 text-orange-500" />
+                Start a 67-Day Challenge
+              </h3>
+              <p className={`text-sm mb-4 leading-relaxed ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Research says it takes about 66.666 days of repetition for a habit to become automatic — so the goal is 67 completions. Missed days don't reset your progress, they just don't count. Progress fills in automatically from your daily check-offs.
+              </p>
+              {(() => {
+                const myChallengeNames = challenges
+                  .filter(c => c.participant === myParticipant)
+                  .map(c => (c.habit || '').toLowerCase().trim());
+                const seen = new Set();
+                const candidates = [];
+                for (const h of habits) {
+                  if (h.participant !== myParticipant || h.weekStart !== currentWeek) continue;
+                  // Percentage habits have no daily check-offs to feed the challenge
+                  if (h.habitType === 'percentage' || h.target === 0) continue;
+                  const key = (h.habit || '').toLowerCase().trim();
+                  if (!key || seen.has(key) || myChallengeNames.includes(key)) continue;
+                  seen.add(key);
+                  candidates.push(h.habit);
+                }
+                if (candidates.length === 0) {
+                  return (
+                    <p className={`text-sm py-4 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      No eligible habits — every daily habit this week already has a challenge, or you haven't added habits yet. Add a daily habit on the Track tab first.
+                    </p>
+                  );
+                }
+                return (
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {candidates.map(name => (
+                      <button
+                        key={name}
+                        onClick={() => startChallenge(name)}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition ${darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-50 text-gray-800 hover:bg-gray-100'}`}
+                      >
+                        <span className="truncate">{name}</span>
+                        <ArrowRight className="w-4 h-4 shrink-0 text-orange-500" />
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+              <button
+                onClick={() => setShowChallengeModal(false)}
+                className={`w-full mt-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         )}
