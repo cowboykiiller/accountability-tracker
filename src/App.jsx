@@ -1113,9 +1113,11 @@ export default function AccountabilityTracker() {
   const [showNonNegotiableModal, setShowNonNegotiableModal] = useState(false);
   const [newNonNegotiable, setNewNonNegotiable] = useState({ habit: '', description: '', frequency: 'Daily' });
 
-  // 67-Day Challenge state - habit-formation challenges fed by daily check-offs
-  const [challenges, setChallenges] = useState([]);
-  const [showChallengeModal, setShowChallengeModal] = useState(false);
+  // 67-Day Challenge state - every daily habit tracks lifetime reps toward 67;
+  // at 67 the habit is "formed", retires from weekly tracking, and moves to
+  // the trophy case (formedHabits collection). Non-negotiables never retire.
+  const [formedHabits, setFormedHabits] = useState([]);
+  const [justFormedHabit, setJustFormedHabit] = useState(null);
   
   // Mood tracking state  
   const [moodData, setMoodData] = useState([]); // {date, mood: 1-10, motivation: 1-10, notes}
@@ -1665,22 +1667,22 @@ export default function AccountabilityTracker() {
     return () => unsubscribe();
   }, [user]);
 
-  // Listen for 67-day challenges
+  // Listen for formed habits (completed 67-day challenges)
   useEffect(() => {
     if (!user) {
-      setChallenges([]);
+      setFormedHabits([]);
       return;
     }
 
-    const q = query(collection(db, 'challenges'));
+    const q = query(collection(db, 'formedHabits'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const challengeData = snapshot.docs.map(doc => ({
+      const formedData = snapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id
       }));
-      setChallenges(challengeData);
+      setFormedHabits(formedData);
     }, (error) => {
-      console.error('Challenges error:', error);
+      console.error('Formed habits error:', error);
     });
 
     return () => unsubscribe();
@@ -3122,7 +3124,7 @@ JSON array only:`
         weeklyGoals: (d) => d.userId === uid || ids.includes(d.participant),
         moods: (d) => d.userId === uid || ids.includes(d.participant),
         nonNegotiables: (d) => d.userId === uid || ids.includes(d.participant),
-        challenges: (d) => d.userId === uid || ids.includes(d.participant),
+        formedHabits: (d) => d.userId === uid || ids.includes(d.participant),
         scheduledEvents: (d) => d.userId === uid || ids.includes(d.participant),
         vacations: (d) => ids.includes(d.participant),
         books: (d) => ids.includes(d.participant),
@@ -3640,8 +3642,10 @@ JSON array only:`
     const habitsToCopy = getPreviousWeekHabits.filter(h => {
       const habitName = (h.habit || '').toLowerCase().trim();
       const alreadyExists = existingNames.includes(habitName);
-      console.log(`Habit "${h.habit}" - exists: ${alreadyExists}`);
-      return !alreadyExists;
+      // Formed habits (67-day challenge complete) retire from weekly tracking
+      const isFormed = myFormedKeys.has(habitName);
+      console.log(`Habit "${h.habit}" - exists: ${alreadyExists}, formed: ${isFormed}`);
+      return !alreadyExists && !isFormed;
     });
     
     console.log('Habits to copy:', habitsToCopy.length);
@@ -3757,71 +3761,89 @@ JSON array only:`
     return () => clearTimeout(timer);
   }, [currentWeek, myParticipant, visionData, habits, vacations]);
 
-  // 67-Day Challenge: complete a habit 67 times to make it automatic
-  // (~66.666 days per the habit-formation research, rounded up).
+  // 67-Day Challenge: every daily habit is one. Complete a habit 67 times
+  // (~66.666 days per the habit-formation research, rounded up) and it's
+  // "formed" — it retires from weekly tracking and moves to the trophy case.
   // Total-reps rule: missed days don't reset progress, they just don't add.
-  // Progress is derived from the daily check-offs already on habit docs —
-  // name-matched per participant — so there's no second place to tap.
+  // All history counts (group decision 2026-07-14). Non-negotiables are
+  // exempt from retirement — they're forever habits — but still show the
+  // formed badge. Percentage habits have no daily reps, so no challenge.
   const CHALLENGE_GOAL = 67;
+  const habitKey = (s) => (s || '').toLowerCase().trim();
 
-  const challengeProgress = useCallback((challenge) => {
-    const name = (challenge.habit || '').toLowerCase().trim();
+  // participant -> nameKey -> { display, days, firstDate, formedDate }
+  const habitFormation = useMemo(() => {
     const todayISO = toLocalISODate(new Date());
-    const completedDates = new Set();
+    const byParticipant = {};
     for (const h of habits) {
-      if (h.participant !== challenge.participant) continue;
-      if ((h.habit || '').toLowerCase().trim() !== name) continue;
-      // Percentage habits track instances, not calendar days
-      if (!h.weekStart || h.habitType === 'percentage') continue;
+      if (!h.participant || !h.weekStart || h.habitType === 'percentage') continue;
+      const key = habitKey(h.habit);
+      if (!key) continue;
+      const forP = (byParticipant[h.participant] = byParticipant[h.participant] || {});
+      const entry = (forP[key] = forP[key] || { display: h.habit, dates: new Set() });
       for (const idx of h.daysCompleted || []) {
         const d = new Date(h.weekStart + 'T00:00:00');
         d.setDate(d.getDate() + idx);
         const iso = toLocalISODate(d);
-        if (iso >= challenge.startDate && iso <= todayISO) completedDates.add(iso);
+        // Pre-checked future days start counting when the date arrives
+        if (iso <= todayISO) entry.dates.add(iso);
       }
     }
-    const days = Math.min(completedDates.size, CHALLENGE_GOAL);
-    const complete = days >= CHALLENGE_GOAL;
-    // Rough pace projection off calendar days elapsed since start
-    let projectedFinish = null;
-    if (!complete && days > 0) {
-      const elapsed = Math.max(1, Math.round((new Date(todayISO + 'T00:00:00') - new Date(challenge.startDate + 'T00:00:00')) / 86400000) + 1);
-      const finish = new Date(todayISO + 'T00:00:00');
-      finish.setDate(finish.getDate() + Math.ceil((CHALLENGE_GOAL - days) / (days / elapsed)));
-      projectedFinish = finish.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    for (const forP of Object.values(byParticipant)) {
+      for (const entry of Object.values(forP)) {
+        const sorted = [...entry.dates].sort();
+        entry.days = sorted.length;
+        entry.firstDate = sorted[0] || null;
+        entry.formedDate = sorted.length >= CHALLENGE_GOAL ? sorted[CHALLENGE_GOAL - 1] : null;
+        delete entry.dates;
+      }
     }
-    return { days, pct: Math.round((days / CHALLENGE_GOAL) * 100), complete, projectedFinish };
+    return byParticipant;
   }, [habits]);
 
-  const startChallenge = async (habitName) => {
-    if (!myParticipant || !habitName || !user) return;
-    const id = `challenge_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    try {
-      await setDoc(doc(db, 'challenges', id), {
-        id,
-        habit: habitName,
-        participant: myParticipant,
-        userId: user.uid,
-        startDate: toLocalISODate(new Date()),
-        goal: CHALLENGE_GOAL,
-        createdAt: new Date().toISOString()
-      });
-      setShowChallengeModal(false);
-    } catch (err) {
-      console.error('startChallenge error:', err);
-      alert('Failed to start challenge. Check your permissions.');
-    }
-  };
+  // My formed habit name-keys — used to stop retired habits from being
+  // carried into new weeks by copy-from-last-week.
+  const myFormedKeys = useMemo(
+    () => new Set(formedHabits.filter(f => f.participant === myParticipant).map(f => habitKey(f.habit))),
+    [formedHabits, myParticipant]
+  );
 
-  const deleteChallenge = async (id) => {
-    if (!window.confirm('Abandon this 67-day challenge? Your habit check-offs are untouched — only the challenge tracking goes away.')) return;
-    try {
-      await deleteDoc(doc(db, 'challenges', id));
-    } catch (err) {
-      console.error('deleteChallenge error:', err);
-      alert('Failed to delete challenge. Check your permissions.');
-    }
-  };
+  // Auto-retire: when one of MY habits crosses 67 lifetime reps, record it in
+  // formedHabits. Deterministic doc id makes this idempotent across devices.
+  // Only the owner's client writes; NN names (from my Vision) are skipped.
+  useEffect(() => {
+    const retireFormedHabits = async () => {
+      if (!myParticipant || !user || dataLoading) return;
+      const mine = habitFormation[myParticipant];
+      if (!mine) return;
+      const myNNKeys = visionData
+        ? [visionData.nonNegotiable1, visionData.nonNegotiable2, visionData.nonNegotiable3].filter(Boolean).map(habitKey)
+        : [];
+      for (const [key, entry] of Object.entries(mine)) {
+        if (!entry.formedDate || myFormedKeys.has(key) || myNNKeys.includes(key)) continue;
+        const id = `formed_${user.uid}_${key.replace(/[^a-z0-9]+/g, '_')}`;
+        try {
+          await setDoc(doc(db, 'formedHabits', id), {
+            id,
+            habit: entry.display,
+            participant: myParticipant,
+            userId: user.uid,
+            formedDate: entry.formedDate,
+            firstDate: entry.firstDate,
+            goal: CHALLENGE_GOAL,
+            createdAt: new Date().toISOString()
+          });
+          // Celebrate only a fresh formation, not historical backfill
+          if (entry.formedDate === toLocalISODate(new Date())) setJustFormedHabit(entry.display);
+        } catch (err) {
+          console.error('retireFormedHabits error:', err);
+        }
+      }
+    };
+    // Small delay so habits + formedHabits listeners settle first
+    const timer = setTimeout(retireFormedHabits, 800);
+    return () => clearTimeout(timer);
+  }, [habitFormation, myFormedKeys, myParticipant, user, visionData, dataLoading]);
 
   const addPercentageInstance = async (id, success) => {
     const habit = habits.find(h => h.id === id);
@@ -7137,51 +7159,70 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
 
                   {/* ============ 67-DAY CHALLENGE ============ */}
                   <div className={cardCls}>
-                    <div className="flex items-start justify-between gap-3 mb-1">
-                      <div className="min-w-0">
-                        <h2 className={titleCls}>67-Day Challenge</h2>
-                        <p className={subCls}>Science says 66.666 days builds a habit. We rounded up.</p>
-                      </div>
-                      <button onClick={() => setShowChallengeModal(true)} className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition ${darkMode ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'}`}>
-                        <Flame className="w-3.5 h-3.5" /> Start
-                      </button>
+                    <div className="mb-1">
+                      <h2 className={titleCls}>67-Day Challenge</h2>
+                      <p className={subCls}>Every habit is one. 66.666 days builds a habit — we rounded up.</p>
                     </div>
-                    {challenges.length === 0 ? (
-                      <p className={`mt-3 text-sm leading-relaxed ${tSub}`}>No one has a challenge running yet. Pick one habit and complete it 67 times — missed days don't reset you, they just don't count.</p>
-                    ) : (
-                      <div className="mt-4 space-y-4">
-                        {challenges.slice().sort((a, b) => {
-                          const mineFirst = (a.participant === myParticipant ? 0 : 1) - (b.participant === myParticipant ? 0 : 1);
-                          return mineFirst || (a.startDate || '').localeCompare(b.startDate || '');
-                        }).map(c => {
-                          const prog = challengeProgress(c);
-                          const mine = c.participant === myParticipant;
-                          const barColor = PARTICIPANT_COLORS[c.participant] || '#F5B800';
-                          return (
-                            <div key={c.id}>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-sm font-semibold truncate ${tMain}`}>{c.habit}</span>
-                                <span className={`text-xs shrink-0 ${tSub}`}>· {mine ? 'You' : c.participant}</span>
-                                <span className={`ml-auto text-xs font-bold shrink-0 ${prog.complete ? 'text-emerald-500' : tMain}`}>
-                                  {prog.complete ? '🏆 Habit formed!' : `${prog.days}/67`}
-                                </span>
-                                {mine && (
-                                  <button onClick={() => deleteChallenge(c.id)} className={`shrink-0 p-1 rounded-lg hover:text-red-500 ${tSub}`}>
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                              <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-black/[0.06]'}`}>
-                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${prog.pct}%`, background: prog.complete ? '#10B981' : barColor }} />
-                              </div>
-                              {mine && !prog.complete && prog.projectedFinish && (
-                                <p className={`mt-1 text-[11px] ${tSub}`}>On pace to form this habit by {prog.projectedFinish}</p>
+                    {(() => {
+                      // My active daily habits this week, ranked by lifetime reps
+                      const activeKeys = new Set(
+                        habits
+                          .filter(h => h.participant === myParticipant && h.weekStart === currentWeek && h.habitType !== 'percentage' && h.target !== 0)
+                          .map(h => habitKey(h.habit))
+                      );
+                      const myEntries = Object.entries(habitFormation[myParticipant] || {})
+                        .filter(([key, e]) => activeKeys.has(key) && !e.formedDate)
+                        .map(([key, e]) => e)
+                        .sort((a, b) => b.days - a.days);
+                      const shown = myEntries.slice(0, 5);
+                      const trophies = formedHabits.slice().sort((a, b) => (b.formedDate || '').localeCompare(a.formedDate || ''));
+                      const myColor = PARTICIPANT_COLORS[myParticipant] || '#F5B800';
+                      return (
+                        <>
+                          {shown.length === 0 ? (
+                            <p className={`mt-3 text-sm leading-relaxed ${tSub}`}>Add a daily habit and every check-off counts toward 67. Missed days don't reset you — they just don't count.</p>
+                          ) : (
+                            <div className="mt-4 space-y-3">
+                              {shown.map(e => (
+                                <div key={e.display}>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-sm font-semibold truncate ${tMain}`}>{e.display}</span>
+                                    <span className={`ml-auto text-xs font-bold shrink-0 ${tMain}`}>{e.days}/67</span>
+                                  </div>
+                                  <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${darkMode ? 'bg-white/10' : 'bg-black/[0.06]'}`}>
+                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.round((e.days / CHALLENGE_GOAL) * 100)}%`, background: myColor }} />
+                                  </div>
+                                </div>
+                              ))}
+                              {myEntries.length > shown.length && (
+                                <p className={`text-[11px] ${tSub}`}>+{myEntries.length - shown.length} more in progress</p>
                               )}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          )}
+                          {/* Trophy case: formed habits across the group */}
+                          {trophies.length > 0 && (
+                            <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-white/5' : 'border-black/[0.05]'}`}>
+                              <p className={`text-xs font-semibold mb-2 ${tSub}`}>🏆 Formed habits</p>
+                              <div className="space-y-1.5">
+                                {trophies.slice(0, 8).map(f => (
+                                  <div key={f.id} className="flex items-center gap-2 text-sm">
+                                    <span className="shrink-0">🏆</span>
+                                    <span className={`font-medium truncate ${tMain}`}>{f.habit}</span>
+                                    <span className={`ml-auto text-xs shrink-0 ${tSub}`}>
+                                      {f.participant === myParticipant ? 'You' : f.participant}
+                                      {f.formedDate ? ` · ${new Date(f.formedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                                    </span>
+                                  </div>
+                                ))}
+                                {trophies.length > 8 && (
+                                  <p className={`text-[11px] ${tSub}`}>+{trophies.length - 8} more formed</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   </div>
@@ -7448,6 +7489,18 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
                               {h.category && (() => {
                                 const cat = HABIT_CATEGORIES.find(c => c.id === h.category);
                                 return cat ? <span className="text-xs">{cat.icon}</span> : null;
+                              })()}
+                              {/* 67-day challenge rep counter */}
+                              {!isPercentage && (() => {
+                                const formation = habitFormation[h.participant]?.[(h.habit || '').toLowerCase().trim()];
+                                if (!formation || formation.days < 1) return null;
+                                return formation.days >= CHALLENGE_GOAL ? (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}
+                                    title="67-day challenge complete — habit formed">🏆 Formed</span>
+                                ) : (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}
+                                    title={`67-day challenge: ${formation.days} of 67 lifetime reps`}>{formation.days}/67</span>
+                                );
                               })()}
                               {habitIsNN && <Lock className={`w-3 h-3 flex-shrink-0 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`} />}
                               {!isMyHabit && <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>{h.participant}</span>}
@@ -12667,59 +12720,26 @@ Example: {"time": "09:30", "reason": "High priority task scheduled during mornin
           </div>
         )}
 
-        {/* 67-Day Challenge Modal */}
-        {showChallengeModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className={`rounded-2xl p-6 w-full max-w-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-              <h3 className={`text-lg font-bold mb-1 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                <Flame className="w-5 h-5 text-orange-500" />
-                Start a 67-Day Challenge
+        {/* Habit Formed Celebration Modal */}
+        {justFormedHabit && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl p-8 w-full max-w-sm text-center ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="text-5xl mb-3">🏆</div>
+              <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                Habit formed!
               </h3>
-              <p className={`text-sm mb-4 leading-relaxed ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Research says it takes about 66.666 days of repetition for a habit to become automatic — so the goal is 67 completions. Missed days don't reset your progress, they just don't count. Progress fills in automatically from your daily check-offs.
+              <p className={`text-sm mb-1 font-semibold ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>
+                {justFormedHabit}
               </p>
-              {(() => {
-                const myChallengeNames = challenges
-                  .filter(c => c.participant === myParticipant)
-                  .map(c => (c.habit || '').toLowerCase().trim());
-                const seen = new Set();
-                const candidates = [];
-                for (const h of habits) {
-                  if (h.participant !== myParticipant || h.weekStart !== currentWeek) continue;
-                  // Percentage habits have no daily check-offs to feed the challenge
-                  if (h.habitType === 'percentage' || h.target === 0) continue;
-                  const key = (h.habit || '').toLowerCase().trim();
-                  if (!key || seen.has(key) || myChallengeNames.includes(key)) continue;
-                  seen.add(key);
-                  candidates.push(h.habit);
-                }
-                if (candidates.length === 0) {
-                  return (
-                    <p className={`text-sm py-4 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      No eligible habits — every daily habit this week already has a challenge, or you haven't added habits yet. Add a daily habit on the Track tab first.
-                    </p>
-                  );
-                }
-                return (
-                  <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {candidates.map(name => (
-                      <button
-                        key={name}
-                        onClick={() => startChallenge(name)}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition ${darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-50 text-gray-800 hover:bg-gray-100'}`}
-                      >
-                        <span className="truncate">{name}</span>
-                        <ArrowRight className="w-4 h-4 shrink-0 text-orange-500" />
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
+              <p className={`text-sm mb-6 leading-relaxed ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                67 reps done — science says this one is part of you now. It's retiring from your weekly tracker and moving to the trophy case. Go make room for the next one.
+              </p>
               <button
-                onClick={() => setShowChallengeModal(false)}
-                className={`w-full mt-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                onClick={() => setJustFormedHabit(null)}
+                className="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 active:scale-[0.98] transition flex items-center justify-center gap-2"
               >
-                Cancel
+                <PartyPopper className="w-4 h-4" />
+                Let's go
               </button>
             </div>
           </div>
